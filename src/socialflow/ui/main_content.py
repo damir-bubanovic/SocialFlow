@@ -3,6 +3,8 @@ from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.application.publishing.null_publisher import NullPublisher
 from socialflow.application.publishing.publish_post import PublishPost
+from socialflow.application.publishing.publisher_router import PublisherRouter
+from socialflow.domain.publishing.destination import PublishingDestination
 
 
 class MainContent(QWidget):
@@ -12,7 +14,16 @@ class MainContent(QWidget):
         super().__init__(parent)
         self.navigation = Navigation(self)
         publisher = NullPublisher()
-        publish_post = PublishPost(publisher)
+
+        publisher_router = PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: publisher,
+                PublishingDestination.INSTAGRAM: publisher,
+                PublishingDestination.WORDPRESS: publisher,
+            }
+        )
+
+        publish_post = PublishPost(publisher_router)
 
         self.posts_page = PostsPage(
             publish_post=publish_post,

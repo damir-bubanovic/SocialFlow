@@ -1,10 +1,10 @@
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from socialflow.application.publishing.publish_post import PublishPost
-from socialflow.domain.post.post import Post
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_status import PublishStatus
 from socialflow.application.publishing.errors import PublishingError
+from socialflow.domain.publishing.publish_request import PublishRequest
 
 
 class PostsPage(QWidget):
@@ -31,10 +31,10 @@ class PostsPage(QWidget):
             self._handle_publish_request
         )
 
-    def _handle_publish_request(self, post: Post) -> None:
+    def _handle_publish_request(self, request: PublishRequest) -> None:
         """Delegate publishing to the application service."""
         try:
-            self._publish_post.execute(post)
+            self._publish_post.execute(request)
         except PublishingError:
             self.publish_status.show_error()
             return
