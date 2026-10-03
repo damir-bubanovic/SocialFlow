@@ -2,9 +2,12 @@ import pytest
 
 from socialflow.application.accounts.account_repository import AccountRepository
 from socialflow.application.accounts.add_account import AddAccount
-from socialflow.application.accounts.errors import InvalidAccountError
 from socialflow.domain.account.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.application.accounts.errors import (
+    DuplicateAccountError,
+    InvalidAccountError,
+)
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -50,3 +53,60 @@ def test_add_account_rejects_empty_name() -> None:
         service.execute(account)
 
     assert repository.all() == ()
+
+def test_add_account_rejects_duplicate_account() -> None:
+    repository = InMemoryAccountRepository()
+    service = AddAccount(repository)
+
+    account = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    service.execute(account)
+
+    with pytest.raises(
+        DuplicateAccountError,
+        match="Account already exists.",
+    ):
+        service.execute(account)
+
+    assert repository.all() == (account,)
+
+def test_add_account_stores_normalized_name() -> None:
+    repository = InMemoryAccountRepository()
+    service = AddAccount(repository)
+
+    service.execute(
+        Account(
+            name="  SocialFlow Facebook  ",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    assert repository.all()[0].name == "SocialFlow Facebook"
+
+
+def test_add_account_rejects_duplicate_after_normalization() -> None:
+    repository = InMemoryAccountRepository()
+    service = AddAccount(repository)
+
+    service.execute(
+        Account(
+            name="SocialFlow Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    with pytest.raises(
+        DuplicateAccountError,
+        match="Account already exists.",
+    ):
+        service.execute(
+            Account(
+                name="  SocialFlow Facebook  ",
+                destination=PublishingDestination.FACEBOOK,
+            )
+        )
+
+    assert len(repository.all()) == 1

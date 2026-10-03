@@ -4,8 +4,11 @@ from socialflow.application.accounts.add_account import AddAccount
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.ui.accounts.account_form import AccountForm
 from socialflow.ui.accounts.account_list import AccountList
-from socialflow.application.accounts.errors import InvalidAccountError
 from socialflow.ui.accounts.account_status import AccountStatus
+from socialflow.application.accounts.errors import (
+    DuplicateAccountError,
+    InvalidAccountError,
+)
 
 
 class AccountsPage(QWidget):
@@ -43,11 +46,12 @@ class AccountsPage(QWidget):
         """Add the account represented by the form."""
         try:
             self._add_account.execute(self.account_form.account())
-        except InvalidAccountError:
+        except (DuplicateAccountError, InvalidAccountError):
             self.account_status.show_error()
             return
 
         self._refresh_accounts()
+        self.account_form.clear()
         self.account_status.show_success()
 
     def _refresh_accounts(self) -> None:

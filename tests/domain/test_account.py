@@ -27,3 +27,14 @@ def test_account_has_no_name_when_name_is_whitespace() -> None:
     )
 
     assert not account.has_name()
+
+def test_account_can_be_normalized() -> None:
+    account = Account(
+        name="  SocialFlow Facebook  ",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    normalized = account.normalized()
+
+    assert normalized.name == "SocialFlow Facebook"
+    assert normalized.destination == PublishingDestination.FACEBOOK

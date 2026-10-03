@@ -33,3 +33,15 @@ def test_account_form_returns_account(qtbot) -> None:
     assert isinstance(account, Account)
     assert account.name == "SocialFlow Instagram"
     assert account.destination == PublishingDestination.INSTAGRAM
+
+def test_account_form_can_be_cleared(qtbot) -> None:
+    form = AccountForm()
+    qtbot.addWidget(form)
+
+    form.name_input.setText("SocialFlow Instagram")
+    form.destination_input.setCurrentIndex(1)
+
+    form.clear()
+
+    assert form.name_input.text() == ""
+    assert form.selected_destination() == PublishingDestination.FACEBOOK

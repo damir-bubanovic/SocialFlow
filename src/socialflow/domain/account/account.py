@@ -13,3 +13,10 @@ class Account:
     def has_name(self) -> bool:
         """Return whether the account has a meaningful name."""
         return bool(self.name.strip())
+
+    def normalized(self) -> "Account":
+        """Return the account with normalized values."""
+        return Account(
+            name=self.name.strip(),
+            destination=self.destination,
+        )

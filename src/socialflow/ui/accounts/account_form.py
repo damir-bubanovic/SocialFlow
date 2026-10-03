@@ -53,3 +53,8 @@ class AccountForm(QWidget):
             destination.display_name,
             destination,
         )
+
+    def clear(self) -> None:
+        """Reset the account form."""
+        self.name_input.clear()
+        self.destination_input.setCurrentIndex(0)

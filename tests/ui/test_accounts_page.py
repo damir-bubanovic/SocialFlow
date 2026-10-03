@@ -6,6 +6,7 @@ from socialflow.ui.accounts.account_form import AccountForm
 from socialflow.ui.accounts.account_list import AccountList
 from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.accounts.account_status import AccountStatus
+from socialflow.domain.publishing.destination import PublishingDestination
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -77,5 +78,34 @@ def test_accounts_page_rejects_empty_account_name(qtbot) -> None:
     page.account_form.add_button.click()
 
     assert page.account_list.count() == 0
+    assert page.account_status.text() == "Account could not be added."
+    assert page.account_status.property("status") == "error"
+
+def test_accounts_page_clears_form_after_adding_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Instagram")
+    page.account_form.destination_input.setCurrentIndex(1)
+
+    page.account_form.add_button.click()
+
+    assert page.account_form.name_input.text() == ""
+    assert (
+        page.account_form.selected_destination()
+        == PublishingDestination.FACEBOOK
+    )
+
+def test_accounts_page_rejects_duplicate_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    assert page.account_list.count() == 1
     assert page.account_status.text() == "Account could not be added."
     assert page.account_status.property("status") == "error"
