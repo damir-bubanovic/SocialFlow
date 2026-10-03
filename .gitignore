@@ -113,3 +113,7 @@ $RECYCLE.BIN/
 *.swp
 *.swo
 *.orig
+
+
+# Local AI agent instructions
+AGENTS.md

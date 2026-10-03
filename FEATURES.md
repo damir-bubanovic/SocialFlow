@@ -1,0 +1,341 @@
+# SocialFlow — Features
+
+## 1. Project Goal
+
+SocialFlow is a cross-platform desktop application for creating, managing,
+publishing, and updating content across multiple online platforms from a
+single interface.
+
+The initial supported platforms are:
+
+- Facebook
+- Instagram
+- WordPress
+
+SocialFlow must run on:
+
+- Linux
+- Windows
+
+The application will be developed in Python.
+
+---
+
+## 2. Development Status
+
+The project will be developed incrementally.
+
+Feature status will use the following markers:
+
+- `[ ]` Not implemented
+- `[~]` In progress
+- `[x]` Implemented and tested
+
+A feature is not considered complete until its relevant automated tests pass.
+
+---
+
+## 3. Application Foundation
+
+- [ ] Create the initial Python project structure.
+- [ ] Configure the Python virtual environment and dependencies.
+- [ ] Implement the PySide6 / Qt desktop application foundation.
+- [ ] Implement application configuration management.
+- [ ] Implement local application data storage.
+- [ ] Implement secure storage for credentials and access tokens.
+- [ ] Implement application logging.
+- [ ] Implement automated testing infrastructure.
+- [ ] Implement development quality checks.
+- [ ] Support Unicode throughout the application.
+- [ ] Support Croatian characters, including č, ć, ž, š, đ and their
+      uppercase equivalents.
+- [ ] Support English content.
+
+---
+
+## 4. Account and Platform Connections
+
+SocialFlow must allow users to configure and manage connections to supported
+publishing platforms.
+
+### Facebook
+
+- [ ] Connect SocialFlow to Facebook through the supported Meta APIs.
+- [ ] Authenticate and securely store the required authorization information.
+- [ ] Retrieve Facebook pages/accounts available to the authenticated user.
+- [ ] Allow the user to select the Facebook page used for publishing.
+- [ ] Detect and report expired or invalid authorization.
+
+### Instagram
+
+- [ ] Connect SocialFlow to Instagram through the supported Meta APIs.
+- [ ] Authenticate and securely store the required authorization information.
+- [ ] Retrieve supported Instagram accounts available to the user.
+- [ ] Allow the user to select the Instagram account used for publishing.
+- [ ] Detect and report expired or invalid authorization.
+
+### WordPress
+
+- [ ] Connect SocialFlow to a WordPress website through the WordPress REST API.
+- [ ] Configure the WordPress site connection.
+- [ ] Authenticate securely with the WordPress site.
+- [ ] Verify that the configured WordPress connection is working.
+
+---
+
+## 5. Post Creation
+
+- [ ] Provide a common post editor.
+- [ ] Allow text content to be entered and edited.
+- [ ] Allow images to be attached to posts.
+- [ ] Allow applicable tags and metadata to be selected.
+- [ ] Allow the user to choose the destination platforms.
+- [ ] Allow publishing to one platform.
+- [ ] Allow publishing to multiple selected platforms from one publishing
+      action.
+- [ ] Display the publishing result separately for each destination.
+- [ ] Handle partial publishing failures when one destination succeeds and
+      another fails.
+- [ ] Prevent accidental duplicate publishing where practical.
+
+---
+
+## 6. Text Content
+
+- [ ] Support Croatian text.
+- [ ] Support English text.
+- [ ] Preserve Unicode characters during editing, storage, synchronization,
+      and publishing.
+- [ ] Respect platform-specific text limitations.
+- [ ] Validate content before publishing when a destination has specific
+      requirements.
+
+### Language Detection and Identification
+
+- [ ] Automatically detect whether post content is Croatian or English where
+      detection is sufficiently reliable.
+- [ ] Display the detected language clearly in the post editor.
+- [ ] Allow the user to manually override the detected language.
+- [ ] Visually distinguish Croatian and English content in the editor.
+- [ ] Use an explicit language indicator such as `HR` or `EN` so language is
+      not communicated by color or typography alone.
+- [ ] Allow typography, color, or other subtle visual styling to reinforce the
+      distinction between Croatian and English content.
+- [ ] Handle text for which automatic language detection is uncertain.
+- [ ] Preserve the selected or detected language with the relevant local post
+      information where required.
+
+
+---
+
+## 7. Image Management
+
+- [ ] Select images from the local computer.
+- [ ] Preview selected images before publishing.
+- [ ] Read image dimensions and format.
+- [ ] Validate images against destination platform requirements.
+- [ ] Resize images when required.
+- [ ] Adjust image dimensions when required.
+- [ ] Adjust image resolution when required.
+- [ ] Convert image formats when required.
+- [ ] Compress images when required.
+- [ ] Preserve the original source image unless the user explicitly replaces
+      it.
+- [ ] Generate platform-compatible versions without unnecessarily modifying
+      the original file.
+- [ ] Display image-processing errors clearly to the user.
+
+---
+
+## 8. Tags and Platform Metadata
+
+SocialFlow will provide a common interface for tags and similar metadata while
+respecting the capabilities of each destination platform.
+
+- [ ] Retrieve existing tags or equivalent supported metadata from a platform.
+- [ ] Display available tags in the post editor.
+- [ ] Allow existing tags to be selected.
+- [ ] Allow new tags to be created where supported by the destination.
+- [ ] Refresh local tag information from the remote platform.
+- [ ] Keep local tag information synchronized where practical.
+- [ ] Handle platform differences instead of assuming all platforms implement
+      tags identically.
+
+---
+
+## 9. Recent Posts
+
+- [ ] Retrieve recent posts from connected destinations.
+- [ ] Display the latest 5 posts for each configured page/site/account.
+- [ ] Clearly identify the platform and destination belonging to each post.
+- [ ] Display relevant post information.
+- [ ] Refresh the recent-post list from the remote platform.
+- [ ] Select an existing post for viewing or editing.
+
+---
+
+## 10. Updating Existing Posts
+
+- [ ] Load editable content from a selected existing post.
+- [ ] Edit supported text fields.
+- [ ] Edit supported images where the destination API permits it.
+- [ ] Edit supported tags or metadata.
+- [ ] Send supported changes back to the original platform.
+- [ ] Refresh the local representation after a successful update.
+- [ ] Clearly report fields that cannot be changed because of platform API
+      restrictions.
+- [ ] Report update failures without losing the user's local changes.
+
+---
+
+## 11. Synchronization
+
+- [ ] Synchronize supported account/page/site information.
+- [ ] Synchronize recent posts.
+- [ ] Synchronize tags and supported metadata.
+- [ ] Track the relationship between local data and remote platform objects.
+- [ ] Handle remote content that has been deleted.
+- [ ] Handle authorization expiration.
+- [ ] Handle temporary network failures.
+- [ ] Avoid silently overwriting conflicting or unexpected remote changes.
+
+---
+
+## 12. Error Handling
+
+- [ ] Handle application errors without unnecessarily terminating SocialFlow.
+- [ ] Display understandable errors to the user.
+- [ ] Record technical error information in application logs.
+- [ ] Distinguish user/configuration errors from unexpected application errors.
+- [ ] Handle network and API failures.
+- [ ] Handle authentication failures.
+- [ ] Handle platform rate limits where applicable.
+- [ ] Avoid exposing passwords, API secrets, access tokens, or other sensitive
+      credentials in user-visible errors or logs.
+
+---
+
+## 13. Error Email Notifications
+
+- [ ] Allow an error-report recipient email address to be configured.
+- [ ] Send notifications for important production/runtime errors.
+- [ ] Include useful diagnostic information in error notifications.
+- [ ] Never include passwords, access tokens, API secrets, or other sensitive
+      credentials in error emails.
+- [ ] Prevent repeated identical failures from producing uncontrolled volumes
+      of email.
+
+---
+
+## 14. Logging and Audit
+
+- [ ] Maintain application logs.
+- [ ] Log important application operations.
+- [ ] Log publishing attempts and their results.
+- [ ] Log update attempts and their results.
+- [ ] Log synchronization failures.
+- [ ] Log unexpected errors and exceptions.
+- [ ] Keep sensitive authentication information out of logs.
+- [ ] Provide enough information to diagnose production problems.
+
+---
+
+## 15. Testing
+
+Testing is part of feature development rather than a final project phase.
+
+- [ ] Configure pytest.
+- [ ] Add unit tests for application logic.
+- [ ] Add tests for image-processing behavior.
+- [ ] Add tests for platform integration services using mocks/fakes where
+      appropriate.
+- [ ] Add tests for database/storage behavior.
+- [ ] Add UI tests where they provide meaningful value.
+- [ ] Add tests for important failure scenarios.
+- [ ] Add regression tests when bugs are fixed.
+- [ ] Run relevant tests while developing each feature.
+- [ ] Run the complete test and quality-check suite before completing a major
+      feature or development section.
+
+No feature should be marked complete until its relevant tests pass.
+
+---
+
+## 16. Security
+
+- [ ] Never store passwords or API secrets directly in source code.
+- [ ] Never commit credentials or access tokens to Git.
+- [ ] Store sensitive credentials securely.
+- [ ] Protect locally stored authentication information.
+- [ ] Avoid sensitive information in logs.
+- [ ] Avoid sensitive information in error-report emails.
+- [ ] Validate data received from remote services.
+- [ ] Validate user-controlled input where necessary.
+
+---
+
+## 17. Linux Support
+
+- [ ] Develop and test SocialFlow on Linux.
+- [ ] Support Linux Mint as a development and target environment.
+- [ ] Produce a distributable Linux application.
+- [ ] Verify application behavior outside the development environment.
+
+---
+
+## 18. Windows Support
+
+- [ ] Support SocialFlow on Windows.
+- [ ] Test platform-specific behavior on Windows.
+- [ ] Produce a distributable Windows application.
+- [ ] Provide a practical Windows installation/distribution method.
+- [ ] Verify application behavior outside the development environment.
+
+---
+
+## 19. Documentation
+
+- [ ] Maintain the public README.
+- [ ] Maintain the feature roadmap.
+- [ ] Maintain architecture documentation.
+- [ ] Record significant architecture and technology decisions.
+- [ ] Maintain development/setup instructions.
+- [ ] Keep documentation synchronized with significant implementation changes.
+
+---
+
+## 20. Release Readiness
+
+Before SocialFlow is considered ready for a production release:
+
+- [ ] All required features for the release are implemented.
+- [ ] Relevant automated tests pass.
+- [ ] Full test suite passes.
+- [ ] Quality checks pass.
+- [ ] Linux build is tested.
+- [ ] Windows build is tested.
+- [ ] Authentication and credential handling are reviewed.
+- [ ] Application logging is reviewed.
+- [ ] Production error reporting is tested.
+- [ ] Platform integrations are tested against their supported APIs.
+- [ ] Documentation is up to date.
+- [ ] No credentials, tokens, private user data, or development artifacts are
+      included in the repository or application package.
+
+---
+
+## 21. Scope Management
+
+New functionality should not be added simply because it may be useful.
+
+A new feature should first be:
+
+1. Discussed.
+2. Added to this document if accepted.
+3. Designed where architectural changes are required.
+4. Implemented.
+5. Tested.
+6. Marked complete only after verification.
+
+This document represents the agreed functional scope and roadmap for
+SocialFlow.
