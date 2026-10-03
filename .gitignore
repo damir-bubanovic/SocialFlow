@@ -1,0 +1,115 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python testing and tooling
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Application logs
+logs/
+*.log
+
+# Local application/runtime data
+data/
+runtime/
+cache/
+tmp/
+temp/
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Certificates and private keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# SocialFlow authentication and credentials
+tokens/
+auth/
+oauth/
+credentials/
+credentials.json
+token.json
+
+# Local/user media
+uploads/
+downloads/
+thumbnails/
+
+# Application builds and installers
+*.spec
+*.exe
+*.msi
+*.AppImage
+*.deb
+*.rpm
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary / backup files
+*.bak
+*.tmp
+*.temp
+*.swp
+*.swo
+*.orig
