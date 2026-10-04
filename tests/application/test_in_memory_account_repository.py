@@ -22,3 +22,16 @@ def test_in_memory_account_repository_stores_accounts() -> None:
     repository.add(account)
 
     assert repository.all() == (account,)
+
+def test_in_memory_account_repository_removes_account() -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository.add(account)
+    repository.remove(account)
+
+    assert repository.all() == ()

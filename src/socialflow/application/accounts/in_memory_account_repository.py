@@ -15,3 +15,7 @@ class InMemoryAccountRepository(AccountRepository):
     def add(self, account: Account) -> None:
         """Store an account."""
         self._accounts.append(account)
+
+    def remove(self, account: Account) -> None:
+        """Remove an account."""
+        self._accounts.remove(account)

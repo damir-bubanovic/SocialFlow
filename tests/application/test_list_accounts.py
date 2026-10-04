@@ -16,6 +16,9 @@ class InMemoryAccountRepository(AccountRepository):
     def add(self, account: Account) -> None:
         self._accounts.append(account)
 
+    def remove(self, account: Account) -> None:
+        self._accounts.remove(account)
+
 
 def test_list_accounts_returns_configured_accounts() -> None:
     repository = InMemoryAccountRepository()

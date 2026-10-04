@@ -1,4 +1,8 @@
+import pytest
+
+from socialflow.application.accounts.errors import AccountNotFoundError
 from socialflow.application.accounts.account_repository import AccountRepository
+from socialflow.application.accounts.remove_account import RemoveAccount
 from socialflow.domain.account.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
 
@@ -19,14 +23,33 @@ class InMemoryAccountRepository(AccountRepository):
         self._accounts.remove(account)
 
 
-def test_account_repository_stores_account() -> None:
+def test_remove_account_removes_configured_account() -> None:
     repository = InMemoryAccountRepository()
 
     account = Account(
         name="SocialFlow Facebook",
         destination=PublishingDestination.FACEBOOK,
     )
-
     repository.add(account)
 
-    assert repository.all() == (account,)
+    service = RemoveAccount(repository)
+    service.execute(account)
+
+    assert repository.all() == ()
+
+def test_remove_account_rejects_unknown_account() -> None:
+    repository = InMemoryAccountRepository()
+    service = RemoveAccount(repository)
+
+    account = Account(
+        name="Unknown Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    with pytest.raises(
+        AccountNotFoundError,
+        match="Account could not be found.",
+    ):
+        service.execute(account)
+
+    assert repository.all() == ()

@@ -13,3 +13,7 @@ class AccountRepository(ABC):
     @abstractmethod
     def add(self, account: Account) -> None:
         """Store an account."""
+
+    @abstractmethod
+    def remove(self, account: Account) -> None:
+        """Remove an account."""

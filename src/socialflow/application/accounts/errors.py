@@ -7,3 +7,6 @@ class InvalidAccountError(AccountError, ValueError):
 
 class DuplicateAccountError(AccountError):
     """Raised when an account already exists."""
+
+class AccountNotFoundError(AccountError):
+    """Raised when an account cannot be found."""

@@ -1,3 +1,5 @@
+from PySide6.QtWidgets import QPushButton
+
 from socialflow.application.accounts.account_repository import AccountRepository
 from socialflow.application.accounts.add_account import AddAccount
 from socialflow.application.accounts.list_accounts import ListAccounts
@@ -7,6 +9,7 @@ from socialflow.ui.accounts.account_list import AccountList
 from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.accounts.account_status import AccountStatus
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.application.accounts.remove_account import RemoveAccount
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -21,6 +24,9 @@ class InMemoryAccountRepository(AccountRepository):
     def add(self, account: Account) -> None:
         self._accounts.append(account)
 
+    def remove(self, account: Account) -> None:
+        self._accounts.remove(account)
+
 
 def create_accounts_page() -> AccountsPage:
     repository = InMemoryAccountRepository()
@@ -28,6 +34,7 @@ def create_accounts_page() -> AccountsPage:
     return AccountsPage(
         add_account=AddAccount(repository),
         list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
     )
 
 
@@ -109,3 +116,50 @@ def test_accounts_page_rejects_duplicate_account(qtbot) -> None:
     assert page.account_list.count() == 1
     assert page.account_status.text() == "Account could not be added."
     assert page.account_status.property("status") == "error"
+
+def test_accounts_page_contains_remove_button(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert isinstance(page.remove_button, QPushButton)
+    assert page.remove_button.text() == "Remove account"
+
+
+def test_accounts_page_removes_selected_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    page.remove_button.click()
+
+    assert page.account_list.count() == 0
+
+
+def test_accounts_page_ignores_remove_without_selection(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.remove_button.click()
+
+    assert page.account_list.count() == 0
+
+def test_remove_button_is_disabled_without_selection(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert not page.remove_button.isEnabled()
+
+
+def test_remove_button_is_enabled_when_account_is_selected(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.remove_button.isEnabled()

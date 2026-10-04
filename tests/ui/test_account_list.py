@@ -56,3 +56,24 @@ def test_account_list_replaces_existing_accounts(qtbot) -> None:
 
     assert account_list.count() == 1
     assert account_list.item(0).text() == "SocialFlow Instagram - Instagram"
+
+def test_account_list_returns_selected_account(qtbot) -> None:
+    account_list = AccountList()
+    qtbot.addWidget(account_list)
+
+    account = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    account_list.set_accounts((account,))
+    account_list.setCurrentRow(0)
+
+    assert account_list.selected_account() == account
+
+
+def test_account_list_returns_none_without_selection(qtbot) -> None:
+    account_list = AccountList()
+    qtbot.addWidget(account_list)
+
+    assert account_list.selected_account() is None
