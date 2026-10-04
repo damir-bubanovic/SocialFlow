@@ -27,6 +27,11 @@ class InMemoryAccountRepository(AccountRepository):
     def remove(self, account: Account) -> None:
         self._accounts.remove(account)
 
+class MissingAccountRepository(InMemoryAccountRepository):
+    """Test repository that reports no accounts during removal."""
+
+    def all(self) -> tuple[Account, ...]:
+        return ()
 
 def create_accounts_page() -> AccountsPage:
     repository = InMemoryAccountRepository()
@@ -163,3 +168,42 @@ def test_remove_button_is_enabled_when_account_is_selected(qtbot) -> None:
     page.account_list.setCurrentRow(0)
 
     assert page.remove_button.isEnabled()
+
+def test_accounts_page_shows_status_after_removing_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    page.remove_button.click()
+
+    assert page.account_status.text() == "Account removed."
+    assert page.account_status.property("status") == "success"
+
+def test_accounts_page_shows_error_when_account_cannot_be_removed(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(account)
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    repository.remove(account)
+    page.remove_button.click()
+
+    assert page.account_status.text() == "Account could not be removed."
+    assert page.account_status.property("status") == "error"

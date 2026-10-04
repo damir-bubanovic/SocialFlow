@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.add_account import AddAccount
 from socialflow.application.accounts.errors import (
+    AccountNotFoundError,
     DuplicateAccountError,
     InvalidAccountError,
 )
@@ -73,8 +74,14 @@ class AccountsPage(QWidget):
         if account is None:
             return
 
-        self._remove_account.execute(account)
+        try:
+            self._remove_account.execute(account)
+        except AccountNotFoundError:
+            self.account_status.show_remove_error()
+            return
+
         self._refresh_accounts()
+        self.account_status.show_removed()
 
     def _update_remove_button(self) -> None:
         """Synchronize the remove button with account selection."""

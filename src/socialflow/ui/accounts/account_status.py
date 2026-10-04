@@ -19,6 +19,16 @@ class AccountStatus(QLabel):
         self.setText("Account could not be added.")
         self.setProperty("status", "error")
 
+    def show_removed(self) -> None:
+        """Display a successful account removal status."""
+        self.setText("Account removed.")
+        self.setProperty("status", "success")
+
+    def show_remove_error(self) -> None:
+        """Display a failed account removal status."""
+        self.setText("Account could not be removed.")
+        self.setProperty("status", "error")
+
     def clear_status(self) -> None:
         """Clear the current account status."""
         self.setText("")

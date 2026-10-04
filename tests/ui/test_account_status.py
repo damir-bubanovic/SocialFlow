@@ -38,3 +38,21 @@ def test_account_status_can_be_cleared(qtbot) -> None:
 
     assert status.text() == ""
     assert status.property("status") == ""
+
+def test_account_status_can_show_removed(qtbot) -> None:
+    status = AccountStatus()
+    qtbot.addWidget(status)
+
+    status.show_removed()
+
+    assert status.text() == "Account removed."
+    assert status.property("status") == "success"
+
+def test_account_status_can_show_remove_error(qtbot) -> None:
+    status = AccountStatus()
+    qtbot.addWidget(status)
+
+    status.show_remove_error()
+
+    assert status.text() == "Account could not be removed."
+    assert status.property("status") == "error"
