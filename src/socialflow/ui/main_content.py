@@ -13,6 +13,7 @@ from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.application.accounts.remove_account import RemoveAccount
+from socialflow.application.accounts.update_account import UpdateAccount
 
 
 class MainContent(QWidget):
@@ -42,11 +43,13 @@ class MainContent(QWidget):
         add_account = AddAccount(account_repository)
         list_accounts = ListAccounts(account_repository)
         remove_account = RemoveAccount(account_repository)
+        update_account = UpdateAccount(account_repository)
 
         self.accounts_page = AccountsPage(
             add_account=add_account,
             list_accounts=list_accounts,
             remove_account=remove_account,
+            update_account=update_account,
             parent=self,
         )
 

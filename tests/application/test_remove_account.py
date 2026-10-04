@@ -22,6 +22,10 @@ class InMemoryAccountRepository(AccountRepository):
     def remove(self, account: Account) -> None:
         self._accounts.remove(account)
 
+    def update(self, current: Account, updated: Account) -> None:
+        index = self._accounts.index(current)
+        self._accounts[index] = updated
+
 
 def test_remove_account_removes_configured_account() -> None:
     repository = InMemoryAccountRepository()

@@ -17,3 +17,7 @@ class AccountRepository(ABC):
     @abstractmethod
     def remove(self, account: Account) -> None:
         """Remove an account."""
+
+    @abstractmethod
+    def update(self, current: Account, updated: Account) -> None:
+        """Replace an existing account."""

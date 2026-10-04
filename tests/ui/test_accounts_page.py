@@ -10,6 +10,7 @@ from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.accounts.account_status import AccountStatus
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.application.accounts.remove_account import RemoveAccount
+from socialflow.application.accounts.update_account import UpdateAccount
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -27,11 +28,9 @@ class InMemoryAccountRepository(AccountRepository):
     def remove(self, account: Account) -> None:
         self._accounts.remove(account)
 
-class MissingAccountRepository(InMemoryAccountRepository):
-    """Test repository that reports no accounts during removal."""
-
-    def all(self) -> tuple[Account, ...]:
-        return ()
+    def update(self, current: Account, updated: Account) -> None:
+        index = self._accounts.index(current)
+        self._accounts[index] = updated
 
 def create_accounts_page() -> AccountsPage:
     repository = InMemoryAccountRepository()
@@ -40,6 +39,7 @@ def create_accounts_page() -> AccountsPage:
         add_account=AddAccount(repository),
         list_accounts=ListAccounts(repository),
         remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
     )
 
 
@@ -197,6 +197,7 @@ def test_accounts_page_shows_error_when_account_cannot_be_removed(
         add_account=AddAccount(repository),
         list_accounts=ListAccounts(repository),
         remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
     )
     qtbot.addWidget(page)
 
@@ -207,3 +208,74 @@ def test_accounts_page_shows_error_when_account_cannot_be_removed(
 
     assert page.account_status.text() == "Account could not be removed."
     assert page.account_status.property("status") == "error"
+
+def test_accounts_page_loads_selected_account_into_form(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow WordPress")
+    page.account_form.destination_input.setCurrentIndex(2)
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.account_form.name_input.text() == "SocialFlow WordPress"
+    assert (
+        page.account_form.selected_destination()
+        == PublishingDestination.WORDPRESS
+    )
+
+def test_accounts_page_contains_update_button(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert isinstance(page.update_button, QPushButton)
+    assert page.update_button.text() == "Update account"
+
+
+def test_update_button_is_disabled_without_selection(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert not page.update_button.isEnabled()
+
+
+def test_update_button_is_enabled_when_account_is_selected(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.update_button.isEnabled()
+
+def test_accounts_page_updates_selected_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+
+    page.account_form.name_input.setText("Main Facebook")
+    page.update_button.click()
+
+    assert page.account_list.count() == 1
+    assert page.account_list.item(0).text() == "Main Facebook - Facebook"
+
+def test_accounts_page_shows_status_after_updating_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    page.account_form.name_input.setText("Main Facebook")
+    page.update_button.click()
+
+    assert page.account_status.text() == "Account updated."
+    assert page.account_status.property("status") == "success"

@@ -33,3 +33,8 @@ class AccountStatus(QLabel):
         """Clear the current account status."""
         self.setText("")
         self.setProperty("status", "")
+
+    def show_updated(self) -> None:
+        """Display a successful account update status."""
+        self.setText("Account updated.")
+        self.setProperty("status", "success")

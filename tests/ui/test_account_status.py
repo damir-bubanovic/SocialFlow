@@ -56,3 +56,12 @@ def test_account_status_can_show_remove_error(qtbot) -> None:
 
     assert status.text() == "Account could not be removed."
     assert status.property("status") == "error"
+
+def test_account_status_can_show_updated(qtbot) -> None:
+    status = AccountStatus()
+    qtbot.addWidget(status)
+
+    status.show_updated()
+
+    assert status.text() == "Account updated."
+    assert status.property("status") == "success"

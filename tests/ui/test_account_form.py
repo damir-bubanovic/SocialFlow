@@ -45,3 +45,20 @@ def test_account_form_can_be_cleared(qtbot) -> None:
 
     assert form.name_input.text() == ""
     assert form.selected_destination() == PublishingDestination.FACEBOOK
+
+def test_account_form_can_load_account(qtbot) -> None:
+    form = AccountForm()
+    qtbot.addWidget(form)
+
+    account = Account(
+        name="SocialFlow WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    form.set_account(account)
+
+    assert form.name_input.text() == "SocialFlow WordPress"
+    assert (
+        form.selected_destination()
+        == PublishingDestination.WORDPRESS
+    )

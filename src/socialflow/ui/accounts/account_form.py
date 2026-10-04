@@ -54,6 +54,15 @@ class AccountForm(QWidget):
             destination,
         )
 
+    def set_account(self, account: Account) -> None:
+        """Populate the form with an existing account."""
+        self.name_input.setText(account.name)
+
+        index = self.destination_input.findData(account.destination)
+
+        if index >= 0:
+            self.destination_input.setCurrentIndex(index)
+
     def clear(self) -> None:
         """Reset the account form."""
         self.name_input.clear()
