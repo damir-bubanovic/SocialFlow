@@ -122,9 +122,13 @@ separate database server.
 Installation remains simpler because users do not need to install and
 manage a database service.
 
-SQLite should contain application data and synchronization metadata, but
-sensitive credentials should use secure credential storage where
-practical.
+SQLite should contain broader application data and synchronization metadata once
+the relational database layer is introduced, but sensitive credentials should
+use secure credential storage where practical.
+
+A small UTF-8 JSON repository is currently used for configured account records
+(see ADR-032). This does not supersede the SQLite decision for the broader
+application database.
 
 ------------------------------------------------------------------------
 
@@ -914,6 +918,94 @@ into the appropriate parent component.
 The agreed initial top-level navigation sections are `Posts`,
 `Accounts`, and `Settings`. Their navigation component will be
 implemented separately rather than embedded directly into `MainWindow`.
+
+------------------------------------------------------------------------
+
+## ADR-032 --- Use UTF-8 JSON for the Initial Account Repository
+
+**Status:** Accepted
+
+### Decision
+
+Configured publishing accounts will initially be persisted through an
+`AccountRepository` implementation backed by `accounts.json`. Storage uses
+UTF-8 with readable Unicode and a platform-specific application data directory.
+
+### Context
+
+The current account model contains only a display name and publishing
+destination. Introducing the planned relational database stack solely for this
+small record shape would add dependencies and migration concerns before they are
+needed. Account persistence is already isolated behind a repository contract, so
+the storage implementation can be replaced later without moving persistence
+logic into the UI or application services.
+
+### Consequences
+
+-   Account add/list/update/remove operations survive application restarts.
+-   Croatian and other Unicode account names are preserved as readable UTF-8.
+-   Linux and Windows storage locations are resolved outside the repository.
+-   Malformed account storage is surfaced as a storage-specific error.
+-   Credentials and tokens must not be stored in this JSON file.
+-   ADR-004 and ADR-005 remain the direction for the broader relational data
+    store when it becomes necessary.
+
+------------------------------------------------------------------------
+
+## ADR-033 --- Publish Requests Target Configured Accounts
+
+**Status:** Accepted
+
+### Decision
+
+`PublishRequest` will contain the `Post` and the selected configured `Account`
+objects rather than only a tuple of `PublishingDestination` enum values.
+
+`PublishPost` will use each account's destination to select the appropriate
+publisher through `PublisherRouter`.
+
+### Context
+
+A platform enum alone cannot distinguish two configured accounts on the same
+platform. SocialFlow must eventually publish through specific authenticated
+pages, profiles, or sites, so account identity must survive from UI selection
+through the publishing request.
+
+### Consequences
+
+-   Multiple Facebook, Instagram, or WordPress accounts can remain distinct.
+-   `DestinationSelector` displays configured accounts rather than generic
+    platform checkboxes.
+-   Platform routing remains reusable because publishers are still selected by
+    `PublishingDestination`.
+-   Future platform credentials/remote identifiers can be associated with an
+    account without redesigning `PublishRequest` around generic destinations.
+
+------------------------------------------------------------------------
+
+## ADR-034 --- Synchronize Account Changes with Qt Signals
+
+**Status:** Accepted
+
+### Decision
+
+`AccountsPage` emits an `accounts_changed` Qt signal after successful add,
+update, or remove operations. `MainContent` connects that signal to
+`PostsPage.refresh_accounts()`.
+
+### Context
+
+The Posts page and Accounts page share the same repository-backed account data.
+When a user changes an account, the publishing selector must update immediately
+without restarting SocialFlow or coupling the two pages directly to storage.
+
+### Consequences
+
+-   Account changes appear immediately in the post editor.
+-   `AccountsPage` does not need a direct reference to `PostsPage`.
+-   Both pages continue to depend on application services rather than JSON
+    storage details.
+-   Integration tests cover add, update, and remove synchronization.
 
 ------------------------------------------------------------------------
 

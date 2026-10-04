@@ -39,28 +39,32 @@ SocialFlow is planned to provide:
 
 ## Technology
 
-SocialFlow is being developed with:
+Current implemented dependencies:
 
--   Python
+-   Python 3.12+
 -   PySide6 / Qt 6
--   SQLite
--   SQLAlchemy
--   HTTPX
--   Pillow
 -   pytest
+-   pytest-qt
+
+The architecture also plans to introduce SQLite/SQLAlchemy, HTTPX, and
+Pillow when the corresponding database, platform-integration, and image
+processing work requires them.
 
 ## Development Status
 
 SocialFlow is currently under active development.
 
-The initial Python/PySide6 application foundation is implemented. The
-project uses a `src` package layout, launches as a Qt desktop
-application, and has automated pytest/pytest-qt coverage for the current
-foundation.
+The Python/PySide6 application foundation and the first account/publishing
+workflow are implemented. SocialFlow currently provides `Posts` and
+`Accounts` navigation, local account add/list/update/remove workflows,
+UTF-8 JSON persistence for configured accounts, manual Croatian/English
+language selection, and account-specific publishing selection.
 
-The project is being developed incrementally, with automated testing
-performed as features are implemented. Additional quality tooling will
-be introduced as development requires it.
+Publishing is still routed to placeholder publishers; live Facebook,
+Instagram, and WordPress API integrations have not yet been implemented.
+The project is developed incrementally with pytest/pytest-qt coverage for
+each completed section. Additional quality tooling will be introduced as
+development requires it.
 
 ## Documentation
 

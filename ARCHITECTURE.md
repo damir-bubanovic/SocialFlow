@@ -39,31 +39,31 @@ Python is the primary application language.
 
 PySide6 provides the cross-platform desktop user interface.
 
-### Local Database
+### Persistence
+
+Current implementation:
+
+-   UTF-8 JSON account storage through `JsonAccountRepository`
+-   Python standard-library `json` and `pathlib`
+
+Planned broader relational storage:
 
 -   SQLite
-
-SQLite provides local persistent application storage without requiring a
-separate database server.
-
-### Database Access
-
 -   SQLAlchemy
 
-Application code should access the database through a defined
-persistence layer rather than spreading SQL or database-specific logic
-throughout the application.
+Application code accesses persistence through repository contracts rather than
+spreading storage-specific logic throughout the UI or application services.
 
 ### HTTP Communication
 
--   HTTPX
+-   HTTPX (planned; not yet a project dependency)
 
 External API communication should be performed through dedicated
 integration services.
 
 ### Image Processing
 
--   Pillow
+-   Pillow (planned; not yet a project dependency)
 
 Image processing is responsible for validation, resizing, conversion,
 compression, and generation of platform-compatible image versions.
@@ -381,25 +381,32 @@ than source-controlled project files.
 
 ## 13. Persistence Layer
 
-SocialFlow will use SQLite for local persistent data.
+Persistence is accessed through application-facing repository interfaces; UI
+components do not read or write storage directly.
 
-Potential locally stored information includes:
+The first implemented persistent store is `JsonAccountRepository`. It stores
+configured `Account` values in an UTF-8 `accounts.json` file and uses
+`AccountSerializer` to translate between domain objects and storage data. The
+repository creates parent directories when saving and converts malformed JSON,
+missing fields, or unknown destinations into `AccountStorageError`.
 
--   application configuration;
--   configured accounts;
--   destination identifiers;
--   cached post metadata;
--   cached tags;
--   synchronization metadata;
--   relationships between local and remote objects.
+`AppPaths` and `data_directory()` isolate storage-location policy from the
+repository. Current defaults are:
 
-Sensitive authentication material should not be stored in plain text in
-the normal application database when secure credential storage is
-available.
+``` text
+Linux:   $XDG_DATA_HOME/socialflow/accounts.json
+         or ~/.local/share/socialflow/accounts.json
+Windows: %LOCALAPPDATA%\SocialFlow\accounts.json
+         with a home-directory fallback
+```
 
-Database access should occur through the persistence layer.
+SQLite with SQLAlchemy remains the accepted direction for the broader local
+application database once richer relational persistence is required. The JSON
+account store is the current implemented solution for the limited account
+record shape and does not store credentials or access tokens.
 
-UI components should not execute database operations directly.
+Sensitive authentication material must use secure credential storage where
+practical and must not be placed in `accounts.json`.
 
 ------------------------------------------------------------------------
 
@@ -739,49 +746,60 @@ this stage.
 
 ## 26. Current Implemented Foundation
 
-The initial application foundation is now implemented with this
-structure:
+The implemented application now spans domain, application, infrastructure, and
+UI layers. The important current structure is:
 
 ``` text
-SocialFlow/
-├── pyproject.toml
-├── src/
-│   └── socialflow/
-│       ├── __init__.py
-│       ├── __main__.py
-│       ├── constants.py
-│       ├── main.py
-│       └── ui/
-│           ├── __init__.py
-│           ├── main_content.py
-│           └── main_window.py
-└── tests/
-    ├── test_constants.py
-    ├── test_main.py
-    ├── test_package.py
-    └── ui/
-        ├── test_main_content.py
-        └── test_main_window.py
+src/socialflow/
+├── application/
+│   ├── accounts/       # repository contract + add/list/update/remove services
+│   └── publishing/     # publisher contract, router, PublishPost, null publisher
+├── domain/
+│   ├── account/        # Account
+│   ├── language/       # Language
+│   ├── post/           # Post
+│   └── publishing/     # PublishingDestination + PublishRequest
+├── infrastructure/
+│   ├── accounts/       # JSON repository, serializer, storage errors
+│   └── storage/        # cross-platform application-data paths
+├── ui/
+│   ├── accounts/       # account form/list/status/page
+│   ├── posts/          # editor, account selector, language controls, status
+│   ├── main_content.py
+│   ├── main_window.py
+│   └── navigation.py
+├── __main__.py
+├── constants.py
+└── main.py
 ```
 
-Current responsibility boundaries:
+Current responsibility boundaries include:
 
--   `__main__.py` provides the `python -m socialflow` module entry
-    point.
--   `main.py` creates the Qt application and controls application
-    startup.
--   `constants.py` contains stable application constants currently
-    shared by the foundation.
--   `MainWindow` owns top-level window behavior.
--   `MainContent` owns the main window's content area and layout.
--   UI tests use pytest-qt.
+-   `MainWindow` owns top-level window behavior; `MainContent` composes the
+    application pages and application services.
+-   `Navigation` switches between the implemented `Posts` and `Accounts` pages.
+-   `AccountsPage` uses `AddAccount`, `ListAccounts`, `UpdateAccount`, and
+    `RemoveAccount`; it never accesses JSON directly.
+-   `JsonAccountRepository` implements the `AccountRepository` contract and is
+    shared by account management and publishing-account discovery.
+-   Successful account mutations emit `AccountsPage.accounts_changed`;
+    `MainContent` connects that signal to `PostsPage.refresh_accounts()` so the
+    post editor stays synchronized without restarting the application.
+-   `DestinationSelector` selects configured `Account` objects rather than
+    generic platform enum values. Multiple accounts for the same platform remain
+    distinct.
+-   `PublishRequest` contains a `Post` plus selected `Account` objects.
+    `PublishPost` routes each account through `PublisherRouter` using the
+    account's `PublishingDestination`.
+-   The current runtime publishers are `NullPublisher` instances. Real
+    Facebook, Instagram, and WordPress integrations are still pending.
+-   The account JSON persistence path is platform-aware and Unicode/Croatian
+    account names are covered by automated tests.
+-   Language controls currently support explicit Croatian/English selection and
+    `HR`/`EN` indication; automatic language detection is still pending.
 
-The current main window title is `SocialFlow` and its initial size is
-1200 × 800.
-
-Primary navigation has been agreed to use the top-level sections
-`Posts`, `Accounts`, and `Settings`, but that navigation has not yet
-been implemented.
+The current main window title is `SocialFlow` and its initial size is 1200 ×
+800.
 
 ------------------------------------------------------------------------
 
@@ -876,7 +894,7 @@ Application
 
 Platform implementations depend on external APIs.
 
-Persistence implementations depend on SQLite/SQLAlchemy.
+Persistence implementations depend on infrastructure details. The current account repository uses JSON; the future broader database layer is planned to use SQLite/SQLAlchemy.
 
 The core application should not need to know HTTP endpoint details, SQL
 statements, Qt widget implementation details, or credential-storage

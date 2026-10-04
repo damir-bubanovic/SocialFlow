@@ -42,15 +42,15 @@ pass.
 -   [x] Configure the Python virtual environment and dependencies.
 -   [x] Implement the PySide6 / Qt desktop application foundation.
 -   [ ] Implement application configuration management.
--   [ ] Implement local application data storage.
+-   [x] Implement local account data storage using UTF-8 JSON in the platform-specific application data directory.
 -   [ ] Implement secure storage for credentials and access tokens.
 -   [ ] Implement application logging.
 -   [x] Implement automated testing infrastructure.
 -   [ ] Implement development quality checks.
--   [ ] Support Unicode throughout the application.
--   [ ] Support Croatian characters, including č, ć, ž, š, đ and their
-    uppercase equivalents.
--   [ ] Support English content.
+-   [~] Support Unicode throughout the application; account serialization and persistence are covered, while remaining future workflows still require verification.
+-   [~] Support Croatian characters, including č, ć, ž, š, đ and their
+    uppercase equivalents; account persistence is verified and remaining future workflows still require coverage.
+-   [~] Support English content; manual language selection exists and remaining publishing/storage workflows are still in development.
 
 ------------------------------------------------------------------------
 
@@ -58,6 +58,17 @@ pass.
 
 SocialFlow must allow users to configure and manage connections to
 supported publishing platforms.
+
+### Local account management
+
+-   [x] Represent configured publishing accounts independently from platform types.
+-   [x] Add, list, update, and remove configured accounts.
+-   [x] Reject invalid and duplicate account entries.
+-   [x] Persist configured accounts across application restarts.
+-   [x] Store account data as readable UTF-8 JSON in a platform-specific application data directory.
+-   [x] Keep the account form empty until an account is explicitly selected.
+-   [x] Clear selection/form state after successful add, update, and remove operations.
+-   [x] Synchronize account changes into the Posts page without restarting the application.
 
 ### Facebook
 
@@ -91,14 +102,13 @@ supported publishing platforms.
 
 ## 5. Post Creation
 
--   [ ] Provide a common post editor.
--   [ ] Allow text content to be entered and edited.
+-   [x] Provide a common post editor.
+-   [x] Allow text content to be entered and edited.
 -   [ ] Allow images to be attached to posts.
 -   [ ] Allow applicable tags and metadata to be selected.
--   [ ] Allow the user to choose the destination platforms.
--   [ ] Allow publishing to one platform.
--   [ ] Allow publishing to multiple selected platforms from one
-    publishing action.
+-   [x] Allow the user to choose one or more configured publishing accounts; each account retains its platform destination.
+-   [~] Allow publishing to one configured account through the application publishing pipeline; live platform publishers are not implemented yet.
+-   [~] Allow one publishing action to target multiple configured accounts; live platform publishers are not implemented yet.
 -   [ ] Display the publishing result separately for each destination.
 -   [ ] Handle partial publishing failures when one destination succeeds
     and another fails.
@@ -120,10 +130,10 @@ supported publishing platforms.
 
 -   [ ] Automatically detect whether post content is Croatian or English
     where detection is sufficiently reliable.
--   [ ] Display the detected language clearly in the post editor.
--   [ ] Allow the user to manually override the detected language.
+-   [x] Display the currently selected language clearly in the post editor.
+-   [x] Allow the user to manually select Croatian or English; this control will also serve as the override once automatic detection is implemented.
 -   [ ] Visually distinguish Croatian and English content in the editor.
--   [ ] Use an explicit language indicator such as `HR` or `EN` so
+-   [x] Use an explicit language indicator such as `HR` or `EN` so
     language is not communicated by color or typography alone.
 -   [ ] Allow typography, color, or other subtle visual styling to
     reinforce the distinction between Croatian and English content.

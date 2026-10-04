@@ -131,7 +131,8 @@ python -m pip install -e ".[dev]"
 ```
 
 The current runtime dependency is PySide6. The current development
-dependencies are pytest and pytest-qt.
+dependencies are pytest and pytest-qt. JSON account persistence uses Python's
+standard library and therefore adds no runtime dependency.
 
 Additional dependencies should only be added when implementation
 requires them.
@@ -445,7 +446,19 @@ Use placeholders in documentation and example configuration.
 
 Runtime data should not be committed.
 
-Examples include:
+Configured accounts are currently stored outside the repository as
+`accounts.json` in the platform application-data directory:
+
+``` text
+Linux:   $XDG_DATA_HOME/socialflow/accounts.json
+         or ~/.local/share/socialflow/accounts.json
+Windows: %LOCALAPPDATA%\SocialFlow\accounts.json
+```
+
+Tests that construct `MainContent` isolate `XDG_DATA_HOME` to a pytest temporary
+directory so automated tests do not touch a developer's real account data.
+
+Examples of runtime data include:
 
 -   SQLite application databases;
 -   logs;
@@ -476,8 +489,7 @@ Important Croatian characters include:
 Developers should avoid conversions or file encodings that can corrupt
 Unicode content.
 
-Tests should eventually cover Unicode preservation through important
-application workflows.
+Tests currently cover Unicode/Croatian preservation through account serialization and JSON persistence. Additional future workflows must add equivalent coverage as they are implemented.
 
 ------------------------------------------------------------------------
 
@@ -520,11 +532,13 @@ Use cross-platform Python and Qt facilities where practical.
 
 ## 23. Database Development
 
-SocialFlow will use SQLite with SQLAlchemy.
+The first persistence implementation is the JSON-backed account repository
+described in the Local Runtime Data section. It intentionally requires no
+database setup or migration command.
 
-The database layer has not yet been implemented.
-
-When persistence work begins, this document should be expanded with:
+SQLite with SQLAlchemy remains planned for the broader relational data layer,
+but that database layer has not yet been implemented or added as a dependency.
+When it is introduced, document:
 
 -   database initialization commands;
 -   schema-management strategy;
