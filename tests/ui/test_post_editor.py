@@ -1,5 +1,7 @@
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
+from pathlib import Path
 
+from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
@@ -199,3 +201,21 @@ def test_post_editor_returns_publish_request(qtbot) -> None:
 
     assert request.post.text == "Hello from SocialFlow"
     assert request.accounts == (account,)
+
+def test_post_contains_selected_images(
+    qtbot,
+    tmp_path: Path,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    image_path = tmp_path / "socialflow-image.jpg"
+    image_path.touch()
+
+    image = ImageAttachment(path=image_path)
+
+    editor.image_selector._images = (image,)
+
+    post = editor.post()
+
+    assert post.images == (image,)

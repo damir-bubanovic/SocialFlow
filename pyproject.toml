@@ -13,6 +13,7 @@ authors = [
     { name = "Damir Bubanovic" }
 ]
 dependencies = [
+    "Pillow>=11.0,<13",
     "PySide6>=6.8,<7",
 ]
 [project.optional-dependencies]

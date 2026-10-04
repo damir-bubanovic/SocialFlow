@@ -8,6 +8,7 @@ from socialflow.domain.publishing.publish_request import PublishRequest
 from socialflow.ui.posts.destination_selector import DestinationSelector
 from socialflow.ui.posts.language_controls import LanguageControls
 from socialflow.ui.posts.publish_button import PublishButton
+from socialflow.ui.posts.image_selector import ImageSelector
 
 
 class PostEditor(QWidget):
@@ -24,11 +25,13 @@ class PostEditor(QWidget):
         self.text_editor = QPlainTextEdit(self)
         self.text_editor.setPlaceholderText("Write your post...")
         self.publish_button = PublishButton(self)
+        self.image_selector = ImageSelector(self)
 
         layout = QVBoxLayout()
         layout.addWidget(self.language_controls)
         layout.addWidget(self.destination_selector)
         layout.addWidget(self.text_editor)
+        layout.addWidget(self.image_selector)
         layout.addWidget(self.publish_button)
 
         self.setLayout(layout)
@@ -61,8 +64,9 @@ class PostEditor(QWidget):
     def post(self) -> Post:
         """Return the post currently represented by the editor."""
         return Post(
-            text=self.post_text(),
-            language=self.selected_language(),
+            text=self.text_editor.toPlainText(),
+            language=self.language_controls.selected_language(),
+            images=self.image_selector.selected_images(),
         )
 
     def publish_request(self) -> PublishRequest:
