@@ -81,3 +81,64 @@ def test_posts_navigation_shows_posts_page(qtbot) -> None:
     )
 
     assert content.pages.currentWidget() is content.posts_page
+
+def test_adding_account_refreshes_posts_page_accounts(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert (
+        len(content.posts_page.post_editor.destination_selector._checkboxes)
+        == 0
+    )
+
+    content.accounts_page.account_form.name_input.setText(
+        "Main Facebook"
+    )
+    content.accounts_page.account_form.add_button.click()
+
+    checkboxes = (
+        content.posts_page.post_editor.destination_selector._checkboxes
+    )
+
+    assert len(checkboxes) == 1
+    assert checkboxes[0].text() == "Main Facebook (Facebook)"
+
+def test_updating_account_refreshes_posts_page_accounts(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    content.accounts_page.account_form.name_input.setText(
+        "Main Facebook"
+    )
+    content.accounts_page.account_form.add_button.click()
+
+    content.accounts_page.account_list.setCurrentRow(0)
+    content.accounts_page.account_form.name_input.setText(
+        "Updated Facebook"
+    )
+    content.accounts_page.update_button.click()
+
+    checkboxes = (
+        content.posts_page.post_editor.destination_selector._checkboxes
+    )
+
+    assert len(checkboxes) == 1
+    assert checkboxes[0].text() == "Updated Facebook (Facebook)"
+
+
+def test_removing_account_refreshes_posts_page_accounts(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    content.accounts_page.account_form.name_input.setText(
+        "Main Facebook"
+    )
+    content.accounts_page.account_form.add_button.click()
+
+    content.accounts_page.account_list.setCurrentRow(0)
+    content.accounts_page.remove_button.click()
+
+    assert (
+        len(content.posts_page.post_editor.destination_selector._checkboxes)
+        == 0
+    )

@@ -1,3 +1,4 @@
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.add_account import AddAccount
@@ -16,6 +17,8 @@ from socialflow.ui.accounts.account_status import AccountStatus
 
 class AccountsPage(QWidget):
     """Page for managing publishing accounts."""
+
+    accounts_changed = Signal()
 
     def __init__(
         self,
@@ -79,6 +82,7 @@ class AccountsPage(QWidget):
 
         self._refresh_accounts()
         self.account_status.show_success()
+        self.accounts_changed.emit()
 
     def _handle_update_account(self) -> None:
         """Update the currently selected account."""
@@ -102,6 +106,7 @@ class AccountsPage(QWidget):
 
         self._refresh_accounts()
         self.account_status.show_updated()
+        self.accounts_changed.emit()
 
     def _handle_remove_account(self) -> None:
         """Remove the currently selected account."""
@@ -118,6 +123,7 @@ class AccountsPage(QWidget):
 
         self._refresh_accounts()
         self.account_status.show_removed()
+        self.accounts_changed.emit()
 
     def _load_selected_account(self) -> None:
         """Load the selected account into the account form."""

@@ -341,3 +341,39 @@ def test_accounts_page_clears_form_after_removing_account(qtbot) -> None:
     assert page.account_list.selected_account() is None
     assert not page.update_button.isEnabled()
     assert not page.remove_button.isEnabled()
+
+def test_accounts_page_emits_accounts_changed_after_add(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("Main Facebook")
+
+    with qtbot.waitSignal(page.accounts_changed):
+        page.account_form.add_button.click()
+
+
+def test_accounts_page_emits_accounts_changed_after_update(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("Main Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    page.account_form.name_input.setText("Updated Facebook")
+
+    with qtbot.waitSignal(page.accounts_changed):
+        page.update_button.click()
+
+
+def test_accounts_page_emits_accounts_changed_after_remove(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("Main Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+
+    with qtbot.waitSignal(page.accounts_changed):
+        page.remove_button.click()

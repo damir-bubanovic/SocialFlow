@@ -10,10 +10,12 @@ class PublishPost:
         self._publisher_router = publisher_router
 
     def execute(self, request: PublishRequest) -> None:
-        """Publish the post to every requested destination."""
+        """Publish the post to every requested account."""
         if not request.post.has_content():
             raise EmptyPostError("Cannot publish a post without content.")
 
-        for destination in request.destinations:
-            publisher = self._publisher_router.publisher_for(destination)
+        for account in request.accounts:
+            publisher = self._publisher_router.publisher_for(
+                account.destination
+            )
             publisher.publish(request.post)

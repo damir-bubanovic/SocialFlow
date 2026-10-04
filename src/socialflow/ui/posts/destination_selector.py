@@ -1,53 +1,58 @@
+from collections.abc import Callable
+
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QWidget
 
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.domain.account.account import Account
 
 
 class DestinationSelector(QWidget):
-    """Controls for selecting publishing destinations."""
+    """Controls for selecting configured publishing accounts."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.facebook = self._create_checkbox(
-            PublishingDestination.FACEBOOK
-        )
-        self.instagram = self._create_checkbox(
-            PublishingDestination.INSTAGRAM
-        )
-        self.wordpress = self._create_checkbox(
-            PublishingDestination.WORDPRESS
+        self._accounts: tuple[Account, ...] = ()
+        self._checkboxes: list[QCheckBox] = []
+
+        self._layout = QHBoxLayout()
+        self._layout.addStretch()
+
+        self.setLayout(self._layout)
+
+    def set_accounts(self, accounts: tuple[Account, ...]) -> None:
+        """Replace the available publishing accounts."""
+        for checkbox in self._checkboxes:
+            self._layout.removeWidget(checkbox)
+            checkbox.deleteLater()
+
+        self._checkboxes.clear()
+        self._accounts = accounts
+
+        for account in accounts:
+            checkbox = QCheckBox(account.display_name(), self)
+
+            self._layout.insertWidget(
+                self._layout.count() - 1,
+                checkbox,
+            )
+            self._checkboxes.append(checkbox)
+
+    def selected_accounts(self) -> tuple[Account, ...]:
+        """Return the selected publishing accounts."""
+        return tuple(
+            account
+            for account, checkbox in zip(
+                self._accounts,
+                self._checkboxes,
+                strict=True,
+            )
+            if checkbox.isChecked()
         )
 
-        layout = QHBoxLayout()
-        layout.addWidget(self.facebook)
-        layout.addWidget(self.instagram)
-        layout.addWidget(self.wordpress)
-        layout.addStretch()
-
-        self.setLayout(layout)
-
-    def selected_destinations(
+    def connect_selection_changed(
         self,
-    ) -> tuple[PublishingDestination, ...]:
-        """Return the selected publishing destinations."""
-        destinations: list[PublishingDestination] = []
-
-        if self.facebook.isChecked():
-            destinations.append(PublishingDestination.FACEBOOK)
-
-        if self.instagram.isChecked():
-            destinations.append(PublishingDestination.INSTAGRAM)
-
-        if self.wordpress.isChecked():
-            destinations.append(PublishingDestination.WORDPRESS)
-
-        return tuple(destinations)
-
-    def _create_checkbox(
-        self,
-        destination: PublishingDestination,
-    ) -> QCheckBox:
-        """Create a checkbox for a publishing destination."""
-        checkbox = QCheckBox(destination.display_name, self)
-        return checkbox
+        callback: Callable[[], None],
+    ) -> None:
+        """Connect a callback to account selection changes."""
+        for checkbox in self._checkboxes:
+            checkbox.toggled.connect(callback)

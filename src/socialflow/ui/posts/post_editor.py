@@ -1,13 +1,13 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPlainTextEdit, QVBoxLayout, QWidget
 
-from socialflow.ui.posts.language_controls import LanguageControls
+from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
-from socialflow.ui.posts.publish_button import PublishButton
-from socialflow.domain.publishing.destination import PublishingDestination
-from socialflow.ui.posts.destination_selector import DestinationSelector
 from socialflow.domain.publishing.publish_request import PublishRequest
+from socialflow.ui.posts.destination_selector import DestinationSelector
+from socialflow.ui.posts.language_controls import LanguageControls
+from socialflow.ui.posts.publish_button import PublishButton
 
 
 class PostEditor(QWidget):
@@ -32,21 +32,23 @@ class PostEditor(QWidget):
         layout.addWidget(self.publish_button)
 
         self.setLayout(layout)
+
         self.text_editor.textChanged.connect(
-            self._update_publish_button
-        )
-        self.destination_selector.facebook.toggled.connect(
-            self._update_publish_button
-        )
-        self.destination_selector.instagram.toggled.connect(
-            self._update_publish_button
-        )
-        self.destination_selector.wordpress.toggled.connect(
             self._update_publish_button
         )
         self.publish_button.clicked.connect(
             self._request_publish
         )
+
+    def set_accounts(self, accounts: tuple[Account, ...]) -> None:
+        """Set the accounts available for publishing."""
+        self.destination_selector.set_accounts(accounts)
+
+        self.destination_selector.connect_selection_changed(
+            self._update_publish_button
+        )
+
+        self._update_publish_button()
 
     def post_text(self) -> str:
         """Return the current post text."""
@@ -67,14 +69,18 @@ class PostEditor(QWidget):
         """Return the current publishing request."""
         return PublishRequest(
             post=self.post(),
-            destinations=self.selected_destinations(),
+            accounts=self.selected_accounts(),
         )
+
+    def selected_accounts(self) -> tuple[Account, ...]:
+        """Return the selected publishing accounts."""
+        return self.destination_selector.selected_accounts()
 
     def _update_publish_button(self) -> None:
         """Synchronize the publish button with the current post state."""
         available = (
-                self.post().has_content()
-                and bool(self.selected_destinations())
+            self.post().has_content()
+            and bool(self.selected_accounts())
         )
 
         self.publish_button.set_post_available(available)
@@ -83,11 +89,5 @@ class PostEditor(QWidget):
         """Emit the current publishing request."""
         request = self.publish_request()
 
-        if request.post.has_content() and request.destinations:
+        if request.post.has_content() and request.accounts:
             self.publish_requested.emit(request)
-
-    def selected_destinations(
-            self,
-    ) -> tuple[PublishingDestination, ...]:
-        """Return the selected publishing destinations."""
-        return self.destination_selector.selected_destinations()

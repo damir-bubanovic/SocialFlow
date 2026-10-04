@@ -38,3 +38,11 @@ def test_account_can_be_normalized() -> None:
 
     assert normalized.name == "SocialFlow Facebook"
     assert normalized.destination == PublishingDestination.FACEBOOK
+
+def test_account_has_display_name() -> None:
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    assert account.display_name() == "Main Facebook (Facebook)"

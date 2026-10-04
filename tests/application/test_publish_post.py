@@ -4,6 +4,7 @@ from socialflow.application.publishing.errors import EmptyPostError
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher import Publisher
 from socialflow.application.publishing.publisher_router import PublisherRouter
+from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
@@ -20,7 +21,7 @@ class RecordingPublisher(Publisher):
         self.published_posts.append(post)
 
 
-def test_publish_post_publishes_to_requested_destinations() -> None:
+def test_publish_post_publishes_to_requested_accounts() -> None:
     facebook_publisher = RecordingPublisher()
     wordpress_publisher = RecordingPublisher()
 
@@ -36,11 +37,20 @@ def test_publish_post_publishes_to_requested_destinations() -> None:
         text="Hello from SocialFlow",
         language=Language.ENGLISH,
     )
+    facebook_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress_account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
     request = PublishRequest(
         post=post,
-        destinations=(
-            PublishingDestination.FACEBOOK,
-            PublishingDestination.WORDPRESS,
+        accounts=(
+            facebook_account,
+            wordpress_account,
         ),
     )
 
@@ -63,9 +73,14 @@ def test_publish_post_rejects_empty_post() -> None:
         text="   ",
         language=Language.CROATIAN,
     )
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
     request = PublishRequest(
         post=post,
-        destinations=(PublishingDestination.FACEBOOK,),
+        accounts=(account,),
     )
 
     with pytest.raises(

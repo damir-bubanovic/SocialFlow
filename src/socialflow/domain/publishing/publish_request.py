@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 
+from socialflow.domain.account.account import Account
 from socialflow.domain.post.post import Post
-from socialflow.domain.publishing.destination import PublishingDestination
 
 
 @dataclass(frozen=True, slots=True)
 class PublishRequest:
-    """A post together with its selected publishing destinations."""
+    """A post together with its selected publishing accounts."""
 
     post: Post
-    destinations: tuple[PublishingDestination, ...]
+    accounts: tuple[Account, ...]

@@ -20,3 +20,7 @@ class Account:
             name=self.name.strip(),
             destination=self.destination,
         )
+
+    def display_name(self) -> str:
+        """Return the account name used for display."""
+        return f"{self.name} ({self.destination.display_name})"

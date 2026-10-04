@@ -1,23 +1,27 @@
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
+from socialflow.application.accounts.list_accounts import ListAccounts
+from socialflow.application.publishing.errors import PublishingError
 from socialflow.application.publishing.publish_post import PublishPost
+from socialflow.domain.publishing.publish_request import PublishRequest
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_status import PublishStatus
-from socialflow.application.publishing.errors import PublishingError
-from socialflow.domain.publishing.publish_request import PublishRequest
 
 
 class PostsPage(QWidget):
-    """Primary page for creating and managing social media posts."""
+    """Page for composing and publishing posts."""
 
     def __init__(
-            self,
-            publish_post: PublishPost,
-            parent: QWidget | None = None,
+        self,
+        publish_post: PublishPost,
+        list_accounts: ListAccounts,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
         self._publish_post = publish_post
+        self._list_accounts = list_accounts
+
         self.post_editor = PostEditor(self)
         self.publish_status = PublishStatus(self)
 
@@ -31,8 +35,19 @@ class PostsPage(QWidget):
             self._handle_publish_request
         )
 
-    def _handle_publish_request(self, request: PublishRequest) -> None:
-        """Delegate publishing to the application service."""
+        self.refresh_accounts()
+
+    def refresh_accounts(self) -> None:
+        """Refresh the accounts available for publishing."""
+        self.post_editor.set_accounts(
+            self._list_accounts.execute()
+        )
+
+    def _handle_publish_request(
+        self,
+        request: PublishRequest,
+    ) -> None:
+        """Publish a request created by the post editor."""
         try:
             self._publish_post.execute(request)
         except PublishingError:

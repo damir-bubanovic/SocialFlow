@@ -2,20 +2,20 @@ from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.add_account import AddAccount
 from socialflow.application.accounts.list_accounts import ListAccounts
+from socialflow.application.accounts.remove_account import RemoveAccount
+from socialflow.application.accounts.update_account import UpdateAccount
+from socialflow.application.publishing.null_publisher import NullPublisher
+from socialflow.application.publishing.publisher_router import PublisherRouter
+from socialflow.application.publishing.publish_post import PublishPost
+from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,
 )
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
-from socialflow.application.publishing.null_publisher import NullPublisher
-from socialflow.application.publishing.publisher_router import PublisherRouter
-from socialflow.application.publishing.publish_post import PublishPost
-from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
-from socialflow.application.accounts.remove_account import RemoveAccount
-from socialflow.application.accounts.update_account import UpdateAccount
 
 
 class MainContent(QWidget):
@@ -25,6 +25,14 @@ class MainContent(QWidget):
         super().__init__(parent)
 
         self.navigation = Navigation(self)
+
+        paths = AppPaths(data_directory())
+        account_repository = JsonAccountRepository(paths.accounts_file)
+
+        add_account = AddAccount(account_repository)
+        list_accounts = ListAccounts(account_repository)
+        remove_account = RemoveAccount(account_repository)
+        update_account = UpdateAccount(account_repository)
 
         publisher = NullPublisher()
         publisher_router = PublisherRouter(
@@ -38,15 +46,9 @@ class MainContent(QWidget):
 
         self.posts_page = PostsPage(
             publish_post=publish_post,
+            list_accounts=list_accounts,
             parent=self,
         )
-
-        paths = AppPaths(data_directory())
-        account_repository = JsonAccountRepository(paths.accounts_file)
-        add_account = AddAccount(account_repository)
-        list_accounts = ListAccounts(account_repository)
-        remove_account = RemoveAccount(account_repository)
-        update_account = UpdateAccount(account_repository)
 
         self.accounts_page = AccountsPage(
             add_account=add_account,
@@ -54,6 +56,10 @@ class MainContent(QWidget):
             remove_account=remove_account,
             update_account=update_account,
             parent=self,
+        )
+
+        self.accounts_page.accounts_changed.connect(
+            self.posts_page.refresh_accounts
         )
 
         self.pages = QStackedWidget(self)
