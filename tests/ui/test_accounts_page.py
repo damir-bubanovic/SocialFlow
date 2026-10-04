@@ -279,3 +279,65 @@ def test_accounts_page_shows_status_after_updating_account(qtbot) -> None:
 
     assert page.account_status.text() == "Account updated."
     assert page.account_status.property("status") == "success"
+
+def test_accounts_page_starts_with_empty_form_when_accounts_exist(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+
+    repository.add(
+        Account(
+            name="Persisted Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+    )
+    qtbot.addWidget(page)
+
+    assert page.account_list.count() == 1
+    assert page.account_form.name_input.text() == ""
+    assert page.account_list.selected_account() is None
+    assert not page.update_button.isEnabled()
+    assert not page.remove_button.isEnabled()
+
+
+def test_accounts_page_clears_form_after_updating_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    page.account_form.name_input.setText("Main Facebook")
+    page.update_button.click()
+
+    assert page.account_list.count() == 1
+    assert page.account_list.item(0).text() == "Main Facebook - Facebook"
+    assert page.account_form.name_input.text() == ""
+    assert page.account_list.selected_account() is None
+    assert not page.update_button.isEnabled()
+    assert not page.remove_button.isEnabled()
+
+
+def test_accounts_page_clears_form_after_removing_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("SocialFlow Facebook")
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    page.remove_button.click()
+
+    assert page.account_list.count() == 0
+    assert page.account_form.name_input.text() == ""
+    assert page.account_list.selected_account() is None
+    assert not page.update_button.isEnabled()
+    assert not page.remove_button.isEnabled()

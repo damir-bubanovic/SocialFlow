@@ -1,9 +1,19 @@
+import pytest
+
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
 from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
+
+
+@pytest.fixture(autouse=True)
+def isolate_socialflow_data(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv(
+        "XDG_DATA_HOME",
+        str(tmp_path),
+    )
 
 
 def test_main_content_is_widget(qtbot) -> None:

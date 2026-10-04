@@ -1,10 +1,12 @@
 from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.add_account import AddAccount
-from socialflow.application.accounts.in_memory_account_repository import (
-    InMemoryAccountRepository,
-)
 from socialflow.application.accounts.list_accounts import ListAccounts
+from socialflow.infrastructure.accounts.json_account_repository import (
+    JsonAccountRepository,
+)
+from socialflow.infrastructure.storage.app_paths import AppPaths
+from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.application.publishing.null_publisher import NullPublisher
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.publishing.publish_post import PublishPost
@@ -39,7 +41,8 @@ class MainContent(QWidget):
             parent=self,
         )
 
-        account_repository = InMemoryAccountRepository()
+        paths = AppPaths(data_directory())
+        account_repository = JsonAccountRepository(paths.accounts_file)
         add_account = AddAccount(account_repository)
         list_accounts = ListAccounts(account_repository)
         remove_account = RemoveAccount(account_repository)

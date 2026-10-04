@@ -78,7 +78,6 @@ class AccountsPage(QWidget):
             return
 
         self._refresh_accounts()
-        self.account_form.clear()
         self.account_status.show_success()
 
     def _handle_update_account(self) -> None:
@@ -102,7 +101,6 @@ class AccountsPage(QWidget):
             return
 
         self._refresh_accounts()
-        self.account_form.clear()
         self.account_status.show_updated()
 
     def _handle_remove_account(self) -> None:
@@ -138,7 +136,11 @@ class AccountsPage(QWidget):
         self.remove_button.setEnabled(has_selection)
 
     def _refresh_accounts(self) -> None:
-        """Refresh the displayed account list."""
+        """Refresh the account list with no account selected."""
         self.account_list.set_accounts(
             self._list_accounts.execute()
         )
+        self.account_list.clearSelection()
+        self.account_list.setCurrentRow(-1)
+        self.account_form.clear()
+        self._update_account_buttons()
