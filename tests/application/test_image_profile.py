@@ -31,3 +31,63 @@ def test_image_profile_rejects_unsupported_output_format() -> None:
             ),
             output_format="BMP",
         )
+
+def test_image_profile_can_contain_aspect_ratio_limits() -> None:
+    profile = ImageProfile(
+        maximum_dimensions=ImageDimensions(
+            width=1080,
+            height=1350,
+        ),
+        output_format="JPEG",
+        minimum_aspect_ratio=0.8,
+        maximum_aspect_ratio=1.91,
+    )
+
+    assert profile.minimum_aspect_ratio == 0.8
+    assert profile.maximum_aspect_ratio == 1.91
+
+
+def test_image_profile_rejects_non_positive_minimum_aspect_ratio() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Minimum aspect ratio must be greater than zero",
+    ):
+        ImageProfile(
+            maximum_dimensions=ImageDimensions(
+                width=1080,
+                height=1350,
+            ),
+            output_format="JPEG",
+            minimum_aspect_ratio=0,
+        )
+
+
+def test_image_profile_rejects_non_positive_maximum_aspect_ratio() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Maximum aspect ratio must be greater than zero",
+    ):
+        ImageProfile(
+            maximum_dimensions=ImageDimensions(
+                width=1080,
+                height=1350,
+            ),
+            output_format="JPEG",
+            maximum_aspect_ratio=0,
+        )
+
+
+def test_image_profile_rejects_reversed_aspect_ratio_limits() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Minimum aspect ratio cannot exceed maximum aspect ratio",
+    ):
+        ImageProfile(
+            maximum_dimensions=ImageDimensions(
+                width=1080,
+                height=1350,
+            ),
+            output_format="JPEG",
+            minimum_aspect_ratio=1.91,
+            maximum_aspect_ratio=0.8,
+        )
