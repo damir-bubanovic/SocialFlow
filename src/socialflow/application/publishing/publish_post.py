@@ -64,4 +64,13 @@ class PublishPost:
                 images=prepared_images,
             )
 
-            publisher.publish(prepared_post)
+            try:
+                publisher.publish(prepared_post)
+            finally:
+                if (
+                        prepared_images
+                        and self._image_preparation_service is not None
+                ):
+                    self._image_preparation_service.cleanup(
+                        prepared_images
+                    )

@@ -12,6 +12,7 @@ from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
 from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.application.images.prepared_image import PreparedImage
 
 
 def create_test_image(
@@ -281,3 +282,58 @@ def test_prepare_all_accepts_no_images(
     )
 
     assert result == ()
+
+def test_cleanup_removes_prepared_image_files(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.jpg"
+    prepared_path = tmp_path / "prepared.jpg"
+
+    source_path.touch()
+    prepared_path.touch()
+
+    attachment = ImageAttachment(path=source_path)
+
+    prepared_image = PreparedImage(
+        source=attachment,
+        destination=PublishingDestination.INSTAGRAM,
+        path=prepared_path,
+    )
+
+    service = ImagePreparationService(
+        profile_provider=ImageProfileProvider(
+            profiles={}
+        )
+    )
+
+    service.cleanup((prepared_image,))
+
+    assert not prepared_path.exists()
+    assert source_path.exists()
+
+def test_cleanup_ignores_missing_prepared_image_files(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.jpg"
+    missing_path = tmp_path / "missing.jpg"
+
+    source_path.touch()
+
+    attachment = ImageAttachment(path=source_path)
+
+    prepared_image = PreparedImage(
+        source=attachment,
+        destination=PublishingDestination.INSTAGRAM,
+        path=missing_path,
+    )
+
+    service = ImagePreparationService(
+        profile_provider=ImageProfileProvider(
+            profiles={}
+        )
+    )
+
+    service.cleanup((prepared_image,))
+
+    assert source_path.exists()
+    assert not missing_path.exists()

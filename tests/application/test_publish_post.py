@@ -37,6 +37,30 @@ class RecordingPublisher(Publisher):
     def publish(self, post: PreparedPost) -> None:
         self.published_posts.append(post)
 
+class FailingPublisher(Publisher):
+    """Test publisher that fails while publishing."""
+
+    def publish(self, post: PreparedPost) -> None:
+        raise RuntimeError("Publishing failed.")
+
+class InspectingPublisher(Publisher):
+    """Test publisher that inspects prepared images while publishing."""
+
+    def __init__(self) -> None:
+        self.image_existed_during_publish = False
+        self.image_size: tuple[int, int] | None = None
+        self.image_format: str | None = None
+
+    def publish(self, post: PreparedPost) -> None:
+        prepared_image = post.images[0]
+
+        self.image_existed_during_publish = (
+            prepared_image.path.is_file()
+        )
+
+        with Image.open(prepared_image.path) as image:
+            self.image_size = image.size
+            self.image_format = image.format
 
 def test_publish_post_publishes_to_requested_accounts() -> None:
     facebook_publisher = RecordingPublisher()
@@ -196,11 +220,7 @@ def test_publish_post_prepares_images_for_destination(
         / "source-instagram-1.jpg"
     )
 
-    assert prepared_image.path.is_file()
-
-    with Image.open(prepared_image.path) as result:
-        assert result.size == (800, 450)
-        assert result.format == "JPEG"
+    assert not prepared_image.path.exists()
 
     with Image.open(source_path) as original:
         assert original.size == (1600, 900)
@@ -312,13 +332,8 @@ def test_publish_post_prepares_image_separately_for_each_destination(
         / "source-instagram-1.jpg"
     )
 
-    with Image.open(facebook_image.path) as result:
-        assert result.size == (1200, 675)
-        assert result.format == "JPEG"
-
-    with Image.open(instagram_image.path) as result:
-        assert result.size == (800, 450)
-        assert result.format == "JPEG"
+    assert not facebook_image.path.exists()
+    assert not instagram_image.path.exists()
 
     with Image.open(source_path) as original:
         assert original.size == (1600, 900)
@@ -377,3 +392,151 @@ def test_publish_post_rejects_images_without_preparation_configuration(
         service.execute(request)
 
     assert publisher.published_posts == []
+
+def test_publish_post_cleans_prepared_images_when_publisher_fails(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+
+    image = Image.new(
+        "RGB",
+        (1600, 900),
+    )
+    image.save(source_path)
+
+    attachment = ImageAttachment(
+        path=source_path,
+    )
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.INSTAGRAM: FailingPublisher(),
+        }
+    )
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.INSTAGRAM: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        image_preparation_service=ImagePreparationService(
+            profile_provider=profile_provider,
+        ),
+        image_output_directory=tmp_path / "prepared",
+    )
+
+    post = Post(
+        text="Post with image",
+        language=Language.ENGLISH,
+        images=(attachment,),
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(
+            Account(
+                name="Main Instagram",
+                destination=PublishingDestination.INSTAGRAM,
+            ),
+        ),
+    )
+
+    prepared_path = (
+        tmp_path
+        / "prepared"
+        / "instagram"
+        / "source-instagram-1.jpg"
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Publishing failed.",
+    ):
+        service.execute(request)
+
+    assert not prepared_path.exists()
+    assert source_path.exists()
+
+def test_prepared_image_exists_during_publish_and_is_cleaned_afterward(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+
+    image = Image.new(
+        "RGB",
+        (1600, 900),
+    )
+    image.save(source_path)
+
+    attachment = ImageAttachment(
+        path=source_path,
+    )
+
+    publisher = InspectingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.INSTAGRAM: publisher,
+        }
+    )
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.INSTAGRAM: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        image_preparation_service=ImagePreparationService(
+            profile_provider=profile_provider,
+        ),
+        image_output_directory=tmp_path / "prepared",
+    )
+
+    post = Post(
+        text="Post with image",
+        language=Language.ENGLISH,
+        images=(attachment,),
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(
+            Account(
+                name="Main Instagram",
+                destination=PublishingDestination.INSTAGRAM,
+            ),
+        ),
+    )
+
+    prepared_path = (
+        tmp_path
+        / "prepared"
+        / "instagram"
+        / "source-instagram-1.jpg"
+    )
+
+    service.execute(request)
+
+    assert publisher.image_existed_during_publish
+    assert publisher.image_size == (800, 450)
+    assert publisher.image_format == "JPEG"
+
+    assert not prepared_path.exists()
+    assert source_path.exists()

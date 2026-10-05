@@ -98,3 +98,11 @@ class ImagePreparationService:
             f"{index}"
             f"{extension}"
         )
+
+    @staticmethod
+    def cleanup(
+            prepared_images: tuple[PreparedImage, ...],
+    ) -> None:
+        """Remove prepared image files that still exist."""
+        for prepared_image in prepared_images:
+            prepared_image.path.unlink(missing_ok=True)
