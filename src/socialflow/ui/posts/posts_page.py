@@ -87,14 +87,14 @@ class PostsPage(QWidget):
         self._refresh_available_tags()
 
     def _handle_publish_request(
-        self,
-        request: PublishRequest,
+            self,
+            request: PublishRequest,
     ) -> None:
         """Publish a request created by the post editor."""
         try:
-            self._publish_post.execute(request)
+            results = self._publish_post.execute(request)
         except PublishingError:
             self.publish_status.show_error()
             return
 
-        self.publish_status.show_success()
+        self.publish_status.show_results(results)

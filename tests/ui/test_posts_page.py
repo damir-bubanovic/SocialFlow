@@ -198,7 +198,7 @@ def test_posts_page_shows_status_after_publish(qtbot) -> None:
     page.post_editor.destination_selector._checkboxes[0].setChecked(True)
     page.post_editor.publish_button.click()
 
-    assert page.publish_status.text() == "Publish request completed."
+    assert page.publish_status.text() == "Main Facebook — Published"
     assert page.publish_status.property("status") == "success"
 
 
@@ -232,7 +232,7 @@ def test_posts_page_shows_error_when_publish_fails(qtbot) -> None:
     page.post_editor.destination_selector._checkboxes[0].setChecked(True)
     page.post_editor.publish_button.click()
 
-    assert page.publish_status.text() == "Publish request failed."
+    assert page.publish_status.text() == "Main Facebook — Failed"
     assert page.publish_status.property("status") == "error"
 
 
@@ -493,3 +493,59 @@ def test_posts_page_creates_new_tag_for_all_selected_accounts(
     assert page.post_editor.tag_selector.available_tags() == (
         Tag(name="SocialFlow"),
     )
+
+def test_posts_page_shows_result_for_each_destination_when_one_fails(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+
+    facebook_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress_account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository.add(facebook_account)
+    repository.add(wordpress_account)
+
+    facebook_publisher = FailingPublisher()
+    wordpress_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(router),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Hello from SocialFlow"
+    )
+
+    for checkbox in (
+        page.post_editor.destination_selector._checkboxes
+    ):
+        checkbox.setChecked(True)
+
+    page.post_editor.publish_button.click()
+
+    assert page.publish_status.text() == (
+        "Main Facebook — Failed\n"
+        "Main Website — Published"
+    )
+    assert page.publish_status.property("status") == "error"
+
+    assert len(wordpress_publisher.published_posts) == 1

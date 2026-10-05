@@ -457,11 +457,13 @@ def test_publish_post_cleans_prepared_images_when_publisher_fails(
         / "source-instagram-1.jpg"
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Publishing failed.",
-    ):
-        service.execute(request)
+    results = service.execute(request)
+
+    assert len(results) == 1
+    assert results[0].account is request.accounts[0]
+    assert not results[0].succeeded
+    assert isinstance(results[0].error, RuntimeError)
+    assert str(results[0].error) == "Publishing failed."
 
     assert not prepared_path.exists()
     assert source_path.exists()
@@ -540,3 +542,54 @@ def test_prepared_image_exists_during_publish_and_is_cleaned_afterward(
 
     assert not prepared_path.exists()
     assert source_path.exists()
+
+def test_publish_post_continues_after_one_destination_fails() -> None:
+    failing_publisher = FailingPublisher()
+    successful_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: failing_publisher,
+            PublishingDestination.WORDPRESS: successful_publisher,
+        }
+    )
+
+    service = PublishPost(router)
+
+    post = Post(
+        text="Hello from SocialFlow",
+        language=Language.ENGLISH,
+    )
+
+    facebook_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    wordpress_account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(
+            facebook_account,
+            wordpress_account,
+        ),
+    )
+
+    results = service.execute(request)
+
+    assert len(results) == 2
+
+    assert results[0].account is facebook_account
+    assert not results[0].succeeded
+    assert isinstance(results[0].error, RuntimeError)
+
+    assert results[1].account is wordpress_account
+    assert results[1].succeeded
+    assert results[1].error is None
+
+    assert len(successful_publisher.published_posts) == 1
+    assert successful_publisher.published_posts[0].source is post

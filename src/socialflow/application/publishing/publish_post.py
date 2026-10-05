@@ -8,6 +8,7 @@ from socialflow.application.publishing.errors import (
     ImagePreparationNotConfiguredError,
 )
 from socialflow.application.publishing.prepared_post import PreparedPost
+from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.domain.publishing.publish_request import PublishRequest
 
@@ -25,8 +26,8 @@ class PublishPost:
         self._image_preparation_service = image_preparation_service
         self._image_output_directory = image_output_directory
 
-    def execute(self, request: PublishRequest) -> None:
-        """Publish the post to every requested account."""
+    def execute(self, request: PublishRequest) -> tuple[PublishResult, ...]:
+        """Publish the post and return one result for every account."""
         if not request.post.has_content():
             raise EmptyPostError("Cannot publish a post without content.")
 
@@ -37,6 +38,8 @@ class PublishPost:
             raise ImagePreparationNotConfiguredError(
                 "Image preparation must be configured before publishing images."
             )
+
+        results: list[PublishResult] = []
 
         for account in request.accounts:
             publisher = self._publisher_router.publisher_for(
@@ -66,6 +69,21 @@ class PublishPost:
 
             try:
                 publisher.publish(prepared_post)
+
+                results.append(
+                    PublishResult(
+                        account=account,
+                        succeeded=True,
+                    )
+                )
+            except Exception as error:
+                results.append(
+                    PublishResult(
+                        account=account,
+                        succeeded=False,
+                        error=error,
+                    )
+                )
             finally:
                 if (
                         prepared_images
@@ -74,3 +92,5 @@ class PublishPost:
                     self._image_preparation_service.cleanup(
                         prepared_images
                     )
+
+        return tuple(results)
