@@ -63,10 +63,11 @@ integration services.
 
 ### Image Processing
 
--   Pillow (planned; not yet a project dependency)
+-   Pillow (implemented project dependency)
 
-Image processing is responsible for validation, resizing, conversion,
-compression, and generation of platform-compatible image versions.
+Image processing validates source attachments, reads image metadata, applies
+destination profiles, resizes/converts when required, and generates temporary
+platform-compatible prepared images without modifying source files.
 
 ### Testing
 
@@ -746,57 +747,60 @@ this stage.
 
 ## 26. Current Implemented Foundation
 
-The implemented application now spans domain, application, infrastructure, and
-UI layers. The important current structure is:
+The implemented application spans domain, application, infrastructure, and UI
+layers. The important current structure is:
 
 ``` text
 src/socialflow/
 ├── application/
 │   ├── accounts/       # repository contract + add/list/update/remove services
-│   └── publishing/     # publisher contract, router, PublishPost, null publisher
+│   ├── images/         # validation, profiles, processing, preparation, cleanup
+│   ├── publishing/     # prepared posts, router, publishers, PublishPost
+│   └── tags/           # TagProvider, ListTags, CreateTag, NullTagProvider
 ├── domain/
 │   ├── account/        # Account
 │   ├── language/       # Language
-│   ├── post/           # Post
+│   ├── post/           # Post, ImageAttachment, Tag
 │   └── publishing/     # PublishingDestination + PublishRequest
 ├── infrastructure/
 │   ├── accounts/       # JSON repository, serializer, storage errors
-│   └── storage/        # cross-platform application-data paths
-├── ui/
-│   ├── accounts/       # account form/list/status/page
-│   ├── posts/          # editor, account selector, language controls, status
-│   ├── main_content.py
-│   ├── main_window.py
-│   └── navigation.py
-├── __main__.py
-├── constants.py
-└── main.py
+│   └── storage/        # cross-platform data paths + prepared-image path
+└── ui/
+    ├── accounts/       # account form/list/status/page
+    └── posts/          # editor, destinations, images, tags, language, status
 ```
 
 Current responsibility boundaries include:
 
--   `MainWindow` owns top-level window behavior; `MainContent` composes the
-    application pages and application services.
--   `Navigation` switches between the implemented `Posts` and `Accounts` pages.
--   `AccountsPage` uses `AddAccount`, `ListAccounts`, `UpdateAccount`, and
-    `RemoveAccount`; it never accesses JSON directly.
--   `JsonAccountRepository` implements the `AccountRepository` contract and is
-    shared by account management and publishing-account discovery.
--   Successful account mutations emit `AccountsPage.accounts_changed`;
-    `MainContent` connects that signal to `PostsPage.refresh_accounts()` so the
-    post editor stays synchronized without restarting the application.
--   `DestinationSelector` selects configured `Account` objects rather than
-    generic platform enum values. Multiple accounts for the same platform remain
-    distinct.
--   `PublishRequest` contains a `Post` plus selected `Account` objects.
-    `PublishPost` routes each account through `PublisherRouter` using the
-    account's `PublishingDestination`.
--   The current runtime publishers are `NullPublisher` instances. Real
-    Facebook, Instagram, and WordPress integrations are still pending.
--   The account JSON persistence path is platform-aware and Unicode/Croatian
-    account names are covered by automated tests.
--   Language controls currently support explicit Croatian/English selection and
-    `HR`/`EN` indication; automatic language detection is still pending.
+-   `MainContent` is the composition root for account services, publishing,
+    image preparation, and the current null tag provider.
+-   `Post` contains text, language, source `ImageAttachment` values, and `Tag`
+    values. `Post.has_content()` treats text or images as publishable content.
+-   `ImageSelector` validates local image selections, prevents duplicate paths,
+    displays thumbnails, and supports removal/clearing.
+-   `ImageProfileProvider` supplies destination profiles. `PublishPost` invokes
+    `ImagePreparationService` per selected account destination and publishes a
+    `PreparedPost` containing `PreparedImage` values. Prepared files are cleaned
+    in a `finally` path after each publisher attempt.
+-   `AppPaths.prepared_images_directory` keeps generated images under runtime
+    application data rather than the repository.
+-   `TagSelector` displays available tags, tracks selected tags, supports manual
+    entry/removal/clearing, and emits `tag_created` only for genuinely new tags.
+-   `PostsPage` reacts to account-selection changes, uses `ListTags` to merge
+    unique tags across selected accounts, and uses `CreateTag` for each selected
+    account. New-tag entry is disabled when no account is selected.
+-   `TagProvider` is the platform-facing tag contract. `NullTagProvider` is the
+    current runtime implementation; real destination-specific providers remain
+    pending.
+-   `DestinationSelector` selects configured `Account` objects. `PublishRequest`
+    carries those accounts and `PublishPost` resolves publishers by destination.
+-   Account CRUD remains isolated behind `AccountRepository`;
+    `JsonAccountRepository` persists UTF-8 account data and account changes are
+    propagated to the Posts page with Qt signals.
+-   Runtime publishers remain `NullPublisher` placeholders. Live Facebook,
+    Instagram, and WordPress authentication/publishing are not implemented.
+-   Explicit Croatian/English selection and `HR`/`EN` indication are implemented;
+    automatic language detection remains pending.
 
 The current main window title is `SocialFlow` and its initial size is 1200 ×
 800.

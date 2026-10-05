@@ -43,12 +43,12 @@ Current implemented dependencies:
 
 -   Python 3.12+
 -   PySide6 / Qt 6
+-   Pillow
 -   pytest
 -   pytest-qt
 
-The architecture also plans to introduce SQLite/SQLAlchemy, HTTPX, and
-Pillow when the corresponding database, platform-integration, and image
-processing work requires them.
+SQLite/SQLAlchemy and HTTPX remain planned for the broader relational
+persistence and live platform-integration work.
 
 ## Development Status
 
@@ -58,9 +58,15 @@ The Python/PySide6 application foundation and the first account/publishing
 workflow are implemented. SocialFlow currently provides `Posts` and
 `Accounts` navigation, local account add/list/update/remove workflows,
 UTF-8 JSON persistence for configured accounts, manual Croatian/English
-language selection, and account-specific publishing selection.
+language selection, account-specific publishing selection, image attachment
+and preview, destination-specific image preparation, and a tested tag-selection
+and tag-service workflow.
 
-Publishing is still routed to placeholder publishers; live Facebook,
+Posts can carry text, images, language, and tags. Images are validated and
+prepared per destination before publishing, with temporary prepared files
+cleaned up afterward. Tags can be displayed, selected, cleared, created, and
+merged across selected accounts through application-level tag services. The
+current runtime still uses `NullPublisher` and `NullTagProvider`; live Facebook,
 Instagram, and WordPress API integrations have not yet been implemented.
 The project is developed incrementally with pytest/pytest-qt coverage for
 each completed section. Additional quality tooling will be introduced as

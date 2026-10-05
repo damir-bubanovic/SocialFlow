@@ -104,8 +104,8 @@ supported publishing platforms.
 
 -   [x] Provide a common post editor.
 -   [x] Allow text content to be entered and edited.
--   [ ] Allow images to be attached to posts.
--   [ ] Allow applicable tags and metadata to be selected.
+-   [x] Allow images to be attached to posts.
+-   [x] Allow applicable tags to be selected and carried by the post model; live platform metadata remains pending.
 -   [x] Allow the user to choose one or more configured publishing accounts; each account retains its platform destination.
 -   [~] Allow publishing to one configured account through the application publishing pipeline; live platform publishers are not implemented yet.
 -   [~] Allow one publishing action to target multiple configured accounts; live platform publishers are not implemented yet.
@@ -145,20 +145,19 @@ supported publishing platforms.
 
 ## 7. Image Management
 
--   [ ] Select images from the local computer.
--   [ ] Preview selected images before publishing.
--   [ ] Read image dimensions and format.
--   [ ] Validate images against destination platform requirements.
--   [ ] Resize images when required.
--   [ ] Adjust image dimensions when required.
--   [ ] Adjust image resolution when required.
--   [ ] Convert image formats when required.
--   [ ] Compress images when required.
--   [ ] Preserve the original source image unless the user explicitly
-    replaces it.
--   [ ] Generate platform-compatible versions without unnecessarily
-    modifying the original file.
--   [ ] Display image-processing errors clearly to the user.
+-   [x] Select supported images from the local computer (`.jpg`, `.jpeg`, `.png`, `.webp`).
+-   [x] Preview selected images before publishing and allow individual removal or clearing.
+-   [x] Read image dimensions and format through Pillow-backed image processing.
+-   [x] Validate selected image files before they enter the post.
+-   [x] Apply destination image profiles before publishing.
+-   [x] Resize images when they exceed configured destination dimensions.
+-   [x] Enforce configured destination aspect-ratio limits where applicable.
+-   [x] Convert prepared output to the configured destination format.
+-   [x] Generate destination-specific prepared image files without modifying the source image.
+-   [x] Carry prepared-image metadata separately from the source `ImageAttachment`.
+-   [x] Clean up temporary prepared image files after each publish attempt.
+-   [~] Display image-selection/validation errors in the editor; broader publishing/preparation error presentation remains to be expanded.
+-   [ ] Verify live platform image requirements against official APIs before production integration.
 
 ------------------------------------------------------------------------
 
@@ -167,15 +166,17 @@ supported publishing platforms.
 SocialFlow will provide a common interface for tags and similar metadata
 while respecting the capabilities of each destination platform.
 
--   [ ] Retrieve existing tags or equivalent supported metadata from a
-    platform.
--   [ ] Display available tags in the post editor.
--   [ ] Allow existing tags to be selected.
--   [ ] Allow new tags to be created where supported by the destination.
--   [ ] Refresh local tag information from the remote platform.
--   [ ] Keep local tag information synchronized where practical.
--   [ ] Handle platform differences instead of assuming all platforms
-    implement tags identically.
+-   [~] Retrieve existing tags through the `TagProvider`/`ListTags` boundary; live platform providers are not implemented yet.
+-   [x] Display available tags in the post editor.
+-   [x] Allow existing tags to be selected and deselected.
+-   [x] Allow manually entered tags to become part of the composed `Post`.
+-   [~] Create new tags through `CreateTag` for every selected account; the current runtime uses `NullTagProvider`, so remote persistence is pending.
+-   [x] Merge available tags from multiple selected accounts without duplicates.
+-   [x] Refresh available tags when account selection changes.
+-   [x] Disable new-tag creation when no publishing account is selected.
+-   [ ] Implement destination-specific tag providers and verify each platform's actual tag/metadata semantics.
+-   [ ] Keep remote/local tag information synchronized where practical.
+-   [ ] Handle platform differences instead of assuming all platforms implement tags identically.
 
 ------------------------------------------------------------------------
 
@@ -267,16 +268,16 @@ while respecting the capabilities of each destination platform.
 Testing is part of feature development rather than a final project
 phase.
 
--   [ ] Configure pytest.
--   [ ] Add unit tests for application logic.
--   [ ] Add tests for image-processing behavior.
+-   [x] Configure pytest and pytest-qt.
+-   [x] Add unit tests for implemented application logic.
+-   [x] Add tests for the implemented image-processing and preparation behavior.
 -   [ ] Add tests for platform integration services using mocks/fakes
     where appropriate.
--   [ ] Add tests for database/storage behavior.
--   [ ] Add UI tests where they provide meaningful value.
+-   [x] Add tests for the implemented JSON/storage behavior.
+-   [x] Add UI tests for the implemented PySide6 workflows.
 -   [ ] Add tests for important failure scenarios.
 -   [ ] Add regression tests when bugs are fixed.
--   [ ] Run relevant tests while developing each feature.
+-   [x] Run relevant tests while developing each implemented feature.
 -   [ ] Run the complete test and quality-check suite before completing
     a major feature or development section.
 
@@ -299,8 +300,8 @@ No feature should be marked complete until its relevant tests pass.
 
 ## 17. Linux Support
 
--   [ ] Develop and test SocialFlow on Linux.
--   [ ] Support Linux Mint as a development and target environment.
+-   [x] Develop and test SocialFlow on Linux.
+-   [~] Support Linux Mint as the primary development environment; distributable-build verification remains pending.
 -   [ ] Produce a distributable Linux application.
 -   [ ] Verify application behavior outside the development environment.
 
@@ -318,13 +319,12 @@ No feature should be marked complete until its relevant tests pass.
 
 ## 19. Documentation
 
--   [ ] Maintain the public README.
--   [ ] Maintain the feature roadmap.
--   [ ] Maintain architecture documentation.
--   [ ] Record significant architecture and technology decisions.
--   [ ] Maintain development/setup instructions.
--   [ ] Keep documentation synchronized with significant implementation
-    changes.
+-   [x] Maintain the public README.
+-   [x] Maintain the feature roadmap.
+-   [x] Maintain architecture documentation.
+-   [x] Record significant architecture and technology decisions.
+-   [x] Maintain development/setup instructions.
+-   [x] Keep documentation synchronized at development checkpoints; continue updating it as implementation evolves.
 
 ------------------------------------------------------------------------
 

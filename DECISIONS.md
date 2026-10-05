@@ -239,7 +239,7 @@ during automated testing.
 
 ### Decision
 
-Pillow will be used for application-level image processing.
+Pillow is used for application-level image processing and is a current runtime dependency.
 
 ### Context
 
@@ -1006,6 +1006,81 @@ without restarting SocialFlow or coupling the two pages directly to storage.
 -   Both pages continue to depend on application services rather than JSON
     storage details.
 -   Integration tests cover add, update, and remove synchronization.
+
+------------------------------------------------------------------------
+
+## ADR-035 --- Prepare Images Before Publisher Delivery
+
+### Decision
+
+Publishing uses a two-stage image model: immutable source `ImageAttachment`
+objects remain part of the domain `Post`, while destination-specific
+`PreparedImage` objects are generated immediately before publisher delivery.
+`PreparedPost` carries the original post plus those prepared images.
+
+Temporary prepared files are runtime data and are cleaned after each publisher
+attempt, including failure paths.
+
+### Consequences
+
+-   Source images are not modified by publishing preparation.
+-   Platform publishers receive files already shaped by destination profiles.
+-   Image-processing policy remains separate from external API code.
+-   Cleanup behavior is testable independently from live platforms.
+
+------------------------------------------------------------------------
+
+## ADR-036 --- Use Destination Image Profiles
+
+### Decision
+
+Destination image requirements are represented by `ImageProfile` values and
+resolved through `ImageProfileProvider`. Default profiles currently exist for
+Facebook, Instagram, and WordPress and are treated as application policy that
+must be re-verified against official APIs before live integration.
+
+### Consequences
+
+-   Image rules are centralized instead of scattered through UI or publishers.
+-   Profiles can evolve without changing the source-image domain model.
+-   Live integration work must validate the provisional/default limits.
+
+------------------------------------------------------------------------
+
+## ADR-037 --- Isolate Tag Operations Behind a Provider Contract
+
+### Decision
+
+Tag retrieval and creation use the application-facing `TagProvider` contract,
+with `ListTags` and `CreateTag` application services. The current runtime uses
+`NullTagProvider` until real platform providers are implemented.
+
+### Consequences
+
+-   UI components do not call Facebook, Instagram, or WordPress APIs directly.
+-   Tag workflows can be tested with in-memory/fake providers.
+-   Platform-specific tag semantics can be introduced without changing the
+    common post editor contract.
+
+------------------------------------------------------------------------
+
+## ADR-038 --- Merge Tags Across Selected Accounts and Create for Each Account
+
+### Decision
+
+When multiple publishing accounts are selected, the Posts page exposes the
+ordered unique union of tags returned for those accounts. A genuinely new tag
+entered by the user is sent through `CreateTag` once for every selected account.
+Tag creation controls are disabled when no account is selected.
+
+### Consequences
+
+-   Duplicate tag names/values are not repeated in the common selector.
+-   Multi-account composition has one predictable UI rule.
+-   Real providers remain responsible for whether and how a destination can
+    create or persist the requested tag.
+-   Platform capability differences must be handled explicitly during live
+    integration rather than assumed away by the UI.
 
 ------------------------------------------------------------------------
 

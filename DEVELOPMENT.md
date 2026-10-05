@@ -130,25 +130,29 @@ the project root:
 python -m pip install -e ".[dev]"
 ```
 
-The current runtime dependency is PySide6. The current development
-dependencies are pytest and pytest-qt. JSON account persistence uses Python's
-standard library and therefore adds no runtime dependency.
+The current runtime dependencies are PySide6 and Pillow. The current
+development dependencies are pytest and pytest-qt. JSON account persistence
+uses Python's standard library and therefore adds no additional runtime
+dependency.
 
 Additional dependencies should only be added when implementation
 requires them.
 
 ------------------------------------------------------------------------
 
-## 8. Planned Core Dependencies
+## 8. Core and Planned Dependencies
 
-The initial architecture currently expects the following technologies:
+Current technologies:
 
 -   PySide6 / Qt 6 --- desktop user interface
--   SQLAlchemy --- database access
--   HTTPX --- HTTP/API communication
 -   Pillow --- image processing
 -   pytest --- automated testing
 -   pytest-qt --- Qt testing where appropriate
+
+Planned when implementation requires them:
+
+-   SQLAlchemy --- broader relational database access
+-   HTTPX --- live HTTP/API communication
 
 Dependencies should only be added when the implementation actually
 requires them.
@@ -614,7 +618,36 @@ distributable version.
 
 ------------------------------------------------------------------------
 
-## 28. Keep This Document Practical
+## 28. Current Implementation Checkpoint
+
+The current green project checkpoint includes account CRUD/persistence, the
+post editor, account-targeted publishing orchestration, image selection and
+preview, destination-specific image preparation with cleanup, and the generic
+tag selection/retrieval/creation workflow.
+
+Useful focused test commands include:
+
+``` bash
+pytest tests/ui/test_tag_selector.py
+pytest tests/ui/test_post_editor.py tests/ui/test_posts_page.py
+pytest tests/application/test_image_preparation_service.py
+pytest
+```
+
+The application can be launched from the activated project environment with:
+
+``` bash
+python -m socialflow
+```
+
+Live Facebook, Instagram, and WordPress integrations are not yet present. The
+current runtime composes `NullPublisher` and `NullTagProvider`, so platform API
+work should begin by implementing adapters behind the existing application
+contracts rather than placing API logic in UI classes.
+
+------------------------------------------------------------------------
+
+## 29. Keep This Document Practical
 
 `DEVELOPMENT.md` should describe commands and workflows that actually
 exist.
