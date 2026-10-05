@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 
-from socialflow.domain.post.post import Post
+from socialflow.application.publishing.prepared_post import PreparedPost
 
 
 class Publisher(ABC):
-    """Contract for publishing SocialFlow posts."""
+    """Contract for publishing prepared SocialFlow posts."""
 
     @abstractmethod
-    def publish(self, post: Post) -> None:
-        """Publish a post."""
+    def publish(self, post: PreparedPost) -> None:
+        """Publish a prepared post."""

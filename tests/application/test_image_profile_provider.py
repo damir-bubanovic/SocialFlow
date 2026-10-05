@@ -3,7 +3,7 @@ import pytest
 from socialflow.application.images.default_image_profiles import (
     DEFAULT_IMAGE_PROFILES,
 )
-from socialflow.application.images.image_destination import ImageDestination
+from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.application.images.image_processor import ImageDimensions
 from socialflow.application.images.image_profile import ImageProfile
 from socialflow.application.images.image_profile_provider import (
@@ -22,12 +22,12 @@ def test_image_profile_provider_returns_configured_profile() -> None:
 
     provider = ImageProfileProvider(
         profiles={
-            ImageDestination.INSTAGRAM: profile,
+            PublishingDestination.INSTAGRAM: profile,
         }
     )
 
     result = provider.profile_for(
-        ImageDestination.INSTAGRAM,
+        PublishingDestination.INSTAGRAM,
     )
 
     assert result == profile
@@ -41,7 +41,7 @@ def test_image_profile_provider_rejects_unconfigured_destination() -> None:
         match="No image profile configured for: wordpress",
     ):
         provider.profile_for(
-            ImageDestination.WORDPRESS,
+            PublishingDestination.WORDPRESS,
         )
 
 def test_image_profile_provider_can_use_default_profiles() -> None:
@@ -50,7 +50,7 @@ def test_image_profile_provider_can_use_default_profiles() -> None:
     )
 
     profile = provider.profile_for(
-        ImageDestination.INSTAGRAM,
+        PublishingDestination.INSTAGRAM,
     )
 
     assert profile.maximum_dimensions == ImageDimensions(

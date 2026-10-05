@@ -1,5 +1,5 @@
-from socialflow.application.images.image_destination import ImageDestination
 from socialflow.application.images.image_profile import ImageProfile
+from socialflow.domain.publishing.destination import PublishingDestination
 
 
 class ImageProfileProvider:
@@ -7,13 +7,13 @@ class ImageProfileProvider:
 
     def __init__(
         self,
-        profiles: dict[ImageDestination, ImageProfile] | None = None,
+        profiles: dict[PublishingDestination, ImageProfile] | None = None,
     ) -> None:
         self._profiles = profiles or {}
 
     def profile_for(
         self,
-        destination: ImageDestination,
+        destination: PublishingDestination,
     ) -> ImageProfile:
         """Return the image profile configured for a destination."""
         try:

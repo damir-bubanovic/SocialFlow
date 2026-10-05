@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
 from socialflow.application.publishing.publisher import Publisher
-from socialflow.domain.post.post import Post
+from socialflow.application.publishing.prepared_post import PreparedPost
 
 
 class CompositePublisher(Publisher):
@@ -10,7 +10,7 @@ class CompositePublisher(Publisher):
     def __init__(self, publishers: Iterable[Publisher]) -> None:
         self._publishers = tuple(publishers)
 
-    def publish(self, post: Post) -> None:
+    def publish(self, post: PreparedPost) -> None:
         """Publish the post through every configured publisher."""
         for publisher in self._publishers:
             publisher.publish(post)

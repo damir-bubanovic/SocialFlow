@@ -7,3 +7,6 @@ class EmptyPostError(PublishingError, ValueError):
 
 class PublisherNotConfiguredError(PublishingError):
     """Raised when no publisher is configured for a destination."""
+
+class ImagePreparationNotConfiguredError(RuntimeError):
+    """Raised when image publishing is attempted without image preparation."""

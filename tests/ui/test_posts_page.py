@@ -5,11 +5,11 @@ from socialflow.application.publishing.publisher import Publisher
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.domain.account.account import Account
-from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.ui.posts.publish_status import PublishStatus
+from socialflow.application.publishing.prepared_post import PreparedPost
 from PySide6.QtWidgets import QWidget
 
 
@@ -37,16 +37,16 @@ class RecordingPublisher(Publisher):
     """Test publisher that records published posts."""
 
     def __init__(self) -> None:
-        self.published_posts: list[Post] = []
+        self.published_posts: list[PreparedPost] = []
 
-    def publish(self, post: Post) -> None:
+    def publish(self, post: PreparedPost) -> None:
         self.published_posts.append(post)
 
 
 class FailingPublisher(Publisher):
     """Test publisher that always fails."""
 
-    def publish(self, post: Post) -> None:
+    def publish(self, post: PreparedPost) -> None:
         raise PublishingError("Publishing failed.")
 
 
@@ -123,7 +123,10 @@ def test_posts_page_delegates_publish_request(qtbot) -> None:
     page.post_editor.publish_button.click()
 
     assert len(publisher.published_posts) == 1
-    assert publisher.published_posts[0].text == "Hello from SocialFlow"
+    assert (
+            publisher.published_posts[0].source.text
+            == "Hello from SocialFlow"
+    )
 
 
 def test_posts_page_contains_publish_status(qtbot) -> None:

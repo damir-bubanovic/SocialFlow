@@ -13,5 +13,5 @@ class Post:
     images: tuple[ImageAttachment, ...] = ()
 
     def has_content(self) -> bool:
-        """Return whether the post contains non-whitespace text."""
-        return bool(self.text.strip())
+        """Return whether the post contains text or image content."""
+        return bool(self.text.strip()) or bool(self.images)

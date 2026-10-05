@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from socialflow.application.images.image_destination import ImageDestination
+from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.application.images.image_preparation_service import (
     ImagePreparationService,
 )
@@ -45,7 +45,7 @@ def test_image_preparation_service_uses_destination_profile(
 
     provider = ImageProfileProvider(
         profiles={
-            ImageDestination.INSTAGRAM: profile,
+            PublishingDestination.INSTAGRAM: profile,
         }
     )
 
@@ -59,7 +59,7 @@ def test_image_preparation_service_uses_destination_profile(
 
     result = service.prepare(
         attachment=attachment,
-        destination=ImageDestination.INSTAGRAM,
+        destination=PublishingDestination.INSTAGRAM,
         output_path=output_path,
     )
 
@@ -92,7 +92,7 @@ def test_image_preparation_service_preserves_original(
 
     provider = ImageProfileProvider(
         profiles={
-            ImageDestination.INSTAGRAM: profile,
+            PublishingDestination.INSTAGRAM: profile,
         }
     )
 
@@ -106,7 +106,7 @@ def test_image_preparation_service_preserves_original(
 
     service.prepare(
         attachment=attachment,
-        destination=ImageDestination.INSTAGRAM,
+        destination=PublishingDestination.INSTAGRAM,
         output_path=output_path,
     )
 
@@ -136,10 +136,148 @@ def test_image_preparation_service_rejects_unconfigured_destination(
     try:
         service.prepare(
             attachment=attachment,
-            destination=ImageDestination.WORDPRESS,
+            destination=PublishingDestination.WORDPRESS,
             output_path=output_path,
         )
     except ValueError as error:
         assert str(error) == "No image profile configured for: wordpress"
     else:
         raise AssertionError("Expected ValueError")
+
+def test_image_preparation_service_prepares_multiple_images(
+    tmp_path: Path,
+) -> None:
+    first_path = tmp_path / "first.png"
+    second_path = tmp_path / "second.png"
+    output_directory = tmp_path / "prepared"
+
+    create_test_image(
+        first_path,
+        (1600, 900),
+    )
+    create_test_image(
+        second_path,
+        (1200, 1200),
+    )
+
+    profile = ImageProfile(
+        maximum_dimensions=ImageDimensions(
+            width=800,
+            height=800,
+        ),
+        output_format="JPEG",
+    )
+
+    service = ImagePreparationService(
+        profile_provider=ImageProfileProvider(
+            profiles={
+                PublishingDestination.INSTAGRAM: profile,
+            }
+        ),
+    )
+
+    result = service.prepare_all(
+        attachments=(
+            ImageAttachment(path=first_path),
+            ImageAttachment(path=second_path),
+        ),
+        destination=PublishingDestination.INSTAGRAM,
+        output_directory=output_directory,
+    )
+
+    assert len(result) == 2
+
+    assert result[0].source.path == first_path
+    assert result[0].destination == PublishingDestination.INSTAGRAM
+    assert result[0].path == (
+            output_directory / "first-instagram-1.jpg"
+    )
+
+    assert result[1].source.path == second_path
+    assert result[1].destination == PublishingDestination.INSTAGRAM
+    assert result[1].path == (
+            output_directory / "second-instagram-2.jpg"
+    )
+
+    assert all(
+        prepared.path.is_file()
+        for prepared in result
+    )
+
+def test_prepare_all_applies_profile_to_each_image(
+    tmp_path: Path,
+) -> None:
+    first_path = tmp_path / "first.png"
+    second_path = tmp_path / "second.png"
+    output_directory = tmp_path / "prepared"
+
+    create_test_image(
+        first_path,
+        (1600, 800),
+    )
+    create_test_image(
+        second_path,
+        (800, 1600),
+    )
+
+    profile = ImageProfile(
+        maximum_dimensions=ImageDimensions(
+            width=800,
+            height=800,
+        ),
+        output_format="JPEG",
+    )
+
+    service = ImagePreparationService(
+        profile_provider=ImageProfileProvider(
+            profiles={
+                PublishingDestination.INSTAGRAM: profile,
+            }
+        ),
+    )
+
+    result = service.prepare_all(
+        attachments=(
+            ImageAttachment(path=first_path),
+            ImageAttachment(path=second_path),
+        ),
+        destination=PublishingDestination.INSTAGRAM,
+        output_directory=output_directory,
+    )
+
+    with Image.open(result[0].path) as first:
+        assert first.size == (800, 400)
+        assert first.format == "JPEG"
+
+    with Image.open(result[1].path) as second:
+        assert second.size == (400, 800)
+        assert second.format == "JPEG"
+
+def test_prepare_all_accepts_no_images(
+    tmp_path: Path,
+) -> None:
+    output_directory = tmp_path / "prepared"
+
+    profile = ImageProfile(
+        maximum_dimensions=ImageDimensions(
+            width=800,
+            height=800,
+        ),
+        output_format="JPEG",
+    )
+
+    service = ImagePreparationService(
+        profile_provider=ImageProfileProvider(
+            profiles={
+                PublishingDestination.INSTAGRAM: profile,
+            }
+        ),
+    )
+
+    result = service.prepare_all(
+        attachments=(),
+        destination=PublishingDestination.INSTAGRAM,
+        output_directory=output_directory,
+    )
+
+    assert result == ()

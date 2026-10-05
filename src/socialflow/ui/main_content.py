@@ -4,9 +4,18 @@ from socialflow.application.accounts.add_account import AddAccount
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.accounts.remove_account import RemoveAccount
 from socialflow.application.accounts.update_account import UpdateAccount
+from socialflow.application.images.default_image_profiles import (
+    DEFAULT_IMAGE_PROFILES,
+)
+from socialflow.application.images.image_preparation_service import (
+    ImagePreparationService,
+)
+from socialflow.application.images.image_profile_provider import (
+    ImageProfileProvider,
+)
 from socialflow.application.publishing.null_publisher import NullPublisher
-from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.publishing.publish_post import PublishPost
+from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,
@@ -42,7 +51,20 @@ class MainContent(QWidget):
                 PublishingDestination.WORDPRESS: publisher,
             }
         )
-        publish_post = PublishPost(publisher_router)
+
+        image_profile_provider = ImageProfileProvider(
+            profiles=DEFAULT_IMAGE_PROFILES,
+        )
+
+        image_preparation_service = ImagePreparationService(
+            profile_provider=image_profile_provider,
+        )
+
+        publish_post = PublishPost(
+            publisher_router=publisher_router,
+            image_preparation_service=image_preparation_service,
+            image_output_directory=paths.prepared_images_directory,
+        )
 
         self.posts_page = PostsPage(
             publish_post=publish_post,

@@ -11,3 +11,8 @@ class AppPaths:
     def accounts_file(self) -> Path:
         """Return the path to persistent account storage."""
         return self._data_directory / "accounts.json"
+
+    @property
+    def prepared_images_directory(self) -> Path:
+        """Return the directory for destination-prepared images."""
+        return self._data_directory / "prepared_images"
