@@ -91,10 +91,13 @@ class PostsPage(QWidget):
             request: PublishRequest,
     ) -> None:
         """Publish a request created by the post editor."""
+        self.post_editor.publish_button.setEnabled(False)
+
         try:
             results = self._publish_post.execute(request)
         except PublishingError:
             self.publish_status.show_error()
-            return
-
-        self.publish_status.show_results(results)
+        else:
+            self.publish_status.show_results(results)
+        finally:
+            self.post_editor.publish_button.setEnabled(True)

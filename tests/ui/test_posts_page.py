@@ -48,6 +48,17 @@ class RecordingPublisher(Publisher):
     def publish(self, post: PreparedPost) -> None:
         self.published_posts.append(post)
 
+class PublishButtonStateRecordingPublisher(Publisher):
+    """Publisher that records the publish button state during publishing."""
+
+    def __init__(self) -> None:
+        self.publish_button = None
+        self.button_was_enabled_during_publish: bool | None = None
+
+    def publish(self, post: PreparedPost) -> None:
+        self.button_was_enabled_during_publish = (
+            self.publish_button.isEnabled()
+        )
 
 class FailingPublisher(Publisher):
     """Test publisher that always fails."""
@@ -549,3 +560,119 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
     assert page.publish_status.property("status") == "error"
 
     assert len(wordpress_publisher.published_posts) == 1
+
+def test_posts_page_reenables_publish_button_after_publish(qtbot) -> None:
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = RecordingPublisher()
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(router),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Hello from SocialFlow"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    page.post_editor.publish_button.click()
+
+    assert page.post_editor.publish_button.isEnabled()
+
+
+def test_posts_page_reenables_publish_button_after_failure(qtbot) -> None:
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = FailingPublisher()
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(router),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Hello from SocialFlow"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    page.post_editor.publish_button.click()
+
+    assert page.post_editor.publish_button.isEnabled()
+
+def test_posts_page_disables_publish_button_during_publish(qtbot) -> None:
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = PublishButtonStateRecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(router),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+    )
+    qtbot.addWidget(page)
+
+    publisher.publish_button = page.post_editor.publish_button
+
+    page.post_editor.text_editor.setPlainText(
+        "Hello from SocialFlow"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    page.post_editor.publish_button.click()
+
+    assert publisher.button_was_enabled_during_publish is False
+    assert page.post_editor.publish_button.isEnabled()
