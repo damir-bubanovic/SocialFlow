@@ -4,6 +4,13 @@ from pathlib import Path
 
 from PIL import Image
 
+from datetime import datetime
+
+from socialflow.application.time.clock import Clock
+from socialflow.infrastructure.publishing.in_memory_publication_repository import (
+    InMemoryPublicationRepository,
+)
+
 from socialflow.application.images.image_preparation_service import (
     ImagePreparationService,
 )
@@ -61,6 +68,15 @@ class InspectingPublisher(Publisher):
         with Image.open(prepared_image.path) as image:
             self.image_size = image.size
             self.image_format = image.format
+
+class FixedClock(Clock):
+    """Test clock returning a fixed date and time."""
+
+    def __init__(self, current: datetime) -> None:
+        self._current = current
+
+    def now(self) -> datetime:
+        return self._current
 
 def test_publish_post_publishes_to_requested_accounts() -> None:
     facebook_publisher = RecordingPublisher()
@@ -593,3 +609,146 @@ def test_publish_post_continues_after_one_destination_fails() -> None:
 
     assert len(successful_publisher.published_posts) == 1
     assert successful_publisher.published_posts[0].source is post
+
+def test_publish_post_records_successful_publication() -> None:
+    publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    repository = InMemoryPublicationRepository()
+    published_at = datetime(2026, 10, 5, 21, 0)
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_repository=repository,
+        clock=FixedClock(published_at),
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    post = Post(
+        text="Hello from SocialFlow",
+        language=Language.ENGLISH,
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(account,),
+    )
+
+    service.execute(request)
+
+    publications = repository.recent_for_account(account)
+
+    assert len(publications) == 1
+    assert publications[0].account is account
+    assert publications[0].post is post
+    assert publications[0].published_at == published_at
+
+def test_publish_post_does_not_record_failed_publication() -> None:
+    publisher = FailingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    repository = InMemoryPublicationRepository()
+    published_at = datetime(2026, 10, 5, 21, 0)
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_repository=repository,
+        clock=FixedClock(published_at),
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    post = Post(
+        text="Hello from SocialFlow",
+        language=Language.ENGLISH,
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(account,),
+    )
+
+    results = service.execute(request)
+
+    assert len(results) == 1
+    assert not results[0].succeeded
+    assert repository.recent_for_account(account) == ()
+
+def test_publish_post_records_only_successful_destinations() -> None:
+    facebook_publisher = FailingPublisher()
+    wordpress_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    repository = InMemoryPublicationRepository()
+    published_at = datetime(2026, 10, 5, 21, 0)
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_repository=repository,
+        clock=FixedClock(published_at),
+    )
+
+    facebook_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress_account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    post = Post(
+        text="Hello from SocialFlow",
+        language=Language.ENGLISH,
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(
+            facebook_account,
+            wordpress_account,
+        ),
+    )
+
+    results = service.execute(request)
+
+    assert len(results) == 2
+
+    assert not results[0].succeeded
+    assert results[1].succeeded
+
+    assert repository.recent_for_account(
+        facebook_account
+    ) == ()
+
+    wordpress_publications = repository.recent_for_account(
+        wordpress_account
+    )
+
+    assert len(wordpress_publications) == 1
+    assert wordpress_publications[0].account is wordpress_account
+    assert wordpress_publications[0].post is post
+    assert wordpress_publications[0].published_at == published_at

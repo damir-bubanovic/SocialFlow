@@ -28,6 +28,10 @@ from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
+from socialflow.infrastructure.publishing.json_publication_repository import (
+    JsonPublicationRepository,
+)
+from socialflow.infrastructure.time.system_clock import SystemClock
 
 
 class MainContent(QWidget):
@@ -39,7 +43,15 @@ class MainContent(QWidget):
         self.navigation = Navigation(self)
 
         paths = AppPaths(data_directory())
-        account_repository = JsonAccountRepository(paths.accounts_file)
+
+        account_repository = JsonAccountRepository(
+            paths.accounts_file
+        )
+        publication_repository = JsonPublicationRepository(
+            paths.publications_file
+        )
+
+        clock = SystemClock()
 
         add_account = AddAccount(account_repository)
         list_accounts = ListAccounts(account_repository)
@@ -71,6 +83,8 @@ class MainContent(QWidget):
             publisher_router=publisher_router,
             image_preparation_service=image_preparation_service,
             image_output_directory=paths.prepared_images_directory,
+            publication_repository=publication_repository,
+            clock=clock,
         )
 
         self.posts_page = PostsPage(

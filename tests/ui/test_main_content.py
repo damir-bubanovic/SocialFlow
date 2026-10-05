@@ -6,6 +6,16 @@ from socialflow.ui.accounts.accounts_page import AccountsPage
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
+from socialflow.domain.account.account import Account
+from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.infrastructure.accounts.json_account_repository import (
+    JsonAccountRepository,
+)
+from socialflow.infrastructure.publishing.json_publication_repository import (
+    JsonPublicationRepository,
+)
+from socialflow.infrastructure.storage.app_paths import AppPaths
+from socialflow.infrastructure.storage.data_directory import data_directory
 
 
 @pytest.fixture(autouse=True)
@@ -142,3 +152,60 @@ def test_removing_account_refreshes_posts_page_accounts(qtbot) -> None:
         len(content.posts_page.post_editor.destination_selector._checkboxes)
         == 0
     )
+
+def test_main_content_persists_successful_publication(
+    qtbot,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "XDG_DATA_HOME",
+        str(tmp_path),
+    )
+
+    paths = AppPaths(data_directory())
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    account_repository = JsonAccountRepository(
+        paths.accounts_file
+    )
+    account_repository.add(account)
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert (
+        len(
+            content.posts_page
+            .post_editor
+            .destination_selector
+            ._checkboxes
+        )
+        == 1
+    )
+
+    content.posts_page.post_editor.text_editor.setPlainText(
+        "Persistent history test"
+    )
+
+    content.posts_page.post_editor.destination_selector._checkboxes[
+        0
+    ].setChecked(True)
+
+    content.posts_page.post_editor.publish_button.click()
+
+    publication_repository = JsonPublicationRepository(
+        paths.publications_file
+    )
+
+    publications = publication_repository.recent_for_account(
+        account
+    )
+
+    assert len(publications) == 1
+    assert publications[0].account == account
+    assert publications[0].post.text == "Persistent history test"

@@ -11,20 +11,29 @@ from socialflow.application.publishing.prepared_post import PreparedPost
 from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.domain.publishing.publish_request import PublishRequest
+from socialflow.application.publishing.publication_repository import (
+    PublicationRepository,
+)
+from socialflow.application.time.clock import Clock
+from socialflow.domain.publishing.publication import Publication
 
 
 class PublishPost:
     """Application service for publishing a post."""
 
     def __init__(
-        self,
-        publisher_router: PublisherRouter,
-        image_preparation_service: ImagePreparationService | None = None,
-        image_output_directory: Path | None = None,
+            self,
+            publisher_router: PublisherRouter,
+            image_preparation_service: ImagePreparationService | None = None,
+            image_output_directory: Path | None = None,
+            publication_repository: PublicationRepository | None = None,
+            clock: Clock | None = None,
     ) -> None:
         self._publisher_router = publisher_router
         self._image_preparation_service = image_preparation_service
         self._image_output_directory = image_output_directory
+        self._publication_repository = publication_repository
+        self._clock = clock
 
     def execute(self, request: PublishRequest) -> tuple[PublishResult, ...]:
         """Publish the post and return one result for every account."""
@@ -69,6 +78,18 @@ class PublishPost:
 
             try:
                 publisher.publish(prepared_post)
+
+                if (
+                        self._publication_repository is not None
+                        and self._clock is not None
+                ):
+                    self._publication_repository.add(
+                        Publication(
+                            account=account,
+                            post=request.post,
+                            published_at=self._clock.now(),
+                        )
+                    )
 
                 results.append(
                     PublishResult(
