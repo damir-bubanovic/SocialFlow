@@ -16,6 +16,9 @@ from socialflow.application.images.image_profile_provider import (
 from socialflow.application.publishing.null_publisher import NullPublisher
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
+from socialflow.application.tags.create_tag import CreateTag
+from socialflow.application.tags.list_tags import ListTags
+from socialflow.application.tags.null_tag_provider import NullTagProvider
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,
@@ -43,6 +46,10 @@ class MainContent(QWidget):
         remove_account = RemoveAccount(account_repository)
         update_account = UpdateAccount(account_repository)
 
+        tag_provider = NullTagProvider()
+        list_tags = ListTags(tag_provider)
+        create_tag = CreateTag(tag_provider)
+
         publisher = NullPublisher()
         publisher_router = PublisherRouter(
             {
@@ -69,6 +76,8 @@ class MainContent(QWidget):
         self.posts_page = PostsPage(
             publish_post=publish_post,
             list_accounts=list_accounts,
+            list_tags=list_tags,
+            create_tag=create_tag,
             parent=self,
         )
 

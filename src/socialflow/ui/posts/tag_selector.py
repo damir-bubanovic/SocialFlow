@@ -1,3 +1,4 @@
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QLabel,
@@ -12,6 +13,8 @@ from socialflow.domain.post.tag import Tag
 
 class TagSelector(QWidget):
     """UI control for selecting and creating post tags."""
+
+    tag_created = Signal(Tag)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -52,6 +55,11 @@ class TagSelector(QWidget):
         """Return the currently selected tags."""
         return self._selected_tags
 
+    def set_creation_enabled(self, enabled: bool) -> None:
+        """Set whether new tags can be created."""
+        self.tag_input.setEnabled(enabled)
+        self.add_button.setEnabled(enabled)
+
     def _refresh_available_tags(self) -> None:
         """Refresh controls for available tags."""
         while self.available_tags_layout.count():
@@ -78,17 +86,17 @@ class TagSelector(QWidget):
             self.available_tags_layout.addWidget(checkbox)
 
     def set_available_tags(
-            self,
-            tags: tuple[Tag, ...],
+        self,
+        tags: tuple[Tag, ...],
     ) -> None:
         """Set the tags available for selection."""
         self._available_tags = tags
         self._refresh_available_tags()
 
     def _set_tag_selected(
-            self,
-            tag: Tag,
-            selected: bool,
+        self,
+        tag: Tag,
+        selected: bool,
     ) -> None:
         """Update selection for an available tag."""
         if selected:
@@ -111,17 +119,28 @@ class TagSelector(QWidget):
             return
 
         tag = Tag(name=name)
+        available_tag_index = self._available_tag_index(tag)
 
         if tag not in self._selected_tags:
             self._selected_tags += (tag,)
 
-        for index, available_tag in enumerate(self._available_tags):
-            if available_tag == tag:
-                self._tag_checkboxes[index].setChecked(True)
-                break
+        if available_tag_index is not None:
+            self._tag_checkboxes[
+                available_tag_index
+            ].setChecked(True)
+        else:
+            self.tag_created.emit(tag)
 
         self.tag_input.clear()
         self._update_selection_display()
+
+    def _available_tag_index(self, tag: Tag) -> int | None:
+        """Return the index of an available tag when present."""
+        for index, available_tag in enumerate(self._available_tags):
+            if available_tag == tag:
+                return index
+
+        return None
 
     def remove_tag(self, tag: Tag) -> None:
         """Remove one tag from the current selection."""
@@ -131,10 +150,12 @@ class TagSelector(QWidget):
             if selected_tag != tag
         )
 
-        for index, available_tag in enumerate(self._available_tags):
-            if available_tag == tag:
-                self._tag_checkboxes[index].setChecked(False)
-                break
+        available_tag_index = self._available_tag_index(tag)
+
+        if available_tag_index is not None:
+            self._tag_checkboxes[
+                available_tag_index
+            ].setChecked(False)
 
         self._update_selection_display()
 

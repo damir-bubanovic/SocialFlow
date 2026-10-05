@@ -246,3 +246,44 @@ def test_post_editor_includes_selected_tags_in_publish_request(
         Tag(name="SocialFlow"),
     )
     assert requests[0].accounts == (account,)
+
+def test_tag_creation_is_disabled_without_selected_account(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert not editor.tag_selector.tag_input.isEnabled()
+    assert not editor.tag_selector.add_button.isEnabled()
+
+def test_tag_creation_is_enabled_when_account_is_selected(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    assert editor.tag_selector.tag_input.isEnabled()
+    assert editor.tag_selector.add_button.isEnabled()
+
+def test_tag_creation_is_disabled_when_account_is_deselected(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+
+    checkbox = editor.destination_selector._checkboxes[0]
+
+    checkbox.setChecked(True)
+
+    assert editor.tag_selector.tag_input.isEnabled()
+    assert editor.tag_selector.add_button.isEnabled()
+
+    checkbox.setChecked(False)
+
+    assert not editor.tag_selector.tag_input.isEnabled()
+    assert not editor.tag_selector.add_button.isEnabled()

@@ -16,6 +16,7 @@ class PostEditor(QWidget):
     """Editor for composing post text."""
 
     publish_requested = Signal(PublishRequest)
+    account_selection_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -47,12 +48,18 @@ class PostEditor(QWidget):
             self._request_publish
         )
 
+        self._update_tag_creation()
+
     def set_accounts(self, accounts: tuple[Account, ...]) -> None:
         """Set the accounts available for publishing."""
         self.destination_selector.set_accounts(accounts)
 
         self.destination_selector.connect_selection_changed(
             self._update_publish_button
+        )
+
+        self.destination_selector.connect_selection_changed(
+            self._notify_account_selection_changed
         )
 
         self._update_publish_button()
@@ -85,6 +92,12 @@ class PostEditor(QWidget):
         """Return the selected publishing accounts."""
         return self.destination_selector.selected_accounts()
 
+    def _update_tag_creation(self) -> None:
+        """Synchronize tag creation with account selection."""
+        self.tag_selector.set_creation_enabled(
+            bool(self.selected_accounts())
+        )
+
     def _update_publish_button(self) -> None:
         """Synchronize the publish button with the current post state."""
         available = (
@@ -93,6 +106,14 @@ class PostEditor(QWidget):
         )
 
         self.publish_button.set_post_available(available)
+
+    def _notify_account_selection_changed(
+            self,
+            *_args: object,
+    ) -> None:
+        """Notify listeners that the selected accounts changed."""
+        self._update_tag_creation()
+        self.account_selection_changed.emit()
 
     def _request_publish(self) -> None:
         """Emit the current publishing request."""

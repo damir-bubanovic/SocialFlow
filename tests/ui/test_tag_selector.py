@@ -266,3 +266,40 @@ def test_tag_selector_can_clear_selected_tags(qtbot) -> None:
         not checkbox.isChecked()
         for checkbox in selector._tag_checkboxes
     )
+
+def test_tag_selector_emits_tag_created_for_new_tag(qtbot) -> None:
+    selector = TagSelector()
+    qtbot.addWidget(selector)
+
+    with qtbot.waitSignal(selector.tag_created) as blocker:
+        selector.tag_input.setText("SocialFlow")
+        selector.add_button.click()
+
+    assert blocker.args == [
+        Tag(name="SocialFlow"),
+    ]
+
+
+def test_tag_selector_does_not_emit_tag_created_for_available_tag(
+    qtbot,
+) -> None:
+    selector = TagSelector()
+    qtbot.addWidget(selector)
+
+    selector.set_available_tags(
+        (
+            Tag(name="SocialFlow"),
+        )
+    )
+
+    emitted_tags = []
+    selector.tag_created.connect(emitted_tags.append)
+
+    selector.tag_input.setText("SocialFlow")
+    selector.add_button.click()
+
+    assert emitted_tags == []
+    assert selector.selected_tags() == (
+        Tag(name="SocialFlow"),
+    )
+    assert selector._tag_checkboxes[0].isChecked()
