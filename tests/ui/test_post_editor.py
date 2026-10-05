@@ -11,6 +11,7 @@ from socialflow.ui.posts.destination_selector import DestinationSelector
 from socialflow.ui.posts.language_controls import LanguageControls
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_button import PublishButton
+from socialflow.domain.post.tag import Tag
 
 
 def create_facebook_account() -> Account:
@@ -219,3 +220,29 @@ def test_post_contains_selected_images(
     post = editor.post()
 
     assert post.images == (image,)
+
+def test_post_editor_includes_selected_tags_in_publish_request(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    account = create_facebook_account()
+
+    editor.set_accounts((account,))
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.tag_selector.tag_input.setText("SocialFlow")
+    editor.tag_selector.add_button.click()
+
+    requests = []
+    editor.publish_requested.connect(requests.append)
+
+    editor.publish_button.click()
+
+    assert len(requests) == 1
+    assert requests[0].post.tags == (
+        Tag(name="SocialFlow"),
+    )
+    assert requests[0].accounts == (account,)

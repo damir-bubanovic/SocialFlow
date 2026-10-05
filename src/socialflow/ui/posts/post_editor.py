@@ -6,9 +6,10 @@ from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.publish_request import PublishRequest
 from socialflow.ui.posts.destination_selector import DestinationSelector
+from socialflow.ui.posts.image_selector import ImageSelector
 from socialflow.ui.posts.language_controls import LanguageControls
 from socialflow.ui.posts.publish_button import PublishButton
-from socialflow.ui.posts.image_selector import ImageSelector
+from socialflow.ui.posts.tag_selector import TagSelector
 
 
 class PostEditor(QWidget):
@@ -24,14 +25,17 @@ class PostEditor(QWidget):
 
         self.text_editor = QPlainTextEdit(self)
         self.text_editor.setPlaceholderText("Write your post...")
-        self.publish_button = PublishButton(self)
+
         self.image_selector = ImageSelector(self)
+        self.tag_selector = TagSelector(self)
+        self.publish_button = PublishButton(self)
 
         layout = QVBoxLayout()
         layout.addWidget(self.language_controls)
         layout.addWidget(self.destination_selector)
         layout.addWidget(self.text_editor)
         layout.addWidget(self.image_selector)
+        layout.addWidget(self.tag_selector)
         layout.addWidget(self.publish_button)
 
         self.setLayout(layout)
@@ -67,6 +71,7 @@ class PostEditor(QWidget):
             text=self.text_editor.toPlainText(),
             language=self.language_controls.selected_language(),
             images=self.image_selector.selected_images(),
+            tags=self.tag_selector.selected_tags(),
         )
 
     def publish_request(self) -> PublishRequest:
