@@ -81,6 +81,13 @@ class PostEditor(QWidget):
             tags=self.tag_selector.selected_tags(),
         )
 
+    def load_post(self, post: Post) -> None:
+        """Load an existing post into the editor."""
+        self.text_editor.setPlainText(post.text)
+        self.language_controls.set_language(post.language)
+        self.image_selector.set_selected_images(post.images)
+        self.tag_selector.set_selected_tags(post.tags)
+
     def publish_request(self) -> PublishRequest:
         """Return the current publishing request."""
         return PublishRequest(

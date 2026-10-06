@@ -50,6 +50,15 @@ class ImageSelector(QWidget):
         """Return the currently selected image attachments."""
         return self._images
 
+    def set_selected_images(
+            self,
+            images: tuple[ImageAttachment, ...],
+    ) -> None:
+        """Replace the currently selected image attachments."""
+        self._images = images
+        self.error_label.clear()
+        self._update_selection_display()
+
     def _select_images(self) -> None:
         """Open a file dialog and store the selected image files."""
         file_paths, _ = QFileDialog.getOpenFileNames(

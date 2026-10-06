@@ -25,3 +25,11 @@ def test_language_can_be_changed(qtbot) -> None:
     selector.setCurrentIndex(1)
 
     assert selector.selected_language() == Language.ENGLISH
+
+def test_language_can_be_set(qtbot) -> None:
+    selector = LanguageSelector()
+    qtbot.addWidget(selector)
+
+    selector.set_language(Language.ENGLISH)
+
+    assert selector.selected_language() == Language.ENGLISH

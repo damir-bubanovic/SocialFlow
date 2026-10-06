@@ -287,3 +287,74 @@ def test_tag_creation_is_disabled_when_account_is_deselected(
 
     assert not editor.tag_selector.tag_input.isEnabled()
     assert not editor.tag_selector.add_button.isEnabled()
+
+def test_post_editor_loads_post_text(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+    )
+
+    editor.load_post(post)
+
+    assert editor.post_text() == "Historical publication"
+
+
+def test_post_editor_loads_post_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+    )
+
+    editor.load_post(post)
+
+    assert editor.selected_language() == Language.ENGLISH
+
+def test_post_editor_loads_post_tags(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+        tags=(
+            Tag(name="SocialFlow"),
+            Tag(name="Python"),
+        ),
+    )
+
+    editor.load_post(post)
+
+    assert editor.tag_selector.selected_tags() == (
+        Tag(name="SocialFlow"),
+        Tag(name="Python"),
+    )
+
+def test_post_editor_loads_post_images(
+    qtbot,
+    tmp_path,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    image_path = tmp_path / "historical.jpg"
+    image_path.touch()
+
+    image = ImageAttachment(path=image_path)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+        images=(image,),
+    )
+
+    editor.load_post(post)
+
+    assert editor.image_selector.selected_images() == (
+        image,
+    )

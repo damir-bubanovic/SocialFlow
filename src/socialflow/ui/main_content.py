@@ -13,6 +13,9 @@ from socialflow.application.images.image_preparation_service import (
 from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
+from socialflow.application.publishing.list_recent_publications import (
+    ListRecentPublications,
+)
 from socialflow.application.publishing.null_publisher import NullPublisher
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
@@ -23,15 +26,15 @@ from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,
 )
-from socialflow.infrastructure.storage.app_paths import AppPaths
-from socialflow.infrastructure.storage.data_directory import data_directory
-from socialflow.ui.accounts.accounts_page import AccountsPage
-from socialflow.ui.navigation import Navigation
-from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
+from socialflow.infrastructure.storage.app_paths import AppPaths
+from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.infrastructure.time.system_clock import SystemClock
+from socialflow.ui.accounts.accounts_page import AccountsPage
+from socialflow.ui.navigation import Navigation
+from socialflow.ui.posts.posts_page import PostsPage
 
 
 class MainContent(QWidget):
@@ -49,6 +52,10 @@ class MainContent(QWidget):
         )
         publication_repository = JsonPublicationRepository(
             paths.publications_file
+        )
+
+        list_recent_publications = ListRecentPublications(
+            publication_repository
         )
 
         clock = SystemClock()
@@ -92,6 +99,7 @@ class MainContent(QWidget):
             list_accounts=list_accounts,
             list_tags=list_tags,
             create_tag=create_tag,
+            list_recent_publications=list_recent_publications,
             parent=self,
         )
 

@@ -29,6 +29,10 @@ class LanguageControls(QWidget):
         """Return the currently selected language."""
         return self.selector.selected_language()
 
+    def set_language(self, language: Language) -> None:
+        """Select the specified post language."""
+        self.selector.set_language(language)
+
     def _update_indicator(self) -> None:
         """Synchronize the indicator with the selected language."""
         self.indicator.set_language(self.selected_language())

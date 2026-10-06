@@ -28,3 +28,11 @@ def test_language_controls_updates_indicator(qtbot) -> None:
 
     assert controls.selected_language() == Language.ENGLISH
     assert controls.indicator.text() == "EN"
+
+def test_language_controls_can_set_language(qtbot) -> None:
+    controls = LanguageControls()
+    qtbot.addWidget(controls)
+
+    controls.set_language(Language.ENGLISH)
+
+    assert controls.selected_language() == Language.ENGLISH

@@ -16,6 +16,14 @@ class LanguageSelector(QComboBox):
         """Return the currently selected language."""
         return Language(self.currentData())
 
+    def set_language(self, language: Language) -> None:
+        """Select the specified language."""
+        index = self.findData(language)
+
+        if index >= 0:
+            self.setCurrentIndex(index)
+
     def _add_language(self, language: Language) -> None:
         """Add a supported language to the selector."""
         self.addItem(language.label, language)
+

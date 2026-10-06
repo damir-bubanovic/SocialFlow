@@ -55,6 +55,20 @@ class TagSelector(QWidget):
         """Return the currently selected tags."""
         return self._selected_tags
 
+    def set_selected_tags(
+            self,
+            tags: tuple[Tag, ...],
+    ) -> None:
+        """Replace the currently selected tags."""
+        self._selected_tags = tags
+
+        for index, available_tag in enumerate(self._available_tags):
+            self._tag_checkboxes[index].setChecked(
+                available_tag in tags
+            )
+
+        self._update_selection_display()
+
     def set_creation_enabled(self, enabled: bool) -> None:
         """Set whether new tags can be created."""
         self.tag_input.setEnabled(enabled)

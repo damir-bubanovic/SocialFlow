@@ -2,13 +2,18 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.publishing.errors import PublishingError
+from socialflow.application.publishing.list_recent_publications import (
+    ListRecentPublications,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
+from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.publish_request import PublishRequest
+from socialflow.domain.publishing.publication import Publication
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_status import PublishStatus
-from socialflow.domain.post.tag import Tag
+from socialflow.ui.posts.recent_posts_panel import RecentPostsPanel
 
 
 class PostsPage(QWidget):
@@ -20,6 +25,7 @@ class PostsPage(QWidget):
         list_accounts: ListAccounts,
         list_tags: ListTags,
         create_tag: CreateTag,
+        list_recent_publications: ListRecentPublications,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -28,13 +34,19 @@ class PostsPage(QWidget):
         self._list_accounts = list_accounts
         self._list_tags = list_tags
         self._create_tag = create_tag
+        self._list_recent_publications = list_recent_publications
 
         self.post_editor = PostEditor(self)
         self.publish_status = PublishStatus(self)
+        self.recent_posts_panel = RecentPostsPanel(
+            list_recent_publications,
+            self,
+        )
 
         layout = QVBoxLayout()
         layout.addWidget(self.post_editor)
         layout.addWidget(self.publish_status)
+        layout.addWidget(self.recent_posts_panel)
 
         self.setLayout(layout)
 
@@ -46,8 +58,16 @@ class PostsPage(QWidget):
             self._refresh_available_tags
         )
 
+        self.post_editor.account_selection_changed.connect(
+            self._refresh_recent_posts
+        )
+
         self.post_editor.tag_selector.tag_created.connect(
             self._create_tag_for_selected_accounts
+        )
+
+        self.recent_posts_panel.publication_selected.connect(
+            self._load_publication
         )
 
         self.refresh_accounts()
@@ -73,9 +93,19 @@ class PostsPage(QWidget):
             tuple(tags)
         )
 
+    def _refresh_recent_posts(self) -> None:
+        """Refresh history for the first selected account."""
+        accounts = self.post_editor.selected_accounts()
+
+        if not accounts:
+            self.recent_posts_panel.set_account(None)
+            return
+
+        self.recent_posts_panel.set_account(accounts[0])
+
     def _create_tag_for_selected_accounts(
-            self,
-            tag: Tag,
+        self,
+        tag: Tag,
     ) -> None:
         """Create a new tag for every selected account."""
         for account in self.post_editor.selected_accounts():
@@ -86,9 +116,16 @@ class PostsPage(QWidget):
 
         self._refresh_available_tags()
 
-    def _handle_publish_request(
+    def _load_publication(
             self,
-            request: PublishRequest,
+            publication: Publication,
+    ) -> None:
+        """Load a historical publication into the post editor."""
+        self.post_editor.load_post(publication.post)
+
+    def _handle_publish_request(
+        self,
+        request: PublishRequest,
     ) -> None:
         """Publish a request created by the post editor."""
         self.post_editor.publish_button.setEnabled(False)
@@ -99,5 +136,6 @@ class PostsPage(QWidget):
             self.publish_status.show_error()
         else:
             self.publish_status.show_results(results)
+            self._refresh_recent_posts()
         finally:
             self.post_editor.publish_button.setEnabled(True)

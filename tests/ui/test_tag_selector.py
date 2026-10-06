@@ -303,3 +303,49 @@ def test_tag_selector_does_not_emit_tag_created_for_available_tag(
         Tag(name="SocialFlow"),
     )
     assert selector._tag_checkboxes[0].isChecked()
+
+def test_tag_selector_can_set_selected_tags(qtbot) -> None:
+    selector = TagSelector()
+    qtbot.addWidget(selector)
+
+    python_tag = Tag(name="Python")
+    socialflow_tag = Tag(name="SocialFlow")
+
+    selector.set_available_tags(
+        (
+            python_tag,
+            socialflow_tag,
+        )
+    )
+
+    selector.set_selected_tags(
+        (
+            socialflow_tag,
+        )
+    )
+
+    assert selector.selected_tags() == (
+        socialflow_tag,
+    )
+    assert not selector._tag_checkboxes[0].isChecked()
+    assert selector._tag_checkboxes[1].isChecked()
+
+
+def test_tag_selector_set_selected_tags_updates_display(
+    qtbot,
+) -> None:
+    selector = TagSelector()
+    qtbot.addWidget(selector)
+
+    selector.set_selected_tags(
+        (
+            Tag(name="Python"),
+            Tag(name="SocialFlow"),
+        )
+    )
+
+    assert selector.status_label.text() == "2 tag(s) selected."
+    assert (
+        selector.selected_tags_label.text()
+        == "Python, SocialFlow"
+    )

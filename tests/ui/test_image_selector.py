@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from socialflow.ui.posts.image_selector import ImageSelector
+from socialflow.domain.post.image_attachment import ImageAttachment
 
 
 def create_test_image(
@@ -361,3 +362,58 @@ def test_image_selector_keeps_valid_images_when_one_is_unreadable(
     assert selector.filenames_label.text() == "valid-image.png"
     assert selector.preview_layout.count() == 1
     assert "Unreadable image file" in selector.error_label.text()
+
+def test_image_selector_can_set_selected_images(
+    qtbot,
+    tmp_path,
+) -> None:
+    selector = ImageSelector()
+    qtbot.addWidget(selector)
+
+    first_path = tmp_path / "first.jpg"
+    second_path = tmp_path / "second.png"
+
+    first_path.touch()
+    second_path.touch()
+
+    first = ImageAttachment(path=first_path)
+    second = ImageAttachment(path=second_path)
+
+    selector.set_selected_images(
+        (
+            first,
+            second,
+        )
+    )
+
+    assert selector.selected_images() == (
+        first,
+        second,
+    )
+
+
+def test_image_selector_set_selected_images_updates_display(
+    qtbot,
+    tmp_path,
+) -> None:
+    selector = ImageSelector()
+    qtbot.addWidget(selector)
+
+    first_path = tmp_path / "first.jpg"
+    second_path = tmp_path / "second.png"
+
+    first_path.touch()
+    second_path.touch()
+
+    selector.set_selected_images(
+        (
+            ImageAttachment(path=first_path),
+            ImageAttachment(path=second_path),
+        )
+    )
+
+    assert selector.status_label.text() == "2 image(s) selected."
+    assert selector.filenames_label.text() == (
+        "first.jpg\n"
+        "second.png"
+    )
