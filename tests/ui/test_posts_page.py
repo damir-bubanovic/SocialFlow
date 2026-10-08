@@ -388,7 +388,9 @@ def test_posts_page_shows_error_when_publish_fails(qtbot) -> None:
     )
     page.post_editor.publish_button.click()
 
-    assert page.publish_status.text() == "Main Facebook — Failed"
+    assert page.publish_status.text() == (
+        "Main Facebook — Failed: Publishing failed."
+    )
     assert page.publish_status.property("status") == "error"
 
 
@@ -445,7 +447,7 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
     page.post_editor.publish_button.click()
 
     assert page.publish_status.text() == (
-        "Main Facebook — Failed\n"
+        "Main Facebook — Failed: Publishing failed.\n"
         "Main Website — Published"
     )
     assert page.publish_status.property("status") == "error"

@@ -153,7 +153,7 @@ def test_removing_account_refreshes_posts_page_accounts(qtbot) -> None:
         == 0
     )
 
-def test_main_content_persists_successful_publication(
+def test_main_content_does_not_persist_unconfigured_publication(
     qtbot,
     tmp_path,
     monkeypatch,
@@ -206,6 +206,48 @@ def test_main_content_persists_successful_publication(
         account
     )
 
-    assert len(publications) == 1
-    assert publications[0].account == account
-    assert publications[0].post.text == "Persistent history test"
+    assert publications == ()
+
+def test_main_content_displays_unconfigured_publishing_error(
+    qtbot,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    account_repository = JsonAccountRepository(
+        paths.accounts_file
+    )
+    account_repository.add(account)
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    editor = content.posts_page.post_editor
+
+    editor.text_editor.setPlainText(
+        "Testing unconfigured publishing"
+    )
+
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.publish_button.click()
+
+    assert content.posts_page.publish_status.text() == (
+        "Main Facebook — Failed: "
+        "External publishing is not configured."
+    )
+
+    assert (
+        content.posts_page.publish_status.property("status")
+        == "error"
+    )
+
+    publication_repository = JsonPublicationRepository(
+        paths.publications_file
+    )
+
+    assert publication_repository.recent_for_account(account) == ()

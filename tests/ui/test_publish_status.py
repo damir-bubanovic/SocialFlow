@@ -105,6 +105,36 @@ def test_publish_status_can_show_partial_failure(qtbot) -> None:
 
     assert status.text() == (
         "Main Facebook — Published\n"
-        "Main Website — Failed"
+        "Main Website — Failed: Publishing failed."
+    )
+    assert status.property("status") == "error"
+
+from socialflow.application.publishing.errors import (
+    PublisherNotConfiguredError,
+)
+
+
+def test_publish_status_displays_publishing_error(qtbot) -> None:
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    status = PublishStatus()
+    qtbot.addWidget(status)
+
+    result = PublishResult(
+        account=account,
+        succeeded=False,
+        error=PublisherNotConfiguredError(
+            "External publishing is not configured."
+        ),
+    )
+
+    status.show_results((result,))
+
+    assert status.text() == (
+        "Main Facebook — Failed: "
+        "External publishing is not configured."
     )
     assert status.property("status") == "error"

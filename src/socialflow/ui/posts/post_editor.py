@@ -1,8 +1,28 @@
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QPlainTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from socialflow.application.language.language_detector import LanguageDetector
+from socialflow.application.language.paragraph_language_detector import (
+    ParagraphLanguageDetector,
+)
+from socialflow.ui.posts.paragraph_language_highlighter import (
+    ParagraphLanguageHighlighter,
+)
+from socialflow.application.language.post_language_classifier import (
+    PostLanguageClassification,
+    PostLanguageClassifier,
+)
+from socialflow.ui.posts.content_language_indicator import (
+    ContentLanguageIndicator,
+)
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
@@ -24,9 +44,18 @@ class PostEditor(QWidget):
         super().__init__(parent)
 
         self._language_detector = LanguageDetector()
+        self._paragraph_language_detector = ParagraphLanguageDetector(
+            self._language_detector
+        )
+        self._post_language_classifier = PostLanguageClassifier(
+            self._paragraph_language_detector
+        )
         self._manual_language_override = False
 
         self.language_controls = LanguageControls(self)
+        self.content_language_indicator = ContentLanguageIndicator(self)
+        self.content_language_label = QLabel("Detected content:", self)
+        self.content_language_label.setObjectName("contentLanguageLabel")
         self.language_controls.manual_language_selected.connect(
             self._lock_language_selection
         )
@@ -34,6 +63,10 @@ class PostEditor(QWidget):
 
         self.text_editor = QPlainTextEdit(self)
         self.text_editor.setPlaceholderText("Write your post...")
+        self._paragraph_highlighter = ParagraphLanguageHighlighter(
+            self.text_editor.document(),
+            self._language_detector,
+        )
         self.language_controls.selector.currentIndexChanged.connect(
             self._update_language_visual_marker
         )
@@ -45,6 +78,15 @@ class PostEditor(QWidget):
 
         layout = QVBoxLayout()
         layout.addWidget(self.language_controls)
+        content_language_layout = QHBoxLayout()
+        content_language_layout.setContentsMargins(0, 0, 0, 0)
+        content_language_layout.setSpacing(8)
+
+        content_language_layout.addWidget(self.content_language_label)
+        content_language_layout.addWidget(self.content_language_indicator)
+        content_language_layout.addStretch()
+
+        layout.addLayout(content_language_layout)
         layout.addWidget(self.destination_selector)
         layout.addWidget(self.text_editor)
         layout.addWidget(self.image_selector)
@@ -58,6 +100,9 @@ class PostEditor(QWidget):
         )
         self.text_editor.textChanged.connect(
             self._detect_language
+        )
+        self.text_editor.textChanged.connect(
+            self._update_language_visual_marker
         )
         self.publish_button.clicked.connect(
             self._request_publish
@@ -82,6 +127,20 @@ class PostEditor(QWidget):
     def post_text(self) -> str:
         """Return the current post text."""
         return self.text_editor.toPlainText()
+
+    def paragraph_languages(self) -> tuple[Language | None, ...]:
+        """Return the detected language of each editor paragraph."""
+        return self._paragraph_language_detector.detect(
+            self.text_editor.toPlainText()
+        )
+
+    def post_language_classification(
+            self,
+    ) -> PostLanguageClassification:
+        """Return the overall language classification of the editor text."""
+        return self._post_language_classifier.classify(
+            self.text_editor.toPlainText()
+        )
 
     def selected_language(self) -> Language:
         """Return the currently selected post language."""
@@ -139,18 +198,29 @@ class PostEditor(QWidget):
         self._manual_language_override = True
 
     def _update_language_visual_marker(self) -> None:
-        """Update the editor's language-specific styling property."""
-        language = self.language_controls.selected_language()
+        """Update the editor border using detected content languages."""
+        classification = self.post_language_classification()
+        self.content_language_indicator.set_classification(classification)
 
-        language_code = (
-            "hr" if language is Language.CROATIAN else "en"
-        )
+        border_colors = {
+            PostLanguageClassification.ENGLISH: "#16a34a",
+            PostLanguageClassification.CROATIAN: "#2563eb",
+            PostLanguageClassification.MIXED: "#9333ea",
+            PostLanguageClassification.UNKNOWN: "#6b7280",
+        }
 
-        self.text_editor.setProperty("postLanguage", language_code)
-        border_color = (
-            "#2563eb"
-            if language is Language.CROATIAN
-            else "#16a34a"
+        border_color = border_colors[classification]
+
+        language_codes = {
+            PostLanguageClassification.ENGLISH: "en",
+            PostLanguageClassification.CROATIAN: "hr",
+            PostLanguageClassification.MIXED: "mixed",
+            PostLanguageClassification.UNKNOWN: "unknown",
+        }
+
+        self.text_editor.setProperty(
+            "postLanguage",
+            language_codes[classification],
         )
 
         self.text_editor.setStyleSheet(

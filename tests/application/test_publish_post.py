@@ -809,3 +809,108 @@ def test_publish_post_records_only_successful_destinations() -> None:
     assert wordpress_publications[0].account is wordpress_account
     assert wordpress_publications[0].post is post
     assert wordpress_publications[0].published_at == published_at
+
+def test_publish_post_preserves_mixed_language_text_for_all_destinations() -> None:
+    destinations = (
+        PublishingDestination.FACEBOOK,
+        PublishingDestination.INSTAGRAM,
+        PublishingDestination.WORDPRESS,
+    )
+
+    publishers = {
+        destination: RecordingPublisher()
+        for destination in destinations
+    }
+
+    service = PublishPost(
+        publisher_router=PublisherRouter(publishers),
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    mixed_text = (
+        "Today we are publishing important news.\n"
+        "\n"
+        "Danas objavljujemo važnu vijest za naše čitatelje.\n"
+        "\n"
+        "Thank you for your support."
+    )
+
+    post = Post(
+        text=mixed_text,
+        language=Language.ENGLISH,
+    )
+
+    accounts = tuple(
+        Account(
+            name=f"Test {destination.display_name}",
+            destination=destination,
+        )
+        for destination in destinations
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=accounts,
+        )
+    )
+
+    assert len(results) == 3
+    assert all(result.succeeded for result in results)
+
+    for destination in destinations:
+        published_posts = publishers[destination].published_posts
+
+        assert len(published_posts) == 1
+
+        published_post = published_posts[0].source
+
+        assert published_post.text == mixed_text
+        assert published_post.language is Language.ENGLISH
+        assert published_post is post
+
+    assert post.text == mixed_text
+
+def test_publish_post_preserves_mixed_text_with_croatian_language() -> None:
+    publisher = RecordingPublisher()
+
+    service = PublishPost(
+        publisher_router=PublisherRouter({
+            PublishingDestination.WORDPRESS: publisher,
+        }),
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    mixed_text = (
+        "Today we are publishing important news.\n"
+        "\n"
+        "Danas objavljujemo važnu vijest za naše čitatelje."
+    )
+
+    post = Post(
+        text=mixed_text,
+        language=Language.CROATIAN,
+    )
+
+    account = Account(
+        name="Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(account,),
+        )
+    )
+
+    assert len(results) == 1
+    assert results[0].succeeded
+
+    assert len(publisher.published_posts) == 1
+
+    published_post = publisher.published_posts[0].source
+
+    assert published_post.text == mixed_text
+    assert published_post.language is Language.CROATIAN
+    assert published_post is post

@@ -16,7 +16,9 @@ from socialflow.application.images.image_profile_provider import (
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
-from socialflow.application.publishing.null_publisher import NullPublisher
+from socialflow.application.publishing.unconfigured_publisher import (
+    UnconfiguredPublisher,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.tags.create_tag import CreateTag
@@ -72,7 +74,7 @@ class MainContent(QWidget):
         list_tags = ListTags(tag_provider)
         create_tag = CreateTag(tag_provider)
 
-        publisher = NullPublisher()
+        publisher = UnconfiguredPublisher()
         publisher_router = PublisherRouter(
             {
                 PublishingDestination.FACEBOOK: publisher,

@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
 from pathlib import Path
+from PySide6.QtWidgets import QHBoxLayout
 
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.account.account import Account
@@ -12,6 +13,9 @@ from socialflow.ui.posts.language_controls import LanguageControls
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_button import PublishButton
 from socialflow.domain.post.tag import Tag
+from socialflow.application.language.post_language_classifier import (
+    PostLanguageClassification,
+)
 
 
 def create_facebook_account() -> Account:
@@ -449,7 +453,7 @@ def test_post_editor_updates_language_visual_marker(qtbot) -> None:
     editor = PostEditor()
     qtbot.addWidget(editor)
 
-    assert editor.text_editor.property("postLanguage") == "hr"
+    assert editor.text_editor.property("postLanguage") == "unknown"
 
     editor.text_editor.setPlainText(
         "We are publishing important news today."
@@ -461,30 +465,286 @@ def test_post_editor_updates_language_visual_marker(qtbot) -> None:
 
     editor.language_controls.set_language(Language.CROATIAN)
 
-    assert editor.text_editor.property("postLanguage") == "hr"
+    assert editor.selected_language() is Language.CROATIAN
+    assert editor.text_editor.property("postLanguage") == "en"
     assert editor.language_controls.indicator.text() == "HR"
 
     editor.new_post()
 
-    assert editor.text_editor.property("postLanguage") == "hr"
+    assert editor.text_editor.property("postLanguage") == "unknown"
 
 def test_post_editor_changes_border_color_with_language(qtbot) -> None:
     editor = PostEditor()
     qtbot.addWidget(editor)
 
-    assert "#2563eb" in editor.text_editor.styleSheet()
+    assert "#6b7280" in editor.text_editor.styleSheet()
 
     editor.text_editor.setPlainText(
         "We are publishing important news today."
     )
 
-    assert editor.selected_language() is Language.ENGLISH
     assert "#16a34a" in editor.text_editor.styleSheet()
 
     editor.language_controls.set_language(Language.CROATIAN)
+
+    assert editor.selected_language() is Language.CROATIAN
+    assert "#16a34a" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
 
     assert "#2563eb" in editor.text_editor.styleSheet()
 
     editor.new_post()
 
+    assert "#6b7280" in editor.text_editor.styleSheet()
+
+def test_post_editor_detects_individual_paragraph_languages(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+    assert editor.paragraph_languages() == (
+        Language.ENGLISH,
+        Language.CROATIAN,
+        Language.ENGLISH,
+    )
+
+def test_post_editor_highlights_mixed_language_paragraphs(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+    document = editor.text_editor.document()
+
+    assert document.findBlockByNumber(0).userState() == 1
+    assert document.findBlockByNumber(1).userState() == 2
+    assert document.findBlockByNumber(2).userState() == 1
+
+    assert editor.text_editor.toPlainText() == (
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+def test_post_editor_classifies_mixed_language_post(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+def test_post_editor_border_reflects_mixed_language_content(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+    assert "#9333ea" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news."
+    )
+
+    assert "#16a34a" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
     assert "#2563eb" in editor.text_editor.styleSheet()
+
+    editor.text_editor.clear()
+
+    assert "#6b7280" in editor.text_editor.styleSheet()
+
+def test_post_editor_shows_detected_content_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.content_language_indicator.text() == "?"
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news."
+    )
+
+    assert editor.content_language_indicator.text() == "EN"
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR"
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR + EN"
+
+    editor.language_controls.set_language(Language.ENGLISH)
+
+    # Changing the publishing language must not change
+    # the detected content classification.
+    assert editor.content_language_indicator.text() == "HR + EN"
+
+    editor.new_post()
+
+    assert editor.content_language_indicator.text() == "?"
+
+def test_content_language_indicator_updates_during_editing(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news."
+    )
+
+    assert editor.content_language_indicator.text() == "EN"
+    assert "#16a34a" in editor.content_language_indicator.styleSheet()
+
+    editor.text_editor.appendPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR + EN"
+    assert "#9333ea" in editor.content_language_indicator.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR"
+    assert "#2563eb" in editor.content_language_indicator.styleSheet()
+
+    editor.text_editor.clear()
+
+    assert editor.content_language_indicator.text() == "?"
+    assert "#6b7280" in editor.content_language_indicator.styleSheet()
+
+def test_post_editor_labels_detected_content_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.content_language_label.text() == "Detected content:"
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_label.text() == "Detected content:"
+    assert editor.content_language_indicator.text() == "HR + EN"
+
+def test_detected_content_label_and_indicator_share_layout(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    label = editor.content_language_label
+    indicator = editor.content_language_indicator
+
+    parent_layout = label.parentWidget().layout()
+
+    assert parent_layout is not None
+
+    matching_layouts = [
+        item.layout()
+        for index in range(parent_layout.count())
+        if (item := parent_layout.itemAt(index)).layout() is not None
+    ]
+
+    assert any(
+        isinstance(child_layout, QHBoxLayout)
+        and child_layout.indexOf(label) >= 0
+        and child_layout.indexOf(indicator) >= 0
+        for child_layout in matching_layouts
+    )
+
+def test_post_editor_preserves_mixed_language_text(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    mixed_text = (
+        "Today we are publishing important news.\n"
+        "\n"
+        "Danas objavljujemo novu vijest.\n"
+        "\n"
+        "Thank you for your support."
+    )
+
+    editor.text_editor.setPlainText(mixed_text)
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+    post = editor.post()
+
+    assert post.text == mixed_text
+    assert editor.text_editor.toPlainText() == mixed_text
+
+def test_mixed_language_post_preserves_selected_publishing_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    mixed_text = (
+        "Today we are publishing important news.\n"
+        "\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    editor.text_editor.setPlainText(mixed_text)
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+    editor.language_controls.set_language(Language.ENGLISH)
+
+    english_post = editor.post()
+
+    assert english_post.text == mixed_text
+    assert english_post.language is Language.ENGLISH
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    croatian_post = editor.post()
+
+    assert croatian_post.text == mixed_text
+    assert croatian_post.language is Language.CROATIAN
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )

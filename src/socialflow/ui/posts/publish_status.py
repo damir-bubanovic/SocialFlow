@@ -29,6 +29,10 @@ class PublishStatus(QLabel):
 
         for result in results:
             outcome = "Published" if result.succeeded else "Failed"
+
+            if not result.succeeded and result.error is not None:
+                outcome = f"{outcome}: {result.error}"
+
             lines.append(f"{result.account.name} — {outcome}")
 
         self.setText("\n".join(lines))
