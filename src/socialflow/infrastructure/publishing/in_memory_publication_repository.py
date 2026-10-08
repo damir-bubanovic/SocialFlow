@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.application.publishing.publication_repository import (
     PublicationRepository,
 )
@@ -34,3 +37,18 @@ class InMemoryPublicationRepository(PublicationRepository):
         )
 
         return tuple(ordered[:limit])
+
+    def missing_images_for_publication(
+            self,
+            publication_id: PublicationId,
+    ) -> tuple[Path, ...]:
+        """Return missing image paths for a stored publication."""
+        for publication in self._publications:
+            if publication.id == publication_id:
+                return tuple(
+                    image.path
+                    for image in publication.post.images
+                    if not image.path.is_file()
+                )
+
+        return ()

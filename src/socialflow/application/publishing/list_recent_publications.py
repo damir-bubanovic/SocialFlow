@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.application.publishing.publication_repository import (
     PublicationRepository,
 )
@@ -23,4 +26,13 @@ class ListRecentPublications:
         return self._repository.recent_for_account(
             account=account,
             limit=limit,
+        )
+
+    def missing_images_for_publication(
+        self,
+        publication_id: PublicationId,
+    ) -> tuple[Path, ...]:
+        """Return missing image paths for a publication."""
+        return self._repository.missing_images_for_publication(
+            publication_id
         )

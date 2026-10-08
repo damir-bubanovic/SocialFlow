@@ -362,9 +362,9 @@ def test_repository_removes_copied_images_when_save_fails(
     repository = JsonPublicationRepository(file_path)
 
     with patch.object(
-        repository,
-        "_save",
-        side_effect=OSError("Simulated save failure"),
+            repository,
+            "_write_data",
+            side_effect=OSError("Simulated save failure"),
     ):
         with pytest.raises(OSError, match="Simulated save failure"):
             repository.add(publication)
@@ -541,3 +541,198 @@ def test_repository_loads_publication_when_stored_image_is_missing(
     assert recovered.post.images == ()
     assert recovered.account == publication.account
     assert recovered.published_at == publication.published_at
+
+def test_legacy_migration_preserves_missing_image_paths(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+    missing_image = tmp_path / "deleted.png"
+
+    legacy_record = {
+        "account": {
+            "name": "Main Facebook",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Legacy post with missing image",
+            "language": "EN",
+            "tags": [],
+            "images": [str(missing_image)],
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    file_path.write_text(
+        json.dumps([legacy_record]),
+        encoding="utf-8",
+    )
+
+    repository = JsonPublicationRepository(file_path)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    history = repository.recent_for_account(account)
+
+    assert len(history) == 1
+    assert history[0].post.images == ()
+
+    saved_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert "id" in saved_data[0]
+    assert saved_data[0]["post"]["images"] == [
+        str(missing_image)
+    ]
+
+def test_adding_publication_preserves_existing_missing_image_paths(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+    missing_image = tmp_path / "deleted.png"
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    first = create_publication(
+        account,
+        "Original publication",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    repository = JsonPublicationRepository(file_path)
+    repository.add(first)
+
+    data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    data[0]["post"]["images"] = [str(missing_image)]
+
+    file_path.write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
+
+    second = create_publication(
+        account,
+        "Second publication",
+        datetime(2026, 10, 8, 16, 0),
+    )
+
+    repository.add(second)
+
+    saved_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert len(saved_data) == 2
+    assert saved_data[0]["post"]["images"] == [
+        str(missing_image)
+    ]
+    assert saved_data[1]["post"]["text"] == (
+        "Second publication"
+    )
+
+def test_repository_detects_missing_publication_images(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 8, 16, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+    repository.add(publication)
+
+    stored = repository.recent_for_account(account)[0]
+    stored_path = stored.post.images[0].path
+
+    stored_path.unlink()
+
+    missing = repository.missing_images_for_publication(
+        publication.id
+    )
+
+    assert missing == (stored_path,)
+
+
+def test_repository_returns_no_missing_images_when_files_exist(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 8, 16, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+    repository.add(publication)
+
+    assert repository.missing_images_for_publication(
+        publication.id
+    ) == ()
+
+
+def test_repository_returns_no_missing_images_for_unknown_id(
+    tmp_path,
+) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    unknown_id = PublicationId(
+        UUID("99999999-9999-9999-9999-999999999999")
+    )
+
+    assert repository.missing_images_for_publication(
+        unknown_id
+    ) == ()

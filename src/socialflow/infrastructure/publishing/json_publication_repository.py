@@ -1,18 +1,22 @@
 import json
-from pathlib import Path
-from uuid import uuid4
 import os
 import tempfile
+from pathlib import Path
+from uuid import uuid4
 
 from socialflow.application.publishing.publication_repository import (
     PublicationRepository,
 )
 from socialflow.domain.account.account import Account
+from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.publication import Publication
+from socialflow.domain.publishing.publication_id import PublicationId
+from socialflow.infrastructure.publishing.publication_image_inspector import (
+    PublicationImageInspector,
+)
 from socialflow.infrastructure.publishing.publication_serializer import (
     PublicationSerializer,
 )
-from socialflow.domain.post.post import Post
 from socialflow.infrastructure.storage.publication_image_storage import (
     PublicationImageStorage,
 )
@@ -22,9 +26,9 @@ class JsonPublicationRepository(PublicationRepository):
     """Store publication history in a JSON file."""
 
     def __init__(
-            self,
-            file_path: Path,
-            image_storage: PublicationImageStorage | None = None,
+        self,
+        file_path: Path,
+        image_storage: PublicationImageStorage | None = None,
     ) -> None:
         self._file_path = file_path
         self._image_storage = image_storage or PublicationImageStorage(
@@ -33,7 +37,17 @@ class JsonPublicationRepository(PublicationRepository):
 
     def add(self, publication: Publication) -> None:
         """Store a publication and roll back copied images on failure."""
-        publications = list(self._load())
+        self._load()  # Ensure legacy records have been migrated.
+
+        if self._file_path.exists():
+            with self._file_path.open(
+                "r",
+                encoding="utf-8",
+            ) as file:
+                data = json.load(file)
+        else:
+            data = []
+
         stored_images = []
 
         try:
@@ -56,8 +70,10 @@ class JsonPublicationRepository(PublicationRepository):
                 published_at=publication.published_at,
             )
 
-            publications.append(stored_publication)
-            self._save(publications)
+            data.append(
+                PublicationSerializer.to_dict(stored_publication)
+            )
+            self._write_data(data)
 
         except Exception:
             for image in stored_images:
@@ -84,6 +100,38 @@ class JsonPublicationRepository(PublicationRepository):
 
         return tuple(ordered[:limit])
 
+    def missing_images_for_publication(
+        self,
+        publication_id: PublicationId,
+    ) -> tuple[Path, ...]:
+        """Find missing images using the original stored JSON paths."""
+        if not self._file_path.exists():
+            return ()
+
+        # Ensure legacy publication IDs have been migrated.
+        self._load()
+
+        with self._file_path.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            records = json.load(file)
+
+        for record in records:
+            if record.get("id") != str(publication_id.value):
+                continue
+
+            image_paths = tuple(
+                Path(path)
+                for path in record.get("post", {}).get("images", [])
+            )
+
+            return PublicationImageInspector.missing_images(
+                image_paths
+            )
+
+        return ()
+
     def _load(self) -> tuple[Publication, ...]:
         """Load publications from disk and migrate legacy records."""
         if not self._file_path.exists():
@@ -108,32 +156,36 @@ class JsonPublicationRepository(PublicationRepository):
         )
 
         if migration_required:
-            self._save(list(publications))
+            self._write_data(data)
 
         return publications
 
     def _save(self, publications: list[Publication]) -> None:
-        """Atomically save publication history to JSON."""
-        self._file_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
+        """Serialize and atomically save publication history."""
         data = [
             PublicationSerializer.to_dict(publication)
             for publication in publications
         ]
 
+        self._write_data(data)
+
+    def _write_data(self, data: list[dict]) -> None:
+        """Atomically write JSON without changing its records."""
+        self._file_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         temporary_path = None
 
         try:
             with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    encoding="utf-8",
-                    dir=self._file_path.parent,
-                    prefix=".publications_",
-                    suffix=".tmp",
-                    delete=False,
+                mode="w",
+                encoding="utf-8",
+                dir=self._file_path.parent,
+                prefix=".publications_",
+                suffix=".tmp",
+                delete=False,
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
 

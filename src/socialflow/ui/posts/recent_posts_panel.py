@@ -26,10 +26,15 @@ class RecentPostsPanel(QWidget):
 
         self.title = QLabel("Recent posts", self)
         self.recent_posts_list = RecentPostsList(self)
+        self.missing_images_warning = QLabel(self)
+        self.missing_images_warning.setWordWrap(True)
+        self.missing_images_warning.setStyleSheet("color: #b45309;")
+        self.missing_images_warning.hide()
 
         layout = QVBoxLayout()
         layout.addWidget(self.title)
         layout.addWidget(self.recent_posts_list)
+        layout.addWidget(self.missing_images_warning)
 
         self.setLayout(layout)
 
@@ -47,6 +52,9 @@ class RecentPostsPanel(QWidget):
 
     def refresh(self) -> None:
         """Refresh publication history for the current account."""
+        self.missing_images_warning.clear()
+        self.missing_images_warning.hide()
+
         if self._account is None:
             self.recent_posts_list.set_publications(())
             return
@@ -58,8 +66,29 @@ class RecentPostsPanel(QWidget):
         self.recent_posts_list.set_publications(publications)
 
     def _emit_selected_publication(self) -> None:
-        """Emit the publication selected in the history list."""
+        """Emit the selected publication and update image warnings."""
         publication = self.recent_posts_list.selected_publication()
 
-        if publication is not None:
-            self.publication_selected.emit(publication)
+        self.missing_images_warning.clear()
+        self.missing_images_warning.hide()
+
+        if publication is None:
+            return
+
+        missing_images = (
+            self._list_recent_publications.missing_images_for_publication(
+                publication.id
+            )
+        )
+
+        if missing_images:
+            count = len(missing_images)
+            image_word = "image" if count == 1 else "images"
+
+            self.missing_images_warning.setText(
+                f"Warning: {count} missing {image_word} "
+                "for this publication."
+            )
+            self.missing_images_warning.show()
+
+        self.publication_selected.emit(publication)

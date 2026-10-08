@@ -3,6 +3,7 @@ from uuid import UUID
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
+from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
@@ -169,3 +170,88 @@ def test_repository_respects_custom_limit() -> None:
         publications[2],
         publications[1],
     )
+
+def test_repository_detects_missing_publication_images(tmp_path) -> None:
+    image_path = tmp_path / "deleted.png"
+    image_path.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with missing image",
+        datetime(2026, 10, 8, 16, 0),
+        UUID("11111111-1111-1111-1111-111111111111"),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=image_path),),
+        ),
+        published_at=original.published_at,
+    )
+
+    repository = InMemoryPublicationRepository()
+    repository.add(publication)
+
+    image_path.unlink()
+
+    assert repository.missing_images_for_publication(
+        publication.id
+    ) == (image_path,)
+
+
+def test_repository_returns_no_missing_images_when_files_exist(
+    tmp_path,
+) -> None:
+    image_path = tmp_path / "existing.png"
+    image_path.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with existing image",
+        datetime(2026, 10, 8, 16, 0),
+        UUID("22222222-2222-2222-2222-222222222222"),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=image_path),),
+        ),
+        published_at=original.published_at,
+    )
+
+    repository = InMemoryPublicationRepository()
+    repository.add(publication)
+
+    assert repository.missing_images_for_publication(
+        publication.id
+    ) == ()
+
+
+def test_repository_returns_no_missing_images_for_unknown_id() -> None:
+    repository = InMemoryPublicationRepository()
+
+    unknown_id = PublicationId(
+        UUID("99999999-9999-9999-9999-999999999999")
+    )
+
+    assert repository.missing_images_for_publication(
+        unknown_id
+    ) == ()
