@@ -29,3 +29,10 @@ def test_app_paths_provides_publications_file() -> None:
         paths.publications_file
         == Path("/tmp/socialflow/publications.json")
     )
+
+def test_publication_images_directory(tmp_path) -> None:
+    paths = AppPaths(tmp_path)
+
+    assert paths.publication_images_directory == (
+        tmp_path / "publication_images"
+    )

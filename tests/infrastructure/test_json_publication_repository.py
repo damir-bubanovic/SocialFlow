@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timedelta
 from uuid import UUID
+import pytest
+from unittest.mock import patch
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
@@ -11,6 +13,7 @@ from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
+from socialflow.domain.post.image_attachment import ImageAttachment
 
 
 def create_publication(
@@ -277,3 +280,140 @@ def test_repository_migrates_legacy_publication_without_id(
     assert len(second_load) == 1
     assert second_load[0].id == first_load[0].id
     assert second_load[0] == first_load[0]
+
+def test_repository_preserves_images_after_original_is_deleted(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"original image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+
+    repository = JsonPublicationRepository(file_path)
+    repository.add(publication)
+
+    source.unlink()
+
+    reloaded = JsonPublicationRepository(file_path)
+    history = reloaded.recent_for_account(account)
+
+    assert len(history) == 1
+    assert len(history[0].post.images) == 1
+
+    stored_image = history[0].post.images[0]
+
+    assert stored_image.path.is_file()
+    assert stored_image.path.read_bytes() == (
+        b"original image content"
+    )
+    assert stored_image.path != source
+
+def test_repository_removes_copied_images_when_save_fails(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+    repository = JsonPublicationRepository(file_path)
+
+    with patch.object(
+        repository,
+        "_save",
+        side_effect=OSError("Simulated save failure"),
+    ):
+        with pytest.raises(OSError, match="Simulated save failure"):
+            repository.add(publication)
+
+    managed_directory = tmp_path / "publication_images"
+
+    assert not list(managed_directory.glob("*"))
+    assert source.is_file()
+
+def test_repository_preserves_existing_json_when_replace_fails(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository = JsonPublicationRepository(file_path)
+
+    first = create_publication(
+        account,
+        "Original publication",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    repository.add(first)
+
+    original_content = file_path.read_text(encoding="utf-8")
+
+    second = create_publication(
+        account,
+        "New publication",
+        datetime(2026, 10, 6, 10, 0),
+    )
+
+    with patch(
+        "socialflow.infrastructure.publishing.json_publication_repository.os.replace",
+        side_effect=OSError("Simulated replace failure"),
+    ):
+        with pytest.raises(
+            OSError,
+            match="Simulated replace failure",
+        ):
+            repository.add(second)
+
+    assert file_path.read_text(encoding="utf-8") == (
+        original_content
+    )
+
+    assert not list(tmp_path.glob(".publications_*.tmp"))

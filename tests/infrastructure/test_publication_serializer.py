@@ -4,12 +4,14 @@ from uuid import UUID
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
+from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
 from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.infrastructure.publishing.publication_serializer import (
     PublicationSerializer,
 )
+from socialflow.domain.post.image_attachment import ImageAttachment
 
 
 PUBLICATION_ID = PublicationId(
@@ -46,6 +48,8 @@ def test_publication_serializer_converts_publication_to_dict() -> None:
         "post": {
             "text": "Hello from SocialFlow",
             "language": "EN",
+            "tags": [],
+            "images": []
         },
         "published_at": "2026-10-05T21:30:00",
     }
@@ -93,3 +97,74 @@ def test_publication_serializer_round_trip() -> None:
 
     assert restored == original
     assert restored.id == original.id
+
+def test_publication_serializer_preserves_tags() -> None:
+    original = create_publication()
+
+    original = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            tags=(
+                Tag(name="Python"),
+                Tag(name="SocialFlow"),
+            ),
+        ),
+        published_at=original.published_at,
+    )
+
+    data = PublicationSerializer.to_dict(original)
+    restored = PublicationSerializer.from_dict(data)
+
+    assert data["post"]["tags"] == [
+        "Python",
+        "SocialFlow",
+    ]
+    assert restored == original
+
+
+def test_publication_serializer_supports_legacy_posts_without_tags() -> None:
+    original = create_publication()
+    data = PublicationSerializer.to_dict(original)
+
+    del data["post"]["tags"]
+
+    restored = PublicationSerializer.from_dict(data)
+
+    assert restored.post.tags == ()
+
+def test_publication_serializer_preserves_images(tmp_path) -> None:
+    image_path = tmp_path / "example.png"
+    image_path.write_bytes(b"test image")
+
+    original = create_publication()
+
+    original = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=image_path),),
+        ),
+        published_at=original.published_at,
+    )
+
+    data = PublicationSerializer.to_dict(original)
+    restored = PublicationSerializer.from_dict(data)
+
+    assert data["post"]["images"] == [str(image_path)]
+    assert restored == original
+
+
+def test_publication_serializer_supports_legacy_posts_without_images() -> None:
+    original = create_publication()
+    data = PublicationSerializer.to_dict(original)
+
+    del data["post"]["images"]
+
+    restored = PublicationSerializer.from_dict(data)
+
+    assert restored.post.images == ()

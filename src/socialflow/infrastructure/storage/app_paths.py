@@ -21,3 +21,8 @@ class AppPaths:
     def prepared_images_directory(self) -> Path:
         """Return the directory for destination-prepared images."""
         return self._data_directory / "prepared_images"
+
+    @property
+    def publication_images_directory(self) -> Path:
+        """Return the directory for persistent publication images."""
+        return self._data_directory / "publication_images"
