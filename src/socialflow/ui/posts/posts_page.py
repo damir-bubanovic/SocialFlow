@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.publishing.errors import PublishingError
@@ -37,6 +37,10 @@ class PostsPage(QWidget):
         self._list_recent_publications = list_recent_publications
 
         self.post_editor = PostEditor(self)
+        self.new_post_button = QPushButton("New Post", self)
+        self.new_post_button.clicked.connect(
+            self.post_editor.new_post
+        )
         self.publish_status = PublishStatus(self)
         self.recent_posts_panel = RecentPostsPanel(
             list_recent_publications,
@@ -44,6 +48,7 @@ class PostsPage(QWidget):
         )
 
         layout = QVBoxLayout()
+        layout.addWidget(self.new_post_button)
         layout.addWidget(self.post_editor)
         layout.addWidget(self.publish_status)
         layout.addWidget(self.recent_posts_panel)

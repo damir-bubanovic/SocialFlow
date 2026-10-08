@@ -1,6 +1,8 @@
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPlainTextEdit, QVBoxLayout, QWidget
 
+from socialflow.application.language.language_detector import LanguageDetector
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
@@ -21,7 +23,13 @@ class PostEditor(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
+        self._language_detector = LanguageDetector()
+        self._manual_language_override = False
+
         self.language_controls = LanguageControls(self)
+        self.language_controls.manual_language_selected.connect(
+            self._lock_language_selection
+        )
         self.destination_selector = DestinationSelector(self)
 
         self.text_editor = QPlainTextEdit(self)
@@ -43,6 +51,9 @@ class PostEditor(QWidget):
 
         self.text_editor.textChanged.connect(
             self._update_publish_button
+        )
+        self.text_editor.textChanged.connect(
+            self._detect_language
         )
         self.publish_button.clicked.connect(
             self._request_publish
@@ -81,6 +92,20 @@ class PostEditor(QWidget):
             tags=self.tag_selector.selected_tags(),
         )
 
+    def new_post(self) -> None:
+        """Clear the current draft and restore automatic language detection."""
+        self._manual_language_override = False
+
+        self.text_editor.clear()
+        self.image_selector.set_selected_images(())
+        self.tag_selector.set_selected_tags(())
+
+        self.language_controls.set_detected_language(
+            Language.CROATIAN
+        )
+
+        self._update_publish_button()
+
     def load_post(self, post: Post) -> None:
         """Load an existing post into the editor."""
         self.text_editor.setPlainText(post.text)
@@ -105,6 +130,24 @@ class PostEditor(QWidget):
             bool(self.selected_accounts())
         )
 
+    def _lock_language_selection(self) -> None:
+        """Prevent automatic detection from overriding manual selection."""
+        self._manual_language_override = True
+
+    def _detect_language(self) -> None:
+        """Update language automatically unless manually overridden."""
+        if self._manual_language_override:
+            return
+
+        detected_language = self._language_detector.detect(
+            self.text_editor.toPlainText()
+        )
+
+        if detected_language is not None:
+            self.language_controls.set_detected_language(
+                detected_language
+            )
+
     def _update_publish_button(self) -> None:
         """Synchronize the publish button with the current post state."""
         available = (
@@ -115,8 +158,8 @@ class PostEditor(QWidget):
         self.publish_button.set_post_available(available)
 
     def _notify_account_selection_changed(
-            self,
-            *_args: object,
+        self,
+        *_args: object,
     ) -> None:
         """Notify listeners that the selected accounts changed."""
         self._update_tag_creation()

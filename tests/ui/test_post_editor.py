@@ -138,7 +138,7 @@ def test_post_editor_emits_publish_request(qtbot) -> None:
 
     assert isinstance(request, PublishRequest)
     assert request.post.text == "Hello from SocialFlow"
-    assert request.post.language == Language.CROATIAN
+    assert request.post.language == Language.ENGLISH
     assert request.accounts == (account,)
 
 
@@ -358,3 +358,89 @@ def test_post_editor_loads_post_images(
     assert editor.image_selector.selected_images() == (
         image,
     )
+
+def test_post_editor_automatically_detects_croatian(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+
+    editor.text_editor.setPlainText(
+        "Danas ćemo objaviti važnu obavijest."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+    assert editor.language_controls.indicator.text() == "HR"
+
+def test_manual_language_selection_is_preserved_when_text_changes(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+
+def test_dropdown_language_selection_prevents_automatic_detection(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.selector.activated.emit(
+        editor.language_controls.selector.currentIndex()
+    )
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+
+def test_new_post_resets_manual_language_override(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+
+    editor.new_post()
+
+    assert editor.post_text() == ""
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+
+def test_new_post_clears_content_but_preserves_accounts(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    account = create_facebook_account()
+    editor.set_accounts((account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.new_post()
+
+    assert editor.post_text() == ""
+    assert editor.image_selector.selected_images() == ()
+    assert editor.tag_selector.selected_tags() == ()
+    assert editor.selected_accounts() == (account,)
+    assert not editor.publish_button.isEnabled()

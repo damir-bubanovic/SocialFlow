@@ -1073,3 +1073,77 @@ def test_posts_page_shows_history_for_first_selected_account(
     page.post_editor.destination_selector._checkboxes[1].setChecked(
         True
     )
+
+def test_new_post_button_clears_editor(qtbot) -> None:
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    page.new_post_button.click()
+
+    assert page.post_editor.post_text() == ""
+    assert page.post_editor.selected_language() is Language.CROATIAN
+
+
+def test_new_post_button_resets_editor_after_selecting_history(
+    qtbot,
+) -> None:
+    account_repository = InMemoryAccountRepository()
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    account_repository.add(account)
+
+    publication_repository = InMemoryPublicationRepository()
+    publication_repository.add(
+        create_publication(
+            account,
+            "Previous publication",
+        )
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(account_repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=ListRecentPublications(
+            publication_repository
+        ),
+    )
+    qtbot.addWidget(page)
+
+    checkbox = page.post_editor.destination_selector._checkboxes[0]
+    checkbox.setChecked(True)
+
+    history_list = page.recent_posts_panel.recent_posts_list
+    assert history_list.count() == 1
+
+    history_list.setCurrentRow(0)
+
+    assert page.post_editor.post_text() == "Previous publication"
+    assert page.post_editor.selected_language() is Language.ENGLISH
+
+    page.new_post_button.click()
+
+    assert page.post_editor.post_text() == ""
+    assert page.post_editor.selected_language() is Language.CROATIAN
+    assert page.post_editor.image_selector.selected_images() == ()
+    assert page.post_editor.tag_selector.selected_tags() == ()
+    assert page.post_editor.selected_accounts() == (account,)
+    assert not page.post_editor.publish_button.isEnabled()
+
+    page.post_editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert page.post_editor.selected_language() is Language.ENGLISH
