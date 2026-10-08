@@ -417,3 +417,127 @@ def test_repository_preserves_existing_json_when_replace_fails(
     )
 
     assert not list(tmp_path.glob(".publications_*.tmp"))
+
+def test_repository_rolls_back_when_second_image_copy_fails(
+    tmp_path,
+) -> None:
+    first_path = tmp_path / "first.png"
+    second_path = tmp_path / "second.png"
+
+    first_path.write_bytes(b"first image")
+    second_path.write_bytes(b"second image")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with two images",
+        datetime(2026, 10, 8, 15, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(
+                ImageAttachment(path=first_path),
+                ImageAttachment(path=second_path),
+            ),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+    repository = JsonPublicationRepository(file_path)
+
+    original_store = repository._image_storage.store
+    calls = 0
+
+    def failing_store(image):
+        nonlocal calls
+        calls += 1
+
+        if calls == 2:
+            raise OSError("Second image copy failed")
+
+        return original_store(image)
+
+    with patch.object(
+        repository._image_storage,
+        "store",
+        side_effect=failing_store,
+    ):
+        with pytest.raises(
+            OSError,
+            match="Second image copy failed",
+        ):
+            repository.add(publication)
+
+    managed_directory = tmp_path / "publication_images"
+
+    assert not list(managed_directory.glob("*"))
+    assert first_path.is_file()
+    assert second_path.is_file()
+    assert not file_path.exists()
+
+def test_repository_loads_publication_when_stored_image_is_missing(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with missing image",
+        datetime(2026, 10, 8, 15, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+    repository = JsonPublicationRepository(file_path)
+
+    repository.add(publication)
+
+    history = repository.recent_for_account(account)
+
+    assert len(history) == 1
+    assert len(history[0].post.images) == 1
+
+    managed_image = history[0].post.images[0].path
+    managed_image.unlink()
+
+    reloaded_repository = JsonPublicationRepository(file_path)
+    recovered_history = reloaded_repository.recent_for_account(
+        account
+    )
+
+    assert len(recovered_history) == 1
+
+    recovered = recovered_history[0]
+
+    assert recovered.id == publication.id
+    assert recovered.post.text == publication.post.text
+    assert recovered.post.language == publication.post.language
+    assert recovered.post.images == ()
+    assert recovered.account == publication.account
+    assert recovered.published_at == publication.published_at

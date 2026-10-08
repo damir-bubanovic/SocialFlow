@@ -57,8 +57,9 @@ class PublicationSerializer:
                     for name in data["post"].get("tags", [])
                 ),
                 images=tuple(
-                    ImageAttachment(path=Path(path))
+                    ImageAttachment(path=image_path)
                     for path in data["post"].get("images", [])
+                    if (image_path := Path(path)).is_file()
                 ),
             ),
             published_at=datetime.fromisoformat(

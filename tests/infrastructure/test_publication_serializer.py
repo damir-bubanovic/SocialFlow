@@ -168,3 +168,20 @@ def test_publication_serializer_supports_legacy_posts_without_images() -> None:
     restored = PublicationSerializer.from_dict(data)
 
     assert restored.post.images == ()
+
+def test_publication_serializer_skips_missing_images(
+    tmp_path,
+) -> None:
+    original = create_publication()
+    data = PublicationSerializer.to_dict(original)
+
+    missing_path = tmp_path / "deleted.png"
+
+    data["post"]["images"] = [str(missing_path)]
+
+    restored = PublicationSerializer.from_dict(data)
+
+    assert restored.post.images == ()
+    assert restored.post.text == original.post.text
+    assert restored.post.language == original.post.language
+    assert restored.id == original.id
