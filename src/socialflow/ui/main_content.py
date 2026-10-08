@@ -29,6 +29,9 @@ from socialflow.infrastructure.accounts.json_account_repository import (
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
+from socialflow.infrastructure.publishing.uuid_publication_id_generator import (
+    UuidPublicationIdGenerator,
+)
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.infrastructure.time.system_clock import SystemClock
@@ -88,6 +91,7 @@ class MainContent(QWidget):
 
         publish_post = PublishPost(
             publisher_router=publisher_router,
+            publication_id_generator=UuidPublicationIdGenerator(),
             image_preparation_service=image_preparation_service,
             image_output_directory=paths.prepared_images_directory,
             publication_repository=publication_repository,

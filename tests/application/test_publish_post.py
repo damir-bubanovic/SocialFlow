@@ -1,15 +1,10 @@
 import pytest
 
+from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 from PIL import Image
-
-from datetime import datetime
-
-from socialflow.application.time.clock import Clock
-from socialflow.infrastructure.publishing.in_memory_publication_repository import (
-    InMemoryPublicationRepository,
-)
 
 from socialflow.application.images.image_preparation_service import (
     ImagePreparationService,
@@ -19,20 +14,28 @@ from socialflow.application.images.image_profile import ImageProfile
 from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
-from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.application.publishing.errors import (
     EmptyPostError,
     ImagePreparationNotConfiguredError,
 )
 from socialflow.application.publishing.prepared_post import PreparedPost
+from socialflow.application.publishing.publication_id_generator import (
+    PublicationIdGenerator,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher import Publisher
 from socialflow.application.publishing.publisher_router import PublisherRouter
+from socialflow.application.time.clock import Clock
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
+from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.domain.publishing.publish_request import PublishRequest
+from socialflow.infrastructure.publishing.in_memory_publication_repository import (
+    InMemoryPublicationRepository,
+)
 
 
 class RecordingPublisher(Publisher):
@@ -44,11 +47,13 @@ class RecordingPublisher(Publisher):
     def publish(self, post: PreparedPost) -> None:
         self.published_posts.append(post)
 
+
 class FailingPublisher(Publisher):
     """Test publisher that fails while publishing."""
 
     def publish(self, post: PreparedPost) -> None:
         raise RuntimeError("Publishing failed.")
+
 
 class InspectingPublisher(Publisher):
     """Test publisher that inspects prepared images while publishing."""
@@ -69,6 +74,7 @@ class InspectingPublisher(Publisher):
             self.image_size = image.size
             self.image_format = image.format
 
+
 class FixedClock(Clock):
     """Test clock returning a fixed date and time."""
 
@@ -77,6 +83,26 @@ class FixedClock(Clock):
 
     def now(self) -> datetime:
         return self._current
+
+
+class FixedPublicationIdGenerator(PublicationIdGenerator):
+    """Return a fixed publication ID for tests."""
+
+    def __init__(self, publication_id: PublicationId) -> None:
+        self._publication_id = publication_id
+
+    def generate(self) -> PublicationId:
+        return self._publication_id
+
+
+def create_publication_id_generator() -> FixedPublicationIdGenerator:
+    """Create a deterministic publication ID generator for tests."""
+    return FixedPublicationIdGenerator(
+        PublicationId(
+            UUID("12345678-1234-5678-1234-567812345678")
+        )
+    )
+
 
 def test_publish_post_publishes_to_requested_accounts() -> None:
     facebook_publisher = RecordingPublisher()
@@ -88,7 +114,11 @@ def test_publish_post_publishes_to_requested_accounts() -> None:
             PublishingDestination.WORDPRESS: wordpress_publisher,
         }
     )
-    service = PublishPost(router)
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
 
     post = Post(
         text="Hello from SocialFlow",
@@ -129,7 +159,11 @@ def test_publish_post_rejects_empty_post() -> None:
             PublishingDestination.FACEBOOK: publisher,
         }
     )
-    service = PublishPost(router)
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
 
     post = Post(
         text="   ",
@@ -152,6 +186,7 @@ def test_publish_post_rejects_empty_post() -> None:
         service.execute(request)
 
     assert publisher.published_posts == []
+
 
 def test_publish_post_prepares_images_for_destination(
     tmp_path: Path,
@@ -190,6 +225,7 @@ def test_publish_post_prepares_images_for_destination(
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         image_preparation_service=ImagePreparationService(
             profile_provider=profile_provider,
         ),
@@ -242,6 +278,7 @@ def test_publish_post_prepares_images_for_destination(
         assert original.size == (1600, 900)
         assert original.format == "PNG"
 
+
 def test_publish_post_prepares_image_separately_for_each_destination(
     tmp_path: Path,
 ) -> None:
@@ -288,6 +325,7 @@ def test_publish_post_prepares_image_separately_for_each_destination(
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         image_preparation_service=ImagePreparationService(
             profile_provider=profile_provider,
         ),
@@ -355,6 +393,7 @@ def test_publish_post_prepares_image_separately_for_each_destination(
         assert original.size == (1600, 900)
         assert original.format == "PNG"
 
+
 def test_publish_post_rejects_images_without_preparation_configuration(
     tmp_path: Path,
 ) -> None:
@@ -380,6 +419,7 @@ def test_publish_post_rejects_images_without_preparation_configuration(
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
     )
 
     post = Post(
@@ -408,6 +448,7 @@ def test_publish_post_rejects_images_without_preparation_configuration(
         service.execute(request)
 
     assert publisher.published_posts == []
+
 
 def test_publish_post_cleans_prepared_images_when_publisher_fails(
     tmp_path: Path,
@@ -444,6 +485,7 @@ def test_publish_post_cleans_prepared_images_when_publisher_fails(
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         image_preparation_service=ImagePreparationService(
             profile_provider=profile_provider,
         ),
@@ -484,6 +526,7 @@ def test_publish_post_cleans_prepared_images_when_publisher_fails(
     assert not prepared_path.exists()
     assert source_path.exists()
 
+
 def test_prepared_image_exists_during_publish_and_is_cleaned_afterward(
     tmp_path: Path,
 ) -> None:
@@ -521,6 +564,7 @@ def test_prepared_image_exists_during_publish_and_is_cleaned_afterward(
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         image_preparation_service=ImagePreparationService(
             profile_provider=profile_provider,
         ),
@@ -559,6 +603,7 @@ def test_prepared_image_exists_during_publish_and_is_cleaned_afterward(
     assert not prepared_path.exists()
     assert source_path.exists()
 
+
 def test_publish_post_continues_after_one_destination_fails() -> None:
     failing_publisher = FailingPublisher()
     successful_publisher = RecordingPublisher()
@@ -570,7 +615,10 @@ def test_publish_post_continues_after_one_destination_fails() -> None:
         }
     )
 
-    service = PublishPost(router)
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
 
     post = Post(
         text="Hello from SocialFlow",
@@ -610,6 +658,7 @@ def test_publish_post_continues_after_one_destination_fails() -> None:
     assert len(successful_publisher.published_posts) == 1
     assert successful_publisher.published_posts[0].source is post
 
+
 def test_publish_post_records_successful_publication() -> None:
     publisher = RecordingPublisher()
 
@@ -624,6 +673,7 @@ def test_publish_post_records_successful_publication() -> None:
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         publication_repository=repository,
         clock=FixedClock(published_at),
     )
@@ -648,9 +698,13 @@ def test_publish_post_records_successful_publication() -> None:
     publications = repository.recent_for_account(account)
 
     assert len(publications) == 1
+    assert publications[0].id == PublicationId(
+        UUID("12345678-1234-5678-1234-567812345678")
+    )
     assert publications[0].account is account
     assert publications[0].post is post
     assert publications[0].published_at == published_at
+
 
 def test_publish_post_does_not_record_failed_publication() -> None:
     publisher = FailingPublisher()
@@ -666,6 +720,7 @@ def test_publish_post_does_not_record_failed_publication() -> None:
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         publication_repository=repository,
         clock=FixedClock(published_at),
     )
@@ -691,6 +746,7 @@ def test_publish_post_does_not_record_failed_publication() -> None:
     assert not results[0].succeeded
     assert repository.recent_for_account(account) == ()
 
+
 def test_publish_post_records_only_successful_destinations() -> None:
     facebook_publisher = FailingPublisher()
     wordpress_publisher = RecordingPublisher()
@@ -707,6 +763,7 @@ def test_publish_post_records_only_successful_destinations() -> None:
 
     service = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         publication_repository=repository,
         clock=FixedClock(published_at),
     )

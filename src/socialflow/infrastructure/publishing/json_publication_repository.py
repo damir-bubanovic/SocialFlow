@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from uuid import uuid4
 
 from socialflow.application.publishing.publication_repository import (
     PublicationRepository,
@@ -44,7 +45,7 @@ class JsonPublicationRepository(PublicationRepository):
         return tuple(ordered[:limit])
 
     def _load(self) -> tuple[Publication, ...]:
-        """Load publications from disk."""
+        """Load publications from disk and migrate legacy records."""
         if not self._file_path.exists():
             return ()
 
@@ -54,10 +55,22 @@ class JsonPublicationRepository(PublicationRepository):
         ) as file:
             data = json.load(file)
 
-        return tuple(
+        migration_required = False
+
+        for item in data:
+            if "id" not in item:
+                item["id"] = str(uuid4())
+                migration_required = True
+
+        publications = tuple(
             PublicationSerializer.from_dict(item)
             for item in data
         )
+
+        if migration_required:
+            self._save(list(publications))
+
+        return publications
 
     def _save(
         self,

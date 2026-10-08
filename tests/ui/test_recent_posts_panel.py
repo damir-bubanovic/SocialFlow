@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
@@ -8,6 +9,7 @@ from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.infrastructure.publishing.in_memory_publication_repository import (
     InMemoryPublicationRepository,
 )
@@ -24,8 +26,13 @@ def create_account() -> Account:
 def create_publication(
     account: Account,
     text: str,
+    publication_id: UUID | None = None,
 ) -> Publication:
     return Publication(
+        id=PublicationId(
+            publication_id
+            or UUID("12345678-1234-5678-1234-567812345678")
+        ),
         account=account,
         post=Post(
             text=text,
@@ -66,11 +73,11 @@ def test_recent_posts_panel_displays_account_history(qtbot) -> None:
 
     assert panel.recent_posts_list.count() == 1
     assert (
-            panel.recent_posts_list.item(0).text()
-            == (
-                "05 Oct 2026 21:00 · Facebook\n"
-                "Main Facebook — Hello from SocialFlow"
-            )
+        panel.recent_posts_list.item(0).text()
+        == (
+            "05 Oct 2026 21:00 · Facebook\n"
+            "Main Facebook — Hello from SocialFlow"
+        )
     )
 
 
@@ -125,12 +132,13 @@ def test_recent_posts_panel_refreshes_history(qtbot) -> None:
 
     assert panel.recent_posts_list.count() == 1
     assert (
-            panel.recent_posts_list.item(0).text()
-            == (
-                "05 Oct 2026 21:00 · Facebook\n"
-                "Main Facebook — New publication"
-            )
+        panel.recent_posts_list.item(0).text()
+        == (
+            "05 Oct 2026 21:00 · Facebook\n"
+            "Main Facebook — New publication"
+        )
     )
+
 
 def test_recent_posts_panel_emits_selected_publication(
     qtbot,

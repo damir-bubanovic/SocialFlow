@@ -1,10 +1,13 @@
+import json
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
@@ -14,8 +17,13 @@ def create_publication(
     account: Account,
     text: str,
     published_at: datetime,
+    publication_id: UUID | None = None,
 ) -> Publication:
     return Publication(
+        id=PublicationId(
+            publication_id
+            or UUID("12345678-1234-5678-1234-567812345678")
+        ),
         account=account,
         post=Post(
             text=text,
@@ -84,11 +92,13 @@ def test_repository_returns_requested_account_only(tmp_path) -> None:
         facebook,
         "Facebook post",
         published_at,
+        UUID("11111111-1111-1111-1111-111111111111"),
     )
     wordpress_publication = create_publication(
         wordpress,
         "WordPress post",
         published_at,
+        UUID("22222222-2222-2222-2222-222222222222"),
     )
 
     repository.add(facebook_publication)
@@ -115,11 +125,13 @@ def test_repository_returns_newest_publications_first(tmp_path) -> None:
         account,
         "Older post",
         start,
+        UUID("11111111-1111-1111-1111-111111111111"),
     )
     newer = create_publication(
         account,
         "Newer post",
         start + timedelta(minutes=1),
+        UUID("22222222-2222-2222-2222-222222222222"),
     )
 
     repository.add(older)
@@ -145,11 +157,21 @@ def test_repository_returns_five_publications_by_default(
 
     start = datetime(2026, 10, 5, 21, 0)
 
+    publication_ids = (
+        UUID("00000000-0000-0000-0000-000000000001"),
+        UUID("00000000-0000-0000-0000-000000000002"),
+        UUID("00000000-0000-0000-0000-000000000003"),
+        UUID("00000000-0000-0000-0000-000000000004"),
+        UUID("00000000-0000-0000-0000-000000000005"),
+        UUID("00000000-0000-0000-0000-000000000006"),
+    )
+
     publications = [
         create_publication(
             account,
             f"Post {index}",
             start + timedelta(minutes=index),
+            publication_ids[index],
         )
         for index in range(6)
     ]
@@ -174,11 +196,18 @@ def test_repository_respects_custom_limit(tmp_path) -> None:
 
     start = datetime(2026, 10, 5, 21, 0)
 
+    publication_ids = (
+        UUID("00000000-0000-0000-0000-000000000001"),
+        UUID("00000000-0000-0000-0000-000000000002"),
+        UUID("00000000-0000-0000-0000-000000000003"),
+    )
+
     publications = [
         create_publication(
             account,
             f"Post {index}",
             start + timedelta(minutes=index),
+            publication_ids[index],
         )
         for index in range(3)
     ]
@@ -193,3 +222,58 @@ def test_repository_respects_custom_limit(tmp_path) -> None:
         publications[2],
         publications[1],
     )
+
+
+def test_repository_migrates_legacy_publication_without_id(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+
+    legacy_data = [
+        {
+            "account": {
+                "name": "Main Facebook",
+                "destination": "facebook",
+            },
+            "post": {
+                "text": "Legacy publication",
+                "language": "EN",
+            },
+            "published_at": "2026-10-05T21:30:00",
+        }
+    ]
+
+    file_path.write_text(
+        json.dumps(
+            legacy_data,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository = JsonPublicationRepository(file_path)
+
+    first_load = repository.recent_for_account(account)
+
+    assert len(first_load) == 1
+    assert isinstance(first_load[0].id, PublicationId)
+
+    migrated_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert "id" in migrated_data[0]
+    assert migrated_data[0]["id"] == str(first_load[0].id)
+
+    reloaded_repository = JsonPublicationRepository(file_path)
+    second_load = reloaded_repository.recent_for_account(account)
+
+    assert len(second_load) == 1
+    assert second_load[0].id == first_load[0].id
+    assert second_load[0] == first_load[0]

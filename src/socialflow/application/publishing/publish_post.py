@@ -16,7 +16,9 @@ from socialflow.application.publishing.publication_repository import (
 )
 from socialflow.application.time.clock import Clock
 from socialflow.domain.publishing.publication import Publication
-
+from socialflow.application.publishing.publication_id_generator import (
+    PublicationIdGenerator,
+)
 
 class PublishPost:
     """Application service for publishing a post."""
@@ -24,12 +26,14 @@ class PublishPost:
     def __init__(
             self,
             publisher_router: PublisherRouter,
+            publication_id_generator: PublicationIdGenerator,
             image_preparation_service: ImagePreparationService | None = None,
             image_output_directory: Path | None = None,
             publication_repository: PublicationRepository | None = None,
             clock: Clock | None = None,
     ) -> None:
         self._publisher_router = publisher_router
+        self._publication_id_generator = publication_id_generator
         self._image_preparation_service = image_preparation_service
         self._image_output_directory = image_output_directory
         self._publication_repository = publication_repository
@@ -85,6 +89,7 @@ class PublishPost:
                 ):
                     self._publication_repository.add(
                         Publication(
+                            id=self._publication_id_generator.generate(),
                             account=account,
                             post=request.post,
                             published_at=self._clock.now(),

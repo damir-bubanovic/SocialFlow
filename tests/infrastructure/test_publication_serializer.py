@@ -1,17 +1,25 @@
 from datetime import datetime
+from uuid import UUID
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.infrastructure.publishing.publication_serializer import (
     PublicationSerializer,
 )
 
 
+PUBLICATION_ID = PublicationId(
+    UUID("12345678-1234-5678-1234-567812345678")
+)
+
+
 def create_publication() -> Publication:
     return Publication(
+        id=PUBLICATION_ID,
         account=Account(
             name="Main Facebook",
             destination=PublishingDestination.FACEBOOK,
@@ -30,6 +38,7 @@ def test_publication_serializer_converts_publication_to_dict() -> None:
     data = PublicationSerializer.to_dict(publication)
 
     assert data == {
+        "id": "12345678-1234-5678-1234-567812345678",
         "account": {
             "name": "Main Facebook",
             "destination": "facebook",
@@ -44,6 +53,7 @@ def test_publication_serializer_converts_publication_to_dict() -> None:
 
 def test_publication_serializer_creates_publication_from_dict() -> None:
     data = {
+        "id": "12345678-1234-5678-1234-567812345678",
         "account": {
             "name": "Main Facebook",
             "destination": "facebook",
@@ -57,6 +67,7 @@ def test_publication_serializer_creates_publication_from_dict() -> None:
 
     publication = PublicationSerializer.from_dict(data)
 
+    assert publication.id == PUBLICATION_ID
     assert publication.account == Account(
         name="Main Facebook",
         destination=PublishingDestination.FACEBOOK,
@@ -77,8 +88,8 @@ def test_publication_serializer_creates_publication_from_dict() -> None:
 def test_publication_serializer_round_trip() -> None:
     original = create_publication()
 
-    restored = PublicationSerializer.from_dict(
-        PublicationSerializer.to_dict(original)
-    )
+    serialized = PublicationSerializer.to_dict(original)
+    restored = PublicationSerializer.from_dict(serialized)
 
     assert restored == original
+    assert restored.id == original.id

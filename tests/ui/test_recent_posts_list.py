@@ -1,19 +1,26 @@
 from datetime import datetime
+from uuid import UUID
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.ui.posts.recent_posts_list import RecentPostsList
 
 
 def create_publication(
     account_name: str,
     text: str,
+    publication_id: UUID | None = None,
 ) -> Publication:
     """Create a publication for RecentPostsList tests."""
     return Publication(
+        id=PublicationId(
+            publication_id
+            or UUID("12345678-1234-5678-1234-567812345678")
+        ),
         account=Account(
             name=account_name,
             destination=PublishingDestination.FACEBOOK,
@@ -41,10 +48,12 @@ def test_recent_posts_list_displays_publications(qtbot) -> None:
         create_publication(
             "Main Facebook",
             "First post",
+            UUID("11111111-1111-1111-1111-111111111111"),
         ),
         create_publication(
             "Second Facebook",
             "Second post",
+            UUID("22222222-2222-2222-2222-222222222222"),
         ),
     )
 
@@ -78,6 +87,7 @@ def test_recent_posts_list_replaces_existing_publications(
             create_publication(
                 "Main Facebook",
                 "Old post",
+                UUID("11111111-1111-1111-1111-111111111111"),
             ),
         )
     )
@@ -87,6 +97,7 @@ def test_recent_posts_list_replaces_existing_publications(
             create_publication(
                 "Main Facebook",
                 "New post",
+                UUID("22222222-2222-2222-2222-222222222222"),
             ),
         )
     )
@@ -99,6 +110,7 @@ def test_recent_posts_list_replaces_existing_publications(
             "Main Facebook — New post"
         )
     )
+
 
 def test_recent_posts_list_has_no_selected_publication_initially(
     qtbot,
@@ -127,10 +139,12 @@ def test_recent_posts_list_returns_selected_publication(
     first = create_publication(
         "Main Facebook",
         "First post",
+        UUID("11111111-1111-1111-1111-111111111111"),
     )
     second = create_publication(
         "Second Facebook",
         "Second post",
+        UUID("22222222-2222-2222-2222-222222222222"),
     )
 
     recent_posts.set_publications(

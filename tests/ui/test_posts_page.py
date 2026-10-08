@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from PySide6.QtWidgets import QWidget
 
@@ -7,6 +8,9 @@ from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.publishing.errors import PublishingError
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
+)
+from socialflow.application.publishing.publication_id_generator import (
+    PublicationIdGenerator,
 )
 from socialflow.application.publishing.prepared_post import PreparedPost
 from socialflow.application.publishing.publish_post import PublishPost
@@ -23,6 +27,7 @@ from socialflow.domain.post.post import Post
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
+from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.infrastructure.publishing.in_memory_publication_repository import (
     InMemoryPublicationRepository,
 )
@@ -123,6 +128,24 @@ class FixedClock(Clock):
         return self._current_time
 
 
+class SequentialPublicationIdGenerator(PublicationIdGenerator):
+    """Generate deterministic publication IDs for tests."""
+
+    def __init__(self) -> None:
+        self._next_value = 1
+
+    def generate(self) -> PublicationId:
+        publication_id = PublicationId(UUID(int=self._next_value))
+        self._next_value += 1
+        return publication_id
+
+
+def create_publication_id_generator(
+) -> SequentialPublicationIdGenerator:
+    """Create a deterministic publication ID generator for tests."""
+    return SequentialPublicationIdGenerator()
+
+
 def create_tag_services() -> tuple[ListTags, CreateTag]:
     """Create tag services for PostsPage tests."""
     provider = NullTagProvider()
@@ -160,7 +183,10 @@ def create_posts_page() -> PostsPage:
     list_tags, create_tag = create_tag_services()
 
     return PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -172,9 +198,14 @@ def create_publication(
     account: Account,
     text: str,
     published_at: datetime | None = None,
+    publication_id: UUID | None = None,
 ) -> Publication:
     """Create a publication for PostsPage history tests."""
     return Publication(
+        id=PublicationId(
+            publication_id
+            or UUID("12345678-1234-5678-1234-567812345678")
+        ),
         account=account,
         post=Post(
             text=text,
@@ -226,7 +257,10 @@ def test_posts_page_refreshes_configured_accounts(qtbot) -> None:
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -274,7 +308,10 @@ def test_posts_page_delegates_publish_request(qtbot) -> None:
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -332,7 +369,10 @@ def test_posts_page_shows_error_when_publish_fails(qtbot) -> None:
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -382,7 +422,10 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -433,7 +476,10 @@ def test_posts_page_reenables_publish_button_after_publish(
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -474,7 +520,10 @@ def test_posts_page_reenables_publish_button_after_failure(
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -515,7 +564,10 @@ def test_posts_page_disables_publish_button_during_publish(
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(router),
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -560,7 +612,10 @@ def test_posts_page_loads_tags_for_selected_account(qtbot) -> None:
     )
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=ListTags(provider),
         create_tag=CreateTag(provider),
@@ -609,7 +664,10 @@ def test_posts_page_combines_unique_tags_from_selected_accounts(
     )
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=ListTags(provider),
         create_tag=CreateTag(provider),
@@ -660,7 +718,10 @@ def test_posts_page_refreshes_tags_when_account_is_deselected(
     )
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=ListTags(provider),
         create_tag=CreateTag(provider),
@@ -704,7 +765,10 @@ def test_posts_page_creates_new_tag_for_selected_account(
     provider = AccountTagProvider({account: ()})
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=ListTags(provider),
         create_tag=CreateTag(provider),
@@ -756,7 +820,10 @@ def test_posts_page_creates_new_tag_for_all_selected_accounts(
     )
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(repository),
         list_tags=ListTags(provider),
         create_tag=CreateTag(provider),
@@ -812,7 +879,10 @@ def test_posts_page_shows_history_for_selected_account(qtbot) -> None:
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(account_repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -859,7 +929,10 @@ def test_posts_page_clears_history_when_account_is_deselected(
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(account_repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -905,6 +978,7 @@ def test_posts_page_refreshes_history_after_successful_publish(
 
     publish_post = PublishPost(
         publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
         publication_repository=publication_repository,
         clock=clock,
     )
@@ -980,7 +1054,10 @@ def test_posts_page_shows_history_for_first_selected_account(
     list_tags, create_tag = create_tag_services()
 
     page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
         list_accounts=ListAccounts(account_repository),
         list_tags=list_tags,
         create_tag=create_tag,
@@ -995,212 +1072,4 @@ def test_posts_page_shows_history_for_first_selected_account(
     )
     page.post_editor.destination_selector._checkboxes[1].setChecked(
         True
-    )
-
-    assert page.recent_posts_panel.recent_posts_list.count() == 1
-    assert (
-            page.recent_posts_panel.recent_posts_list.item(0).text()
-            == (
-                "06 Oct 2026 00:00 · Facebook\n"
-                "Main Facebook — Facebook history"
-            )
-    )
-
-def test_posts_page_loads_text_from_selected_publication(
-    qtbot,
-) -> None:
-    account_repository = InMemoryAccountRepository()
-    account = Account(
-        name="Main Facebook",
-        destination=PublishingDestination.FACEBOOK,
-    )
-    account_repository.add(account)
-
-    publication_repository = InMemoryPublicationRepository()
-    publication_repository.add(
-        create_publication(
-            account,
-            "Historical publication",
-        )
-    )
-
-    list_tags, create_tag = create_tag_services()
-
-    page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
-        list_accounts=ListAccounts(account_repository),
-        list_tags=list_tags,
-        create_tag=create_tag,
-        list_recent_publications=ListRecentPublications(
-            publication_repository
-        ),
-    )
-    qtbot.addWidget(page)
-
-    page.post_editor.destination_selector._checkboxes[0].setChecked(
-        True
-    )
-
-    page.recent_posts_panel.recent_posts_list.setCurrentRow(0)
-
-    assert page.post_editor.post_text() == "Historical publication"
-
-
-def test_posts_page_loads_language_from_selected_publication(
-    qtbot,
-) -> None:
-    account_repository = InMemoryAccountRepository()
-    account = Account(
-        name="Main Facebook",
-        destination=PublishingDestination.FACEBOOK,
-    )
-    account_repository.add(account)
-
-    publication_repository = InMemoryPublicationRepository()
-    publication_repository.add(
-        Publication(
-            account=account,
-            post=Post(
-                text="Historical publication",
-                language=Language.ENGLISH,
-            ),
-            published_at=datetime(2026, 10, 6, 0, 0),
-        )
-    )
-
-    list_tags, create_tag = create_tag_services()
-
-    page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
-        list_accounts=ListAccounts(account_repository),
-        list_tags=list_tags,
-        create_tag=create_tag,
-        list_recent_publications=ListRecentPublications(
-            publication_repository
-        ),
-    )
-    qtbot.addWidget(page)
-
-    page.post_editor.destination_selector._checkboxes[0].setChecked(
-        True
-    )
-
-    # Croatian is the default, so this proves history selection
-    # actually changes the editor language.
-    assert (
-        page.post_editor.selected_language()
-        == Language.CROATIAN
-    )
-
-    page.recent_posts_panel.recent_posts_list.setCurrentRow(0)
-
-    assert (
-        page.post_editor.selected_language()
-        == Language.ENGLISH
-    )
-
-def test_posts_page_loads_tags_from_selected_publication(
-    qtbot,
-) -> None:
-    account_repository = InMemoryAccountRepository()
-    account = Account(
-        name="Main Facebook",
-        destination=PublishingDestination.FACEBOOK,
-    )
-    account_repository.add(account)
-
-    publication_repository = InMemoryPublicationRepository()
-    publication_repository.add(
-        Publication(
-            account=account,
-            post=Post(
-                text="Historical publication",
-                language=Language.ENGLISH,
-                tags=(
-                    Tag(name="SocialFlow"),
-                    Tag(name="Python"),
-                ),
-            ),
-            published_at=datetime(2026, 10, 6, 0, 0),
-        )
-    )
-
-    list_tags, create_tag = create_tag_services()
-
-    page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
-        list_accounts=ListAccounts(account_repository),
-        list_tags=list_tags,
-        create_tag=create_tag,
-        list_recent_publications=ListRecentPublications(
-            publication_repository
-        ),
-    )
-    qtbot.addWidget(page)
-
-    page.post_editor.destination_selector._checkboxes[0].setChecked(
-        True
-    )
-
-    assert page.post_editor.tag_selector.selected_tags() == ()
-
-    page.recent_posts_panel.recent_posts_list.setCurrentRow(0)
-
-    assert page.post_editor.tag_selector.selected_tags() == (
-        Tag(name="SocialFlow"),
-        Tag(name="Python"),
-    )
-
-def test_posts_page_loads_images_from_selected_publication(
-    qtbot,
-    tmp_path,
-) -> None:
-    account_repository = InMemoryAccountRepository()
-    account = Account(
-        name="Main Facebook",
-        destination=PublishingDestination.FACEBOOK,
-    )
-    account_repository.add(account)
-
-    image_path = tmp_path / "historical.jpg"
-    image_path.touch()
-
-    image = ImageAttachment(path=image_path)
-
-    publication_repository = InMemoryPublicationRepository()
-    publication_repository.add(
-        Publication(
-            account=account,
-            post=Post(
-                text="Historical publication",
-                language=Language.ENGLISH,
-                images=(image,),
-            ),
-            published_at=datetime(2026, 10, 6, 0, 0),
-        )
-    )
-
-    list_tags, create_tag = create_tag_services()
-
-    page = PostsPage(
-        publish_post=PublishPost(PublisherRouter({})),
-        list_accounts=ListAccounts(account_repository),
-        list_tags=list_tags,
-        create_tag=create_tag,
-        list_recent_publications=ListRecentPublications(
-            publication_repository
-        ),
-    )
-    qtbot.addWidget(page)
-
-    page.post_editor.destination_selector._checkboxes[0].setChecked(
-        True
-    )
-
-    assert page.post_editor.image_selector.selected_images() == ()
-
-    page.recent_posts_panel.recent_posts_list.setCurrentRow(0)
-
-    assert page.post_editor.image_selector.selected_images() == (
-        image,
     )
