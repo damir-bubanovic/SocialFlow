@@ -34,6 +34,10 @@ class PostEditor(QWidget):
 
         self.text_editor = QPlainTextEdit(self)
         self.text_editor.setPlaceholderText("Write your post...")
+        self.language_controls.selector.currentIndexChanged.connect(
+            self._update_language_visual_marker
+        )
+        self._update_language_visual_marker()
 
         self.image_selector = ImageSelector(self)
         self.tag_selector = TagSelector(self)
@@ -133,6 +137,37 @@ class PostEditor(QWidget):
     def _lock_language_selection(self) -> None:
         """Prevent automatic detection from overriding manual selection."""
         self._manual_language_override = True
+
+    def _update_language_visual_marker(self) -> None:
+        """Update the editor's language-specific styling property."""
+        language = self.language_controls.selected_language()
+
+        language_code = (
+            "hr" if language is Language.CROATIAN else "en"
+        )
+
+        self.text_editor.setProperty("postLanguage", language_code)
+        border_color = (
+            "#2563eb"
+            if language is Language.CROATIAN
+            else "#16a34a"
+        )
+
+        self.text_editor.setStyleSheet(
+            f"""
+            QPlainTextEdit {{
+                border: 1px solid palette(mid);
+                border-left: 4px solid {border_color};
+                border-radius: 4px;
+                padding: 6px;
+            }}
+            """
+        )
+
+        style = self.text_editor.style()
+        style.unpolish(self.text_editor)
+        style.polish(self.text_editor)
+        self.text_editor.update()
 
     def _detect_language(self) -> None:
         """Update language automatically unless manually overridden."""

@@ -444,3 +444,47 @@ def test_new_post_clears_content_but_preserves_accounts(qtbot) -> None:
     assert editor.tag_selector.selected_tags() == ()
     assert editor.selected_accounts() == (account,)
     assert not editor.publish_button.isEnabled()
+
+def test_post_editor_updates_language_visual_marker(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.text_editor.property("postLanguage") == "hr"
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+    assert editor.text_editor.property("postLanguage") == "en"
+    assert editor.language_controls.indicator.text() == "EN"
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    assert editor.text_editor.property("postLanguage") == "hr"
+    assert editor.language_controls.indicator.text() == "HR"
+
+    editor.new_post()
+
+    assert editor.text_editor.property("postLanguage") == "hr"
+
+def test_post_editor_changes_border_color_with_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert "#2563eb" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+    assert "#16a34a" in editor.text_editor.styleSheet()
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    assert "#2563eb" in editor.text_editor.styleSheet()
+
+    editor.new_post()
+
+    assert "#2563eb" in editor.text_editor.styleSheet()
