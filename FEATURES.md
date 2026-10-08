@@ -118,8 +118,8 @@ supported publishing platforms.
 
 ## 6. Text Content
 
--   [ ] Support Croatian text.
--   [ ] Support English text.
+-   [x] Support Croatian text in the current editor and publishing pipeline.
+-   [x] Support English text in the current editor and publishing pipeline.
 -   [ ] Preserve Unicode characters during editing, storage,
     synchronization, and publishing.
 -   [ ] Respect platform-specific text limitations.
@@ -128,16 +128,18 @@ supported publishing platforms.
 
 ### Language Detection and Identification
 
--   [ ] Automatically detect whether post content is Croatian or English
-    where detection is sufficiently reliable.
+-   [x] Apply rule-based Croatian/English detection to post paragraphs,
+    including unknown results when evidence is insufficient.
 -   [x] Display the currently selected language clearly in the post editor.
--   [x] Allow the user to manually select Croatian or English; this control will also serve as the override once automatic detection is implemented.
--   [ ] Visually distinguish Croatian and English content in the editor.
+-   [x] Allow manual Croatian/English publishing-language selection independently of automatic content-language detection.
+-   [x] Visually distinguish detected Croatian and English paragraphs using
+    colored underlines, and show overall English/Croatian/mixed/unknown status.
 -   [x] Use an explicit language indicator such as `HR` or `EN` so
     language is not communicated by color or typography alone.
--   [ ] Allow typography, color, or other subtle visual styling to
-    reinforce the distinction between Croatian and English content.
--   [ ] Handle text for which automatic language detection is uncertain.
+-   [x] Use colored paragraph underlines and editor borders as additional
+    language cues; text labels remain available.
+-   [x] Represent uncertain or unclassified content as unknown rather than
+    forcing a language classification.
 -   [ ] Preserve the selected or detected language with the relevant
     local post information where required.
 
@@ -227,12 +229,13 @@ while respecting the capabilities of each destination platform.
 
 ## 12. Error Handling
 
--   [ ] Handle application errors without unnecessarily terminating
-    SocialFlow.
--   [ ] Display understandable errors to the user.
+-   [~] Handle application errors without unnecessarily terminating
+    SocialFlow; per-account publisher exceptions are captured, but broader
+    exception handling remains to be completed.
+-   [x] Display publishing failure reasons for each account in the Posts UI.
 -   [ ] Record technical error information in application logs.
--   [ ] Distinguish user/configuration errors from unexpected
-    application errors.
+-   [~] Distinguish unconfigured publishers explicitly; broader error
+    categorization is pending.
 -   [ ] Handle network and API failures.
 -   [ ] Handle authentication failures.
 -   [ ] Handle platform rate limits where applicable.
@@ -278,11 +281,13 @@ phase.
     where appropriate.
 -   [x] Add tests for the implemented JSON/storage behavior.
 -   [x] Add UI tests for the implemented PySide6 workflows.
--   [ ] Add tests for important failure scenarios.
--   [ ] Add regression tests when bugs are fixed.
+-   [~] Add tests for important failure scenarios; unconfigured publishing,
+    failure reporting, and partial publishing results are covered.
+-   [~] Add regression tests for completed publishing safety and UI changes;
+    continue for future fixes.
 -   [x] Run relevant tests while developing each implemented feature.
--   [ ] Run the complete test and quality-check suite before completing
-    a major feature or development section.
+-   [~] Run the full pytest suite at feature checkpoints; additional quality
+    tooling is not yet configured.
 
 No feature should be marked complete until its relevant tests pass.
 
@@ -348,6 +353,28 @@ Before SocialFlow is considered ready for a production release:
 -   [ ] Documentation is up to date.
 -   [ ] No credentials, tokens, private user data, or development
     artifacts are included in the repository or application package.
+
+------------------------------------------------------------------------
+
+
+### Current language and publishing-safety checkpoint
+
+-   [x] Classify full posts as English, Croatian, mixed, or unknown using
+    paragraph-level language detection.
+-   [x] Show an explicit detected-content label (`EN`, `HR`, `HR + EN`, `?`)
+    with accessible descriptions; manual publishing-language selection is separate.
+-   [x] Preserve mixed-language text, paragraph breaks, and Croatian characters
+    as one intact post per selected destination; do not translate or split.
+-   [x] Use `UnconfiguredPublisher` for destinations without live adapters;
+    never report these attempts as successful external publishing.
+-   [x] Avoid writing failed unconfigured attempts into successful local history.
+-   [x] Display per-account failure reasons and cover the full UI-to-repository
+    failure path with tests.
+-   [ ] Implement authenticated live publisher adapters for Facebook, Instagram,
+    and WordPress, with mocked API tests before live testing.
+
+**Latest reported test checkpoint:** 433 passing tests. These tests do not
+constitute live external API verification.
 
 ------------------------------------------------------------------------
 

@@ -57,8 +57,9 @@ SocialFlow is currently under active development.
 The Python/PySide6 application foundation and the local publishing-history
 workflow are implemented. SocialFlow currently provides `Posts` and `Accounts`
 navigation, local account add/list/update/remove workflows, UTF-8 JSON
-persistence for configured accounts, manual Croatian/English language
-selection, account-specific publishing selection, image attachment and preview,
+persistence for configured accounts, manual Croatian/English publishing-language
+selection, automatic rule-based paragraph language detection and mixed-language
+content indication, account-specific publishing selection, image attachment and preview,
 destination-specific image preparation, and a tested tag-selection/tag-service
 workflow.
 
@@ -78,10 +79,14 @@ prepared per destination before publishing, with temporary prepared files
 cleaned up afterward. Tags can be displayed, selected, cleared, created, and
 merged across selected accounts through application-level tag services.
 Publishing results are reported independently per account, including partial
-success/failure cases. The current runtime still uses `NullPublisher` and
-`NullTagProvider`; live Facebook, Instagram, and WordPress API integrations and
-remote post updates have not yet been implemented. The current automated
-baseline is 350 passing tests. Additional quality tooling will be introduced as
+success/failure cases and readable error reasons. Mixed Croatian/English posts
+are kept intact as one post per selected destination, without automatic
+translation or splitting; the manual publishing-language choice remains separate
+from detected content language. The current runtime uses `UnconfiguredPublisher` for all three destinations
+and `NullTagProvider` for tags. Unconfigured publish attempts report a failure
+and are not recorded as successful local publications. Live Facebook, Instagram,
+and WordPress API integrations and remote post updates have not yet been
+implemented. The last reported full-suite checkpoint is **433 passing tests**. Additional quality tooling will be introduced as
 development requires it.
 
 ## Documentation

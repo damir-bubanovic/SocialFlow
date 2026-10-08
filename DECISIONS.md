@@ -1186,6 +1186,47 @@ future update behavior unsafe.
 
 ------------------------------------------------------------------------
 
+## ADR-043 --- Keep Detected Content Language Separate from Publishing Language
+
+**Status:** Accepted
+
+### Decision
+
+Use rule-based paragraph detection and an overall English/Croatian/mixed/unknown
+classification for UI feedback. Keep manual `Post.language` selection independent
+of detection. Show both explicit text labels and visual cues; uncertain content
+remains unknown. Preserve mixed-language posts intact for each selected account
+without splitting or translation.
+
+### Consequences
+
+-   Detection does not silently overwrite the user's publishing-language choice.
+-   Paragraph highlighting and the content indicator do not alter source text.
+-   More advanced detection can replace the rule-based service behind its boundary.
+
+------------------------------------------------------------------------
+
+## ADR-044 --- Unconfigured Publishing Must Fail Explicitly
+
+**Status:** Accepted
+
+### Decision
+
+Register `UnconfiguredPublisher` for destinations lacking live adapters. It
+raises `PublisherNotConfiguredError`; `PublishPost` records a failed result
+instead of persisting a successful local publication. Keep `NullPublisher`
+for tests or deliberate no-op scenarios, not production publishing. Show the
+error reason beside the affected account in `PublishStatus`.
+
+### Consequences
+
+-   Users cannot mistake unconfigured publishing for remote delivery.
+-   Local history records successful publisher returns, not unconfigured attempts.
+-   Regression tests cover the button-to-status-to-history failure path.
+-   Real publisher adapters must be explicitly configured and tested.
+
+------------------------------------------------------------------------
+
 ## Decision Maintenance
 
 When a significant technical decision is proposed:

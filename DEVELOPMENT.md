@@ -623,14 +623,17 @@ distributable version.
 
 ## 28. Current Implementation Checkpoint
 
-The current green project checkpoint includes account CRUD/persistence, the
+The last reported green project checkpoint includes account CRUD/persistence, the
 post editor, account-targeted publishing orchestration, image selection and
 preview, destination-specific image preparation with cleanup, the generic tag
 selection/retrieval/creation workflow, and local publication history with stable
-identity. Successful publications can be persisted to `publications.json`,
+identity, rule-based paragraph/post language detection, mixed-language UI
+indicators, and publishing failure reporting. Only publishers that return
+successfully can produce local publication records; live adapters are absent.
+Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
 editor. Legacy history without IDs is migrated in place. The current full-suite
-baseline is **350 passing tests**.
+baseline is **433 passing tests**.
 
 Useful focused test commands include:
 
@@ -651,16 +654,36 @@ python -m socialflow
 ```
 
 Live Facebook, Instagram, and WordPress integrations are not yet present. The
-current runtime composes `NullPublisher` and `NullTagProvider`, so platform API
-work should begin by implementing adapters behind the existing application
-contracts rather than placing API logic in UI classes. Local publication history
+current runtime composes `UnconfiguredPublisher` and `NullTagProvider`.
+Unconfigured publishing must fail visibly and must not be recorded as a
+successful publication. Platform API work should begin by implementing
+adapters behind the existing application contracts rather than placing API
+logic in UI classes. Local publication history
 must not be described as remote synchronization: remote recent-post retrieval,
 remote identifiers, and updating an existing platform post are still pending.
 The current publication JSON serializer also does not yet persist images or tags.
 
 ------------------------------------------------------------------------
 
-## 29. Keep This Document Practical
+## 29. Current Publishing Safety Regression Checks
+
+Use these focused tests after changes to publisher configuration, publishing
+status, or the Posts UI:
+
+```bash
+python -m pytest tests/application/test_unconfigured_publisher.py -v
+python -m pytest tests/application/test_publish_post.py -v
+python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tests/ui/test_main_content.py -v
+python -m pytest -q
+```
+
+The last reported full run passed **433 tests**. This is a development
+checkpoint, not evidence of live API publishing. Never substitute
+`NullPublisher` in the production composition root to simulate success.
+
+------------------------------------------------------------------------
+
+## 30. Keep This Document Practical
 
 `DEVELOPMENT.md` should describe commands and workflows that actually
 exist.

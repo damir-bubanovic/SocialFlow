@@ -841,10 +841,15 @@ Current responsibility boundaries include:
 -   Account CRUD remains isolated behind `AccountRepository`;
     `JsonAccountRepository` persists UTF-8 account data and account changes are
     propagated to the Posts page with Qt signals.
--   Runtime publishers remain `NullPublisher` placeholders. Live Facebook,
-    Instagram, and WordPress authentication/publishing are not implemented.
--   Explicit Croatian/English selection and `HR`/`EN` indication are implemented;
-    automatic language detection remains pending.
+-   `MainContent` registers `UnconfiguredPublisher` for Facebook, Instagram,
+    and WordPress. It raises `PublisherNotConfiguredError` rather than claiming
+    external delivery. `NullPublisher` remains available as a test/no-op utility.
+    Live authentication and API publishing are not implemented.
+-   Manual Croatian/English publishing-language selection remains independent
+    of automatic rule-based detection. `LanguageDetector`,
+    `ParagraphLanguageDetector`, and `PostLanguageClassifier` support English,
+    Croatian, mixed, and unknown classification. The editor highlights paragraphs
+    and displays a labeled content-language indicator.
 
 The current main window title is `SocialFlow` and its initial size is 1200 ×
 800.
@@ -966,3 +971,33 @@ Changes should follow these rules:
     rather than implementation details.
 6.  Tests should protect important architectural and behavioral
     assumptions where practical.
+
+------------------------------------------------------------------------
+
+## 31. Language Classification and Publishing Safety (Implemented)
+
+`application/language/` contains the rule-based `LanguageDetector`,
+`ParagraphLanguageDetector`, and `PostLanguageClassifier`. The post-level
+classification is English, Croatian, mixed, or unknown. `PostEditor` connects
+these services to `ParagraphLanguageHighlighter` and
+`ContentLanguageIndicator`. Detected language is advisory; the manually chosen
+`Post.language` remains the publishing-language field. Mixed-language posts
+are passed unchanged as one post per selected account. The application does
+not split, duplicate, or translate the text.
+
+`Publisher` is the application contract and `PublisherRouter` maps platform
+destinations to implementations. `MainContent` currently maps Facebook,
+Instagram, and WordPress to `UnconfiguredPublisher`, which raises
+`PublisherNotConfiguredError`. `PublishPost` converts publisher exceptions into
+per-account failed `PublishResult` values. It records local publication history
+only after a publisher returns successfully. `PublishStatus.show_results()`
+displays the account, outcome, and available error reason. The UI-to-repository
+failure path has regression coverage.
+
+`NullPublisher` remains present but is **not** used for runtime external
+publishing. Real platform adapters, credentials, network communication, and
+remote identifiers are future work. Current successful publishing tests use
+test publishers; they do not establish live platform connectivity.
+
+**Verification checkpoint:** 433 passing automated tests reported for the
+latest snapshot; no live platform API tests have been completed.
