@@ -54,22 +54,34 @@ persistence and live platform-integration work.
 
 SocialFlow is currently under active development.
 
-The Python/PySide6 application foundation and the first account/publishing
-workflow are implemented. SocialFlow currently provides `Posts` and
-`Accounts` navigation, local account add/list/update/remove workflows,
-UTF-8 JSON persistence for configured accounts, manual Croatian/English
-language selection, account-specific publishing selection, image attachment
-and preview, destination-specific image preparation, and a tested tag-selection
-and tag-service workflow.
+The Python/PySide6 application foundation and the local publishing-history
+workflow are implemented. SocialFlow currently provides `Posts` and `Accounts`
+navigation, local account add/list/update/remove workflows, UTF-8 JSON
+persistence for configured accounts, manual Croatian/English language
+selection, account-specific publishing selection, image attachment and preview,
+destination-specific image preparation, and a tested tag-selection/tag-service
+workflow.
+
+Successful local publish operations can now be recorded as `Publication`
+objects with stable UUID-backed `PublicationId` values and timestamps. Runtime
+publication history is stored in `publications.json`, recent history can be
+listed for the first selected account (up to five by default), and selecting a
+historical publication loads its post back into the editor. The editor loading
+path supports text, language, images, and tags when those values are present in
+the `Publication` object. The current JSON publication serializer persists the
+publication ID, account, text, language, and timestamp; persisted images and
+tags are not yet included in that format. Legacy publication records without an
+ID are migrated once and rewritten with a generated stable ID.
 
 Posts can carry text, images, language, and tags. Images are validated and
 prepared per destination before publishing, with temporary prepared files
 cleaned up afterward. Tags can be displayed, selected, cleared, created, and
-merged across selected accounts through application-level tag services. The
-current runtime still uses `NullPublisher` and `NullTagProvider`; live Facebook,
-Instagram, and WordPress API integrations have not yet been implemented.
-The project is developed incrementally with pytest/pytest-qt coverage for
-each completed section. Additional quality tooling will be introduced as
+merged across selected accounts through application-level tag services.
+Publishing results are reported independently per account, including partial
+success/failure cases. The current runtime still uses `NullPublisher` and
+`NullTagProvider`; live Facebook, Instagram, and WordPress API integrations and
+remote post updates have not yet been implemented. The current automated
+baseline is 350 passing tests. Additional quality tooling will be introduced as
 development requires it.
 
 ## Documentation

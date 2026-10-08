@@ -109,8 +109,8 @@ supported publishing platforms.
 -   [x] Allow the user to choose one or more configured publishing accounts; each account retains its platform destination.
 -   [~] Allow publishing to one configured account through the application publishing pipeline; live platform publishers are not implemented yet.
 -   [~] Allow one publishing action to target multiple configured accounts; live platform publishers are not implemented yet.
--   [ ] Display the publishing result separately for each destination.
--   [ ] Handle partial publishing failures when one destination succeeds
+-   [x] Display the publishing result separately for each destination.
+-   [x] Handle partial publishing failures when one destination succeeds
     and another fails.
 -   [ ] Prevent accidental duplicate publishing where practical.
 
@@ -182,20 +182,23 @@ while respecting the capabilities of each destination platform.
 
 ## 9. Recent Posts
 
--   [ ] Retrieve recent posts from connected destinations.
--   [ ] Display the latest 5 posts for each configured
-    page/site/account.
--   [ ] Clearly identify the platform and destination belonging to each
-    post.
--   [ ] Display relevant post information.
+-   [x] Record successful local publications with account, post, timestamp, and a stable `PublicationId`.
+-   [x] Persist local publication history in UTF-8 `publications.json` storage.
+-   [x] Migrate legacy publication-history records that do not yet contain an ID and persist the generated ID.
+-   [x] Display up to the latest 5 locally recorded publications for the first selected configured account.
+-   [x] Clearly identify the publication timestamp, platform, account, and post text in the recent-post list.
+-   [x] Refresh local history after account selection changes and successful publish operations.
+-   [x] Select a local historical publication and load its post into the editor.
+-   [x] Restore text, selected language, images, and tags from an in-memory historical `Post` when loading it into the editor.
+-   [~] Preserve publication history across restarts; ID/account/text/language/timestamp are persisted, while images and tags are not yet serialized in publication history.
+-   [ ] Retrieve recent posts from connected remote destinations.
 -   [ ] Refresh the recent-post list from the remote platform.
--   [ ] Select an existing post for viewing or editing.
 
 ------------------------------------------------------------------------
 
 ## 10. Updating Existing Posts
 
--   [ ] Load editable content from a selected existing post.
+-   [x] Load editable content from a selected locally recorded publication.
 -   [ ] Edit supported text fields.
 -   [ ] Edit supported images where the destination API permits it.
 -   [ ] Edit supported tags or metadata.

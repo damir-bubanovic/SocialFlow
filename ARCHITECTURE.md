@@ -385,33 +385,77 @@ than source-controlled project files.
 Persistence is accessed through application-facing repository interfaces; UI
 components do not read or write storage directly.
 
-The first implemented persistent store is `JsonAccountRepository`. It stores
-configured `Account` values in an UTF-8 `accounts.json` file and uses
-`AccountSerializer` to translate between domain objects and storage data. The
-repository creates parent directories when saving and converts malformed JSON,
-missing fields, or unknown destinations into `AccountStorageError`.
+Two JSON-backed repositories are currently implemented.
+
+`JsonAccountRepository` stores configured `Account` values in UTF-8
+`accounts.json` and uses `AccountSerializer` to translate between domain objects
+and storage data. It creates parent directories when saving and converts
+malformed JSON, missing fields, or unknown destinations into
+`AccountStorageError`.
+
+`JsonPublicationRepository` stores successful local publication history in
+UTF-8 `publications.json`. `PublicationSerializer` persists the stable
+`PublicationId`, account name/destination, post text/language, and publication
+timestamp. The repository returns recent publications for a requested account,
+ordered newest first with a default limit of five. Legacy records without an
+`id` are assigned a UUID once and immediately rewritten so the migrated
+identity remains stable on later loads. Images and tags contained by an
+in-memory `Post` are not yet serialized into publication history.
 
 `AppPaths` and `data_directory()` isolate storage-location policy from the
-repository. Current defaults are:
+repositories. Current application-data paths include:
 
 ``` text
 Linux:   $XDG_DATA_HOME/socialflow/accounts.json
-         or ~/.local/share/socialflow/accounts.json
+         $XDG_DATA_HOME/socialflow/publications.json
+         $XDG_DATA_HOME/socialflow/prepared_images/
+         or the equivalent paths under ~/.local/share/socialflow/
 Windows: %LOCALAPPDATA%\SocialFlow\accounts.json
-         with a home-directory fallback
+         %LOCALAPPDATA%\SocialFlow\publications.json
+         %LOCALAPPDATA%\SocialFlow\prepared_images\
+         with the existing home-directory fallback
 ```
 
 SQLite with SQLAlchemy remains the accepted direction for the broader local
 application database once richer relational persistence is required. The JSON
-account store is the current implemented solution for the limited account
-record shape and does not store credentials or access tokens.
+stores are the current implemented solution for the limited local record shapes
+and do not store credentials or access tokens.
 
 Sensitive authentication material must use secure credential storage where
 practical and must not be placed in `accounts.json`.
 
 ------------------------------------------------------------------------
 
-## 14. Credential Management
+## 14. Publication Identity and Local History
+
+A successful publication is represented by the immutable `Publication` domain
+value. It contains:
+
+-   a stable `PublicationId`;
+-   the configured `Account` used for the publication;
+-   the source `Post`;
+-   the publication timestamp.
+
+New publication IDs are created through the application-facing
+`PublicationIdGenerator` contract. Production composition injects
+`UuidPublicationIdGenerator`, while tests can inject deterministic generators.
+This keeps UUID generation out of the domain model and prevents reconstructed
+publications from silently receiving a different identity.
+
+`PublishPost` records a `Publication` only after a publisher reports success and
+only when publication persistence and a clock are configured. `SystemClock`
+provides production timestamps. `ListRecentPublications` reads through the
+`PublicationRepository` abstraction rather than coupling the UI to JSON.
+
+`RecentPostsPanel` displays history for the first selected account. Selecting a
+history entry emits the actual `Publication`; `PostsPage` then loads its `Post`
+through `PostEditor.load_post()`. The editor can restore text, language, images,
+and tags from that domain object. This is currently a local history/editing
+workflow only: it does not yet update an existing remote platform post.
+
+------------------------------------------------------------------------
+
+## 15. Credential Management
 
 SocialFlow will interact with services requiring authentication.
 
@@ -435,7 +479,7 @@ Rules:
 
 ------------------------------------------------------------------------
 
-## 15. Configuration
+## 16. Configuration
 
 Application configuration should distinguish between:
 
@@ -461,7 +505,7 @@ the same storage mechanism.
 
 ------------------------------------------------------------------------
 
-## 16. Logging
+## 17. Logging
 
 SocialFlow will maintain application logs.
 
@@ -483,7 +527,7 @@ every UI component.
 
 ------------------------------------------------------------------------
 
-## 17. Error Reporting
+## 18. Error Reporting
 
 Unexpected or important production errors may trigger email
 notifications.
@@ -501,7 +545,7 @@ Error reporting must not replace local logging.
 
 ------------------------------------------------------------------------
 
-## 18. Background Operations
+## 19. Background Operations
 
 Network operations and expensive image processing must not freeze the
 desktop interface.
@@ -526,7 +570,7 @@ processing is implemented.
 
 ------------------------------------------------------------------------
 
-## 19. Failure Isolation
+## 20. Failure Isolation
 
 Publishing to multiple platforms must not be treated as one indivisible
 remote transaction.
@@ -552,7 +596,7 @@ understand what happened and take an appropriate next action.
 
 ------------------------------------------------------------------------
 
-## 20. Unicode and Language Support
+## 21. Unicode and Language Support
 
 SocialFlow must use Unicode throughout the application.
 
@@ -584,7 +628,7 @@ where applicable.
 
 ------------------------------------------------------------------------
 
-## 21. Language Service
+## 22. Language Service
 
 Language handling should be a dedicated application capability rather
 than logic embedded directly in the post editor.
@@ -617,7 +661,7 @@ through the application/service boundary.
 
 ------------------------------------------------------------------------
 
-## 22. Testing Architecture
+## 23. Testing Architecture
 
 Tests should be organized according to what they verify.
 
@@ -642,7 +686,7 @@ when appropriate.
 
 ------------------------------------------------------------------------
 
-## 23. Development Workflow
+## 24. Development Workflow
 
 Development should proceed incrementally.
 
@@ -686,7 +730,7 @@ quality checks should also pass.
 
 ------------------------------------------------------------------------
 
-## 24. Source Control
+## 25. Source Control
 
 Git is used for source control.
 
@@ -720,7 +764,7 @@ The repository must not contain:
 
 ------------------------------------------------------------------------
 
-## 25. Packaging
+## 26. Packaging
 
 SocialFlow must eventually be distributed as a standalone desktop
 application.
@@ -745,7 +789,7 @@ this stage.
 
 ------------------------------------------------------------------------
 
-## 26. Current Implemented Foundation
+## 27. Current Implemented Foundation
 
 The implemented application spans domain, application, infrastructure, and UI
 layers. The important current structure is:
@@ -807,7 +851,7 @@ The current main window title is `SocialFlow` and its initial size is 1200 ×
 
 ------------------------------------------------------------------------
 
-## 27. Proposed Source Organization
+## 28. Proposed Source Organization
 
 The exact structure will evolve as implementation begins. SocialFlow
 should favor a predictable hierarchy with responsibilities grouped by
@@ -879,7 +923,7 @@ and, when appropriate, `DECISIONS.md`.
 
 ------------------------------------------------------------------------
 
-## 28. Architecture Boundaries
+## 29. Architecture Boundaries
 
 The following dependencies should generally flow inward:
 
@@ -906,7 +950,7 @@ implementation details.
 
 ------------------------------------------------------------------------
 
-## 29. Architecture Evolution
+## 30. Architecture Evolution
 
 This architecture is expected to evolve as SocialFlow is implemented.
 

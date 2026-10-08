@@ -1084,6 +1084,108 @@ Tag creation controls are disabled when no account is selected.
 
 ------------------------------------------------------------------------
 
+## ADR-039 --- Persist Local Publication History as UTF-8 JSON
+
+**Status:** Accepted
+
+### Decision
+
+Use `JsonPublicationRepository` as the current persistent store for successful
+local publication history. Store records in `publications.json` under the
+platform-specific SocialFlow application-data directory.
+
+### Context
+
+The recent-post workflow needs history to survive application restarts before a
+broader relational database is required. The existing repository boundary
+allows the storage mechanism to remain replaceable.
+
+### Consequences
+
+-   UI code does not read or write publication JSON directly.
+-   `PublicationSerializer` owns the storage representation.
+-   The current format persists publication ID, account, text, language, and
+    timestamp. Images and tags are not yet persisted in publication history.
+-   SQLite/SQLAlchemy remains planned for richer relational persistence rather
+    than being introduced prematurely.
+
+------------------------------------------------------------------------
+
+## ADR-040 --- Publications Have Stable Local Identity
+
+**Status:** Accepted
+
+### Decision
+
+Every `Publication` has a required `PublicationId`. The ID is separate from the
+account, timestamp, post content, and any future remote-platform post ID.
+
+### Context
+
+Account/timestamp or content equality is not a safe identity for a specific
+publication. Stable local identity is required before reliable local update and
+future remote-update workflows can be built.
+
+### Consequences
+
+-   Reconstructing a publication must preserve its existing ID.
+-   The `Publication` domain model does not generate UUIDs implicitly.
+-   Tests can compare and select exact publications without relying on
+    timestamp/content identity.
+-   Future remote identifiers can be modeled independently from the local ID.
+
+------------------------------------------------------------------------
+
+## ADR-041 --- Inject Publication ID Generation
+
+**Status:** Accepted
+
+### Decision
+
+Create new publication IDs through the application-facing
+`PublicationIdGenerator` contract. Production composition uses
+`UuidPublicationIdGenerator`; tests may use deterministic implementations.
+
+### Context
+
+UUID generation is nondeterministic infrastructure behavior. Keeping it behind
+an injected boundary makes `PublishPost` deterministic in tests and avoids
+hiding creation behavior inside the domain model.
+
+### Consequences
+
+-   `PublishPost` requires a publication ID generator.
+-   Production UUID creation is explicit in the composition root.
+-   Tests can provide fixed or sequential IDs.
+-   Deserialization never generates a replacement ID for a valid stored
+    publication.
+
+------------------------------------------------------------------------
+
+## ADR-042 --- Migrate Legacy Publication Records Without IDs In Place
+
+**Status:** Accepted
+
+### Decision
+
+When `JsonPublicationRepository` loads a legacy publication record that lacks an
+`id`, generate a UUID for that record and immediately rewrite the history file.
+
+### Context
+
+Publication history existed before stable publication identity became required.
+Generating a fresh ID on every load would make identity unstable and would make
+future update behavior unsafe.
+
+### Consequences
+
+-   Each legacy record receives an ID once.
+-   Subsequent loads preserve the migrated identity.
+-   Migration remains localized to the JSON repository rather than weakening the
+    `Publication` domain invariant.
+
+------------------------------------------------------------------------
+
 ## Decision Maintenance
 
 When a significant technical decision is proposed:

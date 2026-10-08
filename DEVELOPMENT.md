@@ -469,6 +469,7 @@ Examples of runtime data include:
 -   caches;
 -   temporary files;
 -   downloaded content;
+-   `publications.json` local publication history;
 -   generated image variants;
 -   authentication tokens;
 -   local user configuration where inappropriate for source control.
@@ -536,9 +537,11 @@ Use cross-platform Python and Qt facilities where practical.
 
 ## 23. Database Development
 
-The first persistence implementation is the JSON-backed account repository
-described in the Local Runtime Data section. It intentionally requires no
-database setup or migration command.
+The current persistence implementation uses JSON-backed account and publication
+repositories described in the Local Runtime Data section. They intentionally
+require no database setup or general migration command. `JsonPublicationRepository`
+contains a focused compatibility migration that assigns and persists IDs for
+legacy publication records that predate stable `PublicationId` values.
 
 SQLite with SQLAlchemy remains planned for the broader relational data layer,
 but that database layer has not yet been implemented or added as a dependency.
@@ -622,8 +625,12 @@ distributable version.
 
 The current green project checkpoint includes account CRUD/persistence, the
 post editor, account-targeted publishing orchestration, image selection and
-preview, destination-specific image preparation with cleanup, and the generic
-tag selection/retrieval/creation workflow.
+preview, destination-specific image preparation with cleanup, the generic tag
+selection/retrieval/creation workflow, and local publication history with stable
+identity. Successful publications can be persisted to `publications.json`,
+listed by account, selected from the recent-post UI, and loaded back into the
+editor. Legacy history without IDs is migrated in place. The current full-suite
+baseline is **350 passing tests**.
 
 Useful focused test commands include:
 
@@ -631,6 +638,9 @@ Useful focused test commands include:
 pytest tests/ui/test_tag_selector.py
 pytest tests/ui/test_post_editor.py tests/ui/test_posts_page.py
 pytest tests/application/test_image_preparation_service.py
+pytest tests/application/test_list_recent_publications.py
+pytest tests/infrastructure/test_json_publication_repository.py
+pytest tests/ui/test_recent_posts_list.py tests/ui/test_recent_posts_panel.py
 pytest
 ```
 
@@ -643,7 +653,10 @@ python -m socialflow
 Live Facebook, Instagram, and WordPress integrations are not yet present. The
 current runtime composes `NullPublisher` and `NullTagProvider`, so platform API
 work should begin by implementing adapters behind the existing application
-contracts rather than placing API logic in UI classes.
+contracts rather than placing API logic in UI classes. Local publication history
+must not be described as remote synchronization: remote recent-post retrieval,
+remote identifiers, and updating an existing platform post are still pending.
+The current publication JSON serializer also does not yet persist images or tags.
 
 ------------------------------------------------------------------------
 
