@@ -10,9 +10,25 @@ from socialflow.application.accounts.errors import (
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.accounts.remove_account import RemoveAccount
 from socialflow.application.accounts.update_account import UpdateAccount
+from socialflow.application.connections.connection_verifier import (
+    ConnectionVerifier,
+)
+from socialflow.application.credentials.save_wordpress_credentials import (
+    SaveWordPressCredentials,
+)
+from socialflow.domain.publishing.destination import (
+    PublishingDestination,
+)
+from socialflow.application.credentials.errors import (
+    CredentialStorageError,
+)
 from socialflow.ui.accounts.account_form import AccountForm
 from socialflow.ui.accounts.account_list import AccountList
 from socialflow.ui.accounts.account_status import AccountStatus
+from socialflow.domain.account.account import Account
+from socialflow.application.credentials.delete_wordpress_credentials import (
+    DeleteWordPressCredentials,
+)
 
 
 class AccountsPage(QWidget):
@@ -27,6 +43,9 @@ class AccountsPage(QWidget):
         remove_account: RemoveAccount,
         update_account: UpdateAccount,
         parent: QWidget | None = None,
+        wordpress_connection_verifier: ConnectionVerifier | None = None,
+        save_wordpress_credentials: SaveWordPressCredentials | None = None,
+        delete_wordpress_credentials: DeleteWordPressCredentials | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -34,6 +53,9 @@ class AccountsPage(QWidget):
         self._list_accounts = list_accounts
         self._remove_account = remove_account
         self._update_account = update_account
+        self._wordpress_connection_verifier = wordpress_connection_verifier
+        self._save_wordpress_credentials = save_wordpress_credentials
+        self._delete_wordpress_credentials = delete_wordpress_credentials
 
         self.account_form = AccountForm(self)
         self.account_list = AccountList(self)
@@ -73,28 +95,51 @@ class AccountsPage(QWidget):
         self._refresh_accounts()
 
     def _handle_add_account(self) -> None:
-        """Add the account represented by the form."""
+        """Add an account and then save its WordPress credentials."""
+        account = self.account_form.account()
+        password = self.account_form.wordpress_application_password()
+
         try:
-            self._add_account.execute(self.account_form.account())
+            self._add_account.execute(account)
         except (DuplicateAccountError, InvalidAccountError):
             self.account_status.show_error()
             return
+
+        if (
+            account.destination == PublishingDestination.WORDPRESS
+            and self._save_wordpress_credentials is not None
+        ):
+            try:
+                self._save_wordpress_credentials.execute(
+                    account,
+                    password,
+                )
+            except CredentialStorageError:
+                # Account creation succeeded, but credential saving failed.
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
 
         self._refresh_accounts()
         self.account_status.show_success()
         self.accounts_changed.emit()
 
+
     def _handle_update_account(self) -> None:
-        """Update the currently selected account."""
+        """Update an account and manage its WordPress credentials."""
         current = self.account_list.selected_account()
 
         if current is None:
             return
 
+        updated = self.account_form.account()
+        password = self.account_form.wordpress_application_password()
+
         try:
             self._update_account.execute(
                 current,
-                self.account_form.account(),
+                updated,
             )
         except (
             AccountNotFoundError,
@@ -104,12 +149,50 @@ class AccountsPage(QWidget):
             self.account_status.show_error()
             return
 
+        # Save credentials when the updated account is WordPress.
+        if (
+            updated.destination == PublishingDestination.WORDPRESS
+            and self._save_wordpress_credentials is not None
+        ):
+            try:
+                # Preserve the existing account UUID.
+                self._save_wordpress_credentials.execute(
+                    Account(
+                        name=updated.name,
+                        destination=updated.destination,
+                        id=current.id,
+                    ),
+                    password,
+                )
+            except CredentialStorageError:
+                # Account update succeeded, but credential saving failed.
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
+        # Delete obsolete credentials when converting away from WordPress.
+        if (
+            current.destination == PublishingDestination.WORDPRESS
+            and updated.destination != PublishingDestination.WORDPRESS
+            and self._delete_wordpress_credentials is not None
+        ):
+            try:
+                self._delete_wordpress_credentials.execute(current)
+            except CredentialStorageError:
+                # Account update succeeded, but credential cleanup failed.
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
         self._refresh_accounts()
         self.account_status.show_updated()
         self.accounts_changed.emit()
 
+
     def _handle_remove_account(self) -> None:
-        """Remove the currently selected account."""
+        """Remove the selected account and clean up WordPress credentials."""
         account = self.account_list.selected_account()
 
         if account is None:
@@ -120,6 +203,20 @@ class AccountsPage(QWidget):
         except AccountNotFoundError:
             self.account_status.show_remove_error()
             return
+
+        # Only delete credentials after successful account removal.
+        if (
+                account.destination == PublishingDestination.WORDPRESS
+                and self._delete_wordpress_credentials is not None
+        ):
+            try:
+                self._delete_wordpress_credentials.execute(account)
+            except CredentialStorageError:
+                # Account removal succeeded, but credential cleanup failed.
+                self._refresh_accounts()
+                self.account_status.show_remove_error()
+                self.accounts_changed.emit()
+                return
 
         self._refresh_accounts()
         self.account_status.show_removed()
@@ -136,7 +233,9 @@ class AccountsPage(QWidget):
 
     def _update_account_buttons(self) -> None:
         """Synchronize account action buttons with selection."""
-        has_selection = self.account_list.selected_account() is not None
+        has_selection = (
+            self.account_list.selected_account() is not None
+        )
 
         self.update_button.setEnabled(has_selection)
         self.remove_button.setEnabled(has_selection)

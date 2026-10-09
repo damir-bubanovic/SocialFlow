@@ -15,6 +15,9 @@ from socialflow.infrastructure.accounts.json_account_repository import (
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
+from socialflow.infrastructure.wordpress.wordpress_connection_verifier import (
+    WordPressConnectionVerifier,
+)
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
 
@@ -311,4 +314,13 @@ def test_main_content_migrates_legacy_publications_on_startup(
     assert (
         stored_publications[0]["post"]["text"]
         == "Legacy publication"
+    )
+
+def test_main_content_initializes_wordpress_verifier(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert isinstance(
+        content.wordpress_connection_verifier,
+        WordPressConnectionVerifier,
     )
