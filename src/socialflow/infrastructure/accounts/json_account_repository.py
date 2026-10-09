@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+from uuid import uuid4
 
+from socialflow.domain.account.account_id import AccountId
 from socialflow.application.accounts.account_repository import AccountRepository
 from socialflow.domain.account.account import Account
 from socialflow.infrastructure.accounts.account_serializer import (
@@ -24,10 +26,26 @@ class JsonAccountRepository(AccountRepository):
             content = self._file_path.read_text(encoding="utf-8")
             data = json.loads(content)
 
-            return tuple(
-                AccountSerializer.from_dict(item)
-                for item in data
-            )
+            accounts = []
+            needs_migration = False
+
+            for item in data:
+                account = AccountSerializer.from_dict(item)
+
+                if "id" not in item:
+                    account = Account(
+                        name=account.name,
+                        destination=account.destination,
+                        id=AccountId(uuid4()),
+                    )
+                    needs_migration = True
+
+                accounts.append(account)
+
+            if needs_migration:
+                self._save(accounts)
+
+            return tuple(accounts)
         except (
                 json.JSONDecodeError,
                 KeyError,

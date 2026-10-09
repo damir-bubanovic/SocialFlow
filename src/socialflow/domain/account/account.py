@@ -1,5 +1,8 @@
 from dataclasses import dataclass
+from dataclasses import field
+from uuid import uuid4
 
+from socialflow.domain.account.account_id import AccountId
 from socialflow.domain.publishing.destination import PublishingDestination
 
 
@@ -9,6 +12,9 @@ class Account:
 
     name: str
     destination: PublishingDestination
+    id: AccountId = field(
+        default_factory=lambda: AccountId(uuid4()),
+    )
 
     def has_name(self) -> bool:
         """Return whether the account has a meaningful name."""
@@ -19,6 +25,7 @@ class Account:
         return Account(
             name=self.name.strip(),
             destination=self.destination,
+            id=self.id,
         )
 
     def display_name(self) -> str:

@@ -46,3 +46,26 @@ def test_account_has_display_name() -> None:
     )
 
     assert account.display_name() == "Main Facebook (Facebook)"
+
+def test_account_has_unique_id() -> None:
+    first = Account(
+        name="First",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    second = Account(
+        name="Second",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    assert first.id != second.id
+
+
+def test_account_normalization_preserves_id() -> None:
+    account = Account(
+        name="  Main Facebook  ",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    normalized = account.normalized()
+
+    assert normalized.id == account.id

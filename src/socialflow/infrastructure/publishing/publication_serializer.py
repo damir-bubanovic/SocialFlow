@@ -3,13 +3,12 @@ from uuid import UUID
 from pathlib import Path
 
 from socialflow.domain.post.image_attachment import ImageAttachment
-from socialflow.domain.account.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.post.tag import Tag
-from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.domain.publishing.publication import Publication
 from socialflow.domain.publishing.publication_id import PublicationId
+from socialflow.infrastructure.accounts.account_serializer import AccountSerializer
 
 
 class PublicationSerializer:
@@ -20,10 +19,7 @@ class PublicationSerializer:
         """Convert a publication to JSON-compatible data."""
         return {
             "id": str(publication.id),
-            "account": {
-                "name": publication.account.name,
-                "destination": publication.account.destination.value,
-            },
+            "account": AccountSerializer.to_dict(publication.account),
             "post": {
                 "text": publication.post.text,
                 "language": publication.post.language.value,
@@ -43,12 +39,7 @@ class PublicationSerializer:
             id=PublicationId(
                 UUID(data["id"])
             ),
-            account=Account(
-                name=data["account"]["name"],
-                destination=PublishingDestination(
-                    data["account"]["destination"]
-                ),
-            ),
+            account=AccountSerializer.from_dict(data["account"]),
             post=Post(
                 text=data["post"]["text"],
                 language=Language(data["post"]["language"]),

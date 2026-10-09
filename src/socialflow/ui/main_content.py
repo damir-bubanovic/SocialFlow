@@ -56,9 +56,10 @@ class MainContent(QWidget):
             paths.accounts_file
         )
         publication_repository = JsonPublicationRepository(
-            paths.publications_file
+            paths.publications_file,
+            account_repository=account_repository,
         )
-
+        publication_repository.migrate_legacy_records()
         list_recent_publications = ListRecentPublications(
             publication_repository
         )

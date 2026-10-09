@@ -21,7 +21,11 @@ class AddAccount:
 
         normalized_account = account.normalized()
 
-        if normalized_account in self._repository.all():
+        if any(
+                existing.name == normalized_account.name
+                and existing.destination == normalized_account.destination
+                for existing in self._repository.all()
+        ):
             raise DuplicateAccountError(
                 "Account already exists."
             )

@@ -1,4 +1,5 @@
 import pytest
+import json
 
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
@@ -251,3 +252,63 @@ def test_main_content_displays_unconfigured_publishing_error(
     )
 
     assert publication_repository.recent_for_account(account) == ()
+
+def test_main_content_migrates_legacy_publications_on_startup(
+    qtbot,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    account_repository = JsonAccountRepository(
+        paths.accounts_file
+    )
+    account_repository.add(account)
+
+    legacy_publication = {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "account": {
+            "name": "Main Facebook",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Legacy publication",
+            "language": "EN",
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    paths.publications_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    paths.publications_file.write_text(
+        json.dumps([legacy_publication]),
+        encoding="utf-8",
+    )
+
+    # Initializing MainContent must trigger migration.
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    stored_publications = json.loads(
+        paths.publications_file.read_text(
+            encoding="utf-8",
+        )
+    )
+
+    assert len(stored_publications) == 1
+
+    assert (
+        stored_publications[0]["account"]["id"]
+        == str(account.id)
+    )
+
+    assert (
+        stored_publications[0]["post"]["text"]
+        == "Legacy publication"
+    )

@@ -736,3 +736,187 @@ def test_repository_returns_no_missing_images_for_unknown_id(
     assert repository.missing_images_for_publication(
         unknown_id
     ) == ()
+
+def test_migrated_publication_remains_accessible_after_account_rename(
+    tmp_path,
+) -> None:
+    from socialflow.infrastructure.accounts.json_account_repository import (
+        JsonAccountRepository,
+    )
+
+    account_repository = JsonAccountRepository(
+        tmp_path / "accounts.json"
+    )
+
+    original_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    account_repository.add(original_account)
+
+    file_path = tmp_path / "publications.json"
+
+    legacy_data = [
+        {
+            "id": "12345678-1234-5678-1234-567812345678",
+            "account": {
+                "name": "Main Facebook",
+                "destination": "facebook",
+            },
+            "post": {
+                "text": "Legacy publication",
+                "language": "EN",
+            },
+            "published_at": "2026-10-05T21:30:00",
+        }
+    ]
+
+    file_path.write_text(
+        json.dumps(legacy_data),
+        encoding="utf-8",
+    )
+
+    publication_repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    # Load history to trigger migration.
+    original_history = publication_repository.recent_for_account(
+        original_account
+    )
+
+    assert len(original_history) == 1
+
+    renamed_account = Account(
+        name="Renamed Facebook",
+        destination=PublishingDestination.FACEBOOK,
+        id=original_account.id,
+    )
+
+    account_repository.update(original_account, renamed_account)
+
+    # Reopen the repository to simulate restarting SocialFlow.
+    reloaded_repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    renamed_history = reloaded_repository.recent_for_account(
+        renamed_account
+    )
+
+    assert len(renamed_history) == 1
+    assert renamed_history[0].account.id == original_account.id
+    assert renamed_history[0].post.text == "Legacy publication"
+
+    stored = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert stored[0]["account"]["id"] == str(original_account.id)
+
+def test_legacy_publication_without_matching_account_is_not_assigned_id(
+    tmp_path,
+) -> None:
+    from socialflow.infrastructure.accounts.json_account_repository import (
+        JsonAccountRepository,
+    )
+
+    account_repository = JsonAccountRepository(
+        tmp_path / "accounts.json"
+    )
+
+    file_path = tmp_path / "publications.json"
+
+    legacy_record = {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "account": {
+            "name": "Deleted Facebook Account",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Historical publication",
+            "language": "EN",
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    file_path.write_text(
+        json.dumps([legacy_record]),
+        encoding="utf-8",
+    )
+
+    repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    publications = repository._load()
+
+    assert len(publications) == 1
+    assert publications[0].account.id.value.int == 0
+
+    stored = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert "id" not in stored[0]["account"]
+    assert stored[0]["post"]["text"] == "Historical publication"
+
+def test_legacy_publication_is_not_migrated_when_account_match_is_ambiguous(
+    tmp_path,
+) -> None:
+    from socialflow.infrastructure.accounts.json_account_repository import (
+        JsonAccountRepository,
+    )
+
+    account_repository = JsonAccountRepository(
+        tmp_path / "accounts.json"
+    )
+
+    first_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    second_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    assert first_account.id != second_account.id
+
+    account_repository.add(first_account)
+    account_repository.add(second_account)
+
+    file_path = tmp_path / "publications.json"
+
+    legacy_record = {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "account": {
+            "name": "Main Facebook",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Ambiguous legacy publication",
+            "language": "EN",
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    file_path.write_text(
+        json.dumps([legacy_record]),
+        encoding="utf-8",
+    )
+
+    repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    publications = repository._load()
+
+    assert len(publications) == 1
+    assert publications[0].account.id.value.int == 0
+
+    stored = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert "id" not in stored[0]["account"]
+    assert stored[0]["post"]["text"] == "Ambiguous legacy publication"

@@ -20,20 +20,23 @@ from socialflow.infrastructure.publishing.publication_serializer import (
 from socialflow.infrastructure.storage.publication_image_storage import (
     PublicationImageStorage,
 )
+from socialflow.application.accounts.account_repository import AccountRepository
 
 
 class JsonPublicationRepository(PublicationRepository):
     """Store publication history in a JSON file."""
 
     def __init__(
-        self,
-        file_path: Path,
-        image_storage: PublicationImageStorage | None = None,
+            self,
+            file_path: Path,
+            image_storage: PublicationImageStorage | None = None,
+            account_repository: AccountRepository | None = None,
     ) -> None:
         self._file_path = file_path
         self._image_storage = image_storage or PublicationImageStorage(
             file_path.parent / "publication_images"
         )
+        self._account_repository = account_repository
 
     def add(self, publication: Publication) -> None:
         """Store a publication and roll back copied images on failure."""
@@ -89,7 +92,14 @@ class JsonPublicationRepository(PublicationRepository):
         publications = (
             publication
             for publication in self._load()
-            if publication.account == account
+            if (
+                publication.account.id == account.id
+                or (
+                        publication.account.id.value.int == 0
+                        and publication.account.name == account.name
+                        and publication.account.destination == account.destination
+                )
+        )
         )
 
         ordered = sorted(
@@ -132,6 +142,10 @@ class JsonPublicationRepository(PublicationRepository):
 
         return ()
 
+    def migrate_legacy_records(self) -> None:
+        """Migrate legacy publication records before account editing."""
+        self._load()
+
     def _load(self) -> tuple[Publication, ...]:
         """Load publications from disk and migrate legacy records."""
         if not self._file_path.exists():
@@ -145,10 +159,42 @@ class JsonPublicationRepository(PublicationRepository):
 
         migration_required = False
 
+        accounts_by_identity = {}
+        ambiguous_identities = set()
+
+        if self._account_repository is not None:
+            for account in self._account_repository.all():
+                account_key = (
+                    account.name,
+                    account.destination.value,
+                )
+
+                if account_key in accounts_by_identity:
+                    ambiguous_identities.add(account_key)
+                else:
+                    accounts_by_identity[account_key] = account
+
+            for account_key in ambiguous_identities:
+                del accounts_by_identity[account_key]
+
         for item in data:
             if "id" not in item:
                 item["id"] = str(uuid4())
                 migration_required = True
+
+            account_data = item["account"]
+
+            if "id" not in account_data:
+                account_key = (
+                    account_data["name"],
+                    account_data["destination"],
+                )
+
+                matching_account = accounts_by_identity.get(account_key)
+
+                if matching_account is not None:
+                    account_data["id"] = str(matching_account.id)
+                    migration_required = True
 
         publications = tuple(
             PublicationSerializer.from_dict(item)

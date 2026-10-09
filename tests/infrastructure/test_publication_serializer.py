@@ -42,6 +42,7 @@ def test_publication_serializer_converts_publication_to_dict() -> None:
     assert data == {
         "id": "12345678-1234-5678-1234-567812345678",
         "account": {
+            "id": str(publication.account.id),
             "name": "Main Facebook",
             "destination": "facebook",
         },
@@ -72,10 +73,9 @@ def test_publication_serializer_creates_publication_from_dict() -> None:
     publication = PublicationSerializer.from_dict(data)
 
     assert publication.id == PUBLICATION_ID
-    assert publication.account == Account(
-        name="Main Facebook",
-        destination=PublishingDestination.FACEBOOK,
-    )
+    assert publication.account.name == "Main Facebook"
+    assert publication.account.destination == PublishingDestination.FACEBOOK
+    assert publication.account.id.value.int == 0
     assert publication.post == Post(
         text="Hello from SocialFlow",
         language=Language.ENGLISH,
@@ -185,3 +185,13 @@ def test_publication_serializer_skips_missing_images(
     assert restored.post.text == original.post.text
     assert restored.post.language == original.post.language
     assert restored.id == original.id
+
+def test_publication_serializer_preserves_account_id() -> None:
+    original = create_publication()
+
+    serialized = PublicationSerializer.to_dict(original)
+    restored = PublicationSerializer.from_dict(serialized)
+
+    assert serialized["account"]["id"] == str(original.account.id)
+    assert restored.account.id == original.account.id
+    assert restored == original

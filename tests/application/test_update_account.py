@@ -48,7 +48,16 @@ def test_update_account_updates_configured_account() -> None:
     service = UpdateAccount(repository)
     service.execute(current, updated)
 
-    assert repository.all() == (updated,)
+    stored_accounts = repository.all()
+
+    assert len(stored_accounts) == 1
+
+    stored_account = stored_accounts[0]
+
+    assert stored_account.name == "Main Facebook"
+    assert stored_account.destination == PublishingDestination.FACEBOOK
+    assert stored_account.id == current.id
+    assert stored_account.id != updated.id
 
 
 def test_update_account_normalizes_name() -> None:

@@ -27,17 +27,18 @@ class UpdateAccount:
                 "Account name cannot be empty."
             )
 
-        normalized_account = updated.normalized()
-
-        if (
-            normalized_account != current
-            and normalized_account in accounts
-        ):
-            raise DuplicateAccountError(
-                "Account already exists."
-            )
-
-        self._repository.update(
-            current,
-            normalized_account,
+        normalized_account = Account(
+            name=updated.name.strip(),
+            destination=updated.destination,
+            id=current.id,
         )
+
+        if any(
+                existing.id != current.id
+                and existing.name == normalized_account.name
+                and existing.destination == normalized_account.destination
+                for existing in accounts
+        ):
+            raise DuplicateAccountError("Account already exists.")
+
+        self._repository.update(current, normalized_account)
