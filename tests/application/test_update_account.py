@@ -9,6 +9,9 @@ from socialflow.application.accounts.errors import (
 from socialflow.application.accounts.update_account import UpdateAccount
 from socialflow.domain.account.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -159,3 +162,30 @@ def test_update_account_rejects_unknown_account() -> None:
         service.execute(current, updated)
 
     assert repository.all() == ()
+
+
+def test_update_account_preserves_wordpress_config() -> None:
+    repository = InMemoryAccountRepository()
+
+    current = Account(
+        name="Old WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(current)
+
+    updated = Account(
+        name="Updated WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    UpdateAccount(repository).execute(current, updated)
+
+    saved = repository.all()[0]
+
+    assert saved.id == current.id
+    assert saved.name == "Updated WordPress"
+    assert saved.wordpress_config == updated.wordpress_config

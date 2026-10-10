@@ -263,3 +263,45 @@ def test_wordpress_verifier_reports_unreachable_site() -> None:
     assert result.status == ConnectionStatus.UNREACHABLE
     assert result.is_connected is False
     assert "Unable to reach" in result.message
+
+
+def test_wordpress_verifier_uses_saved_account_configuration() -> None:
+    """Verify WordPress using configuration stored in the account."""
+    account = Account(
+        name="My WordPress Site",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    credential_store = FakeCredentialStore()
+    credential_store.save(
+        WordPressCredentialKeys.application_password(account),
+        "test-application-password",
+    )
+
+    from unittest.mock import Mock
+
+    http_client = Mock(spec=WordPressHttpClient)
+    http_client.get_authenticated_user.return_value = WordPressHttpResponse(
+        status_code=200,
+    )
+
+    verifier = WordPressConnectionVerifier(
+        credential_store=credential_store,
+        http_client=http_client,
+    )
+
+    # No separate WordPressConnectionConfig argument.
+    result = verifier.verify(account)
+
+    assert result.status == ConnectionStatus.CONNECTED
+    assert result.is_connected is True
+
+    http_client.get_authenticated_user.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-application-password",
+    )

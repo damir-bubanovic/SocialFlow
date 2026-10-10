@@ -4,6 +4,9 @@ from uuid import uuid4
 
 from socialflow.domain.account.account_id import AccountId
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -12,6 +15,7 @@ class Account:
 
     name: str
     destination: PublishingDestination
+    wordpress_config: WordPressConnectionConfig | None = None
     id: AccountId = field(
         default_factory=lambda: AccountId(uuid4()),
     )
@@ -26,6 +30,11 @@ class Account:
             name=self.name.strip(),
             destination=self.destination,
             id=self.id,
+            wordpress_config=(
+                self.wordpress_config.normalized()
+                if self.wordpress_config is not None
+                else None
+            ),
         )
 
     def display_name(self) -> str:

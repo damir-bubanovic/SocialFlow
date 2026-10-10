@@ -25,6 +25,11 @@ from socialflow.application.credentials.errors import (
 from socialflow.application.credentials.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
+from socialflow.domain.connections.connection_result import ConnectionResult
+from socialflow.domain.connections.connection_status import ConnectionStatus
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -1260,3 +1265,312 @@ def test_removing_non_wordpress_account_does_not_delete_credentials(
     credential_service.execute.assert_not_called()
 
     assert page.account_status.property("status") == "success"
+
+
+def test_accounts_page_persists_wordpress_connection_settings(
+    qtbot,
+) -> None:
+    """Adding and editing WordPress accounts preserves connection settings."""
+    repository = InMemoryAccountRepository()
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+    )
+    qtbot.addWidget(page)
+
+    wordpress_index = page.account_form.destination_input.findData(
+        PublishingDestination.WORDPRESS
+    )
+    page.account_form.destination_input.setCurrentIndex(wordpress_index)
+
+    page.account_form.name_input.setText("My WordPress")
+    page.account_form.wordpress_site_url_input.setText(
+        "https://example.com"
+    )
+    page.account_form.wordpress_username_input.setText("admin")
+
+    page.account_form.add_button.click()
+
+    assert len(repository.all()) == 1
+
+    saved = repository.all()[0]
+
+    assert saved.wordpress_config is not None
+    assert saved.wordpress_config.site_url == "https://example.com"
+    assert saved.wordpress_config.username == "admin"
+
+    # Select the saved account for editing.
+    page.account_list.setCurrentRow(0)
+
+    assert (
+        page.account_form.wordpress_site_url_input.text()
+        == "https://example.com"
+    )
+    assert page.account_form.wordpress_username_input.text() == "admin"
+
+    # Edit the WordPress connection settings.
+    page.account_form.wordpress_site_url_input.setText(
+        "https://new.example.com"
+    )
+    page.account_form.wordpress_username_input.setText("editor")
+
+    page.update_button.click()
+
+    assert len(repository.all()) == 1
+
+    updated = repository.all()[0]
+
+    assert updated.id == saved.id
+    assert updated.wordpress_config is not None
+    assert updated.wordpress_config.site_url == "https://new.example.com"
+    assert updated.wordpress_config.username == "editor"
+
+
+def test_verify_button_only_enabled_for_wordpress_account(qtbot) -> None:
+    """Verification is available only for selected WordPress accounts."""
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+    repository.add(
+        Account(
+            name="WordPress",
+            destination=PublishingDestination.WORDPRESS,
+        )
+    )
+
+    verifier = Mock(spec=ConnectionVerifier)
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        wordpress_connection_verifier=verifier,
+    )
+    qtbot.addWidget(page)
+
+    assert not page.verify_button.isEnabled()
+
+    page.account_list.setCurrentRow(0)
+    assert not page.verify_button.isEnabled()
+
+    page.account_list.setCurrentRow(1)
+    assert page.verify_button.isEnabled()
+
+    page.account_list.clearSelection()
+    page.account_list.setCurrentRow(-1)
+    page._update_account_buttons()
+
+    assert page.account_list.selected_account() is None
+    assert not page.verify_button.isEnabled()
+
+
+def test_accounts_page_verifies_selected_wordpress_account(qtbot) -> None:
+    """Verification uses the selected account's saved configuration."""
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+    repository.add(account)
+
+    verifier = Mock(spec=ConnectionVerifier)
+    verifier.verify.return_value = ConnectionResult(
+        status=ConnectionStatus.CONNECTED,
+        message="WordPress connection verified successfully.",
+    )
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        wordpress_connection_verifier=verifier,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.verify_button.isEnabled()
+
+    controller = page._verification_controller
+    assert controller is not None
+
+    with qtbot.waitSignal(controller.finished, timeout=3000):
+        page.verify_button.click()
+
+    assert not controller.is_running
+
+    verifier.verify.assert_called_once_with(account)
+    assert (
+        page.account_status.text()
+        == "WordPress connection verified successfully."
+    )
+    assert page.account_status.property("status") == "success"
+
+
+def test_accounts_page_displays_failed_wordpress_verification(qtbot) -> None:
+    """Failed WordPress verification displays an error message."""
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+    repository.add(account)
+
+    verifier = Mock(spec=ConnectionVerifier)
+    verifier.verify.return_value = ConnectionResult(
+        status=ConnectionStatus.INVALID_CREDENTIALS,
+        message="WordPress authentication was rejected.",
+    )
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        wordpress_connection_verifier=verifier,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+    controller = page._verification_controller
+    assert controller is not None
+
+    with qtbot.waitSignal(controller.finished, timeout=3000):
+        page.verify_button.click()
+
+    assert not controller.is_running
+
+    verifier.verify.assert_called_once_with(account)
+    assert (
+        page.account_status.text()
+        == "WordPress authentication was rejected."
+    )
+    assert page.account_status.property("status") == "error"
+
+
+def test_accounts_page_handles_credential_failure_during_verification(
+    qtbot,
+) -> None:
+    """Credential storage errors must not crash connection verification."""
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    verifier = Mock(spec=ConnectionVerifier)
+    verifier.verify.side_effect = CredentialStorageError(
+        "Could not access stored credentials."
+    )
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        wordpress_connection_verifier=verifier,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.verify_button.isEnabled()
+
+    controller = page._verification_controller
+    assert controller is not None
+
+    with qtbot.waitSignal(controller.finished, timeout=3000):
+        page.verify_button.click()
+
+    assert not controller.is_running
+
+    verifier.verify.assert_called_once_with(account)
+
+    assert (
+        page.account_status.text()
+        == "Could not access stored WordPress credentials."
+    )
+    assert page.account_status.property("status") == "error"
+
+def test_accounts_page_closes_during_active_wordpress_verification(
+    qtbot,
+) -> None:
+    """Closing the page waits for active WordPress verification."""
+    from threading import Event, Thread
+
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    started = Event()
+    release = Event()
+
+    verifier = Mock(spec=ConnectionVerifier)
+
+    def verify(_account):
+        started.set()
+        if not release.wait(timeout=3):
+            raise TimeoutError("Test worker was not released.")
+
+        return ConnectionResult(
+            status=ConnectionStatus.CONNECTED,
+            message="WordPress connection verified.",
+        )
+
+    verifier.verify.side_effect = verify
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        wordpress_connection_verifier=verifier,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+    page.verify_button.click()
+
+    assert started.wait(timeout=2)
+    assert page._verification_controller.is_running
+
+    releaser = Thread(target=lambda: release.set())
+    releaser.start()
+
+    try:
+        page.close()
+    finally:
+        release.set()
+        releaser.join(timeout=2)
+
+    qtbot.waitUntil(
+        lambda: not page._verification_controller.is_running,
+        timeout=3000,
+    )
+
+    verifier.verify.assert_called_once_with(account)

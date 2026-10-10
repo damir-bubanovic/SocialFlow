@@ -1,8 +1,9 @@
 from PySide6.QtWidgets import QComboBox, QLineEdit, QPushButton
 
 from socialflow.domain.account.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
-from socialflow.ui.accounts.account_form import AccountForm
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 def test_account_form_contains_expected_controls(qtbot) -> None:
@@ -185,3 +186,46 @@ def test_wordpress_application_password_is_visible_for_wordpress(
     form.destination_input.setCurrentIndex(index)
 
     assert form.wordpress_application_password_input.isVisible()
+
+
+def test_account_form_restores_wordpress_settings_and_clears_password(
+    qtbot,
+) -> None:
+    form = AccountForm()
+    qtbot.addWidget(form)
+
+    wordpress_account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    form.set_account(wordpress_account)
+
+    assert form.name_input.text() == "My WordPress"
+    assert form.wordpress_site_url_input.text() == "https://example.com"
+    assert form.wordpress_username_input.text() == "admin"
+
+    # Simulate an application password entered during editing.
+    form.wordpress_application_password_input.setText("secret-password")
+
+    facebook_account = Account(
+        name="My Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    form.set_account(facebook_account)
+
+    assert form.wordpress_site_url_input.text() == ""
+    assert form.wordpress_username_input.text() == ""
+    assert form.wordpress_application_password_input.text() == ""
+
+    # Selecting WordPress again restores only its non-secret settings.
+    form.set_account(wordpress_account)
+
+    assert form.wordpress_site_url_input.text() == "https://example.com"
+    assert form.wordpress_username_input.text() == "admin"
+    assert form.wordpress_application_password_input.text() == ""

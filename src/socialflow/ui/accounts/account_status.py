@@ -1,4 +1,9 @@
+
 from PySide6.QtWidgets import QLabel, QWidget
+
+from socialflow.domain.connections.connection_result import (
+    ConnectionResult,
+)
 
 
 class AccountStatus(QLabel):
@@ -38,3 +43,17 @@ class AccountStatus(QLabel):
         """Display a successful account update status."""
         self.setText("Account updated.")
         self.setProperty("status", "success")
+
+    def show_connection_result(self, result: ConnectionResult) -> None:
+        """Display the result of account connection verification."""
+        self.setText(result.message)
+        self.setProperty(
+            "status",
+            "success" if result.is_connected else "error",
+        )
+
+    def show_connection_error(self, message: str) -> None:
+        """Display a WordPress connection verification error."""
+        self.setText(message)
+        self.setProperty("status", "error")
+

@@ -76,9 +76,16 @@ class AccountForm(QWidget):
 
     def account(self) -> Account:
         """Return the account represented by the form."""
+        destination = self.selected_destination()
+
         return Account(
             name=self.name_input.text(),
-            destination=self.selected_destination(),
+            destination=destination,
+            wordpress_config=(
+                self.wordpress_connection_config()
+                if destination == PublishingDestination.WORDPRESS
+                else None
+            ),
         )
 
     def selected_destination(self) -> PublishingDestination:
@@ -107,6 +114,22 @@ class AccountForm(QWidget):
 
         if index >= 0:
             self.destination_input.setCurrentIndex(index)
+
+        # Clear settings from the previously selected account.
+        self.wordpress_site_url_input.clear()
+        self.wordpress_username_input.clear()
+
+        # Restore saved WordPress connection settings.
+        if (
+                account.destination == PublishingDestination.WORDPRESS
+                and account.wordpress_config is not None
+        ):
+            self.wordpress_site_url_input.setText(
+                account.wordpress_config.site_url
+            )
+            self.wordpress_username_input.setText(
+                account.wordpress_config.username
+            )
 
         # Never retain a password when switching accounts.
         self.wordpress_application_password_input.clear()

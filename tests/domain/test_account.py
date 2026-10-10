@@ -1,5 +1,8 @@
 from socialflow.domain.account.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 def test_account_contains_name_and_destination() -> None:
@@ -69,3 +72,24 @@ def test_account_normalization_preserves_id() -> None:
     normalized = account.normalized()
 
     assert normalized.id == account.id
+
+
+def test_account_normalization_preserves_wordpress_config() -> None:
+    """Normalization must preserve WordPress connection settings."""
+    config = WordPressConnectionConfig(
+        site_url="https://example.com",
+        username="admin",
+    )
+
+    account = Account(
+        name="  My WordPress  ",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=config,
+    )
+
+    normalized = account.normalized()
+
+    assert normalized.name == "My WordPress"
+    assert normalized.destination == PublishingDestination.WORDPRESS
+    assert normalized.id == account.id
+    assert normalized.wordpress_config == config

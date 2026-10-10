@@ -10,6 +10,9 @@ from socialflow.infrastructure.accounts.json_account_repository import (
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 def test_json_account_repository_is_empty_when_file_does_not_exist(
@@ -276,3 +279,57 @@ def test_repository_migrates_legacy_publication_account_id(
     stored = json.loads(file_path.read_text(encoding="utf-8"))
 
     assert stored[0]["account"]["id"] == str(account.id)
+
+
+def test_json_account_repository_persists_wordpress_config(
+    tmp_path,
+) -> None:
+    """WordPress settings survive reload without storing credentials."""
+    file_path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(file_path)
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    repository.add(account)
+
+    # Simulate restarting the application.
+    reloaded_repository = JsonAccountRepository(file_path)
+    restored_accounts = reloaded_repository.all()
+
+    assert len(restored_accounts) == 1
+
+    restored = restored_accounts[0]
+
+    assert restored.id == account.id
+    assert restored.name == "My WordPress"
+    assert restored.destination == PublishingDestination.WORDPRESS
+    assert restored.wordpress_config == account.wordpress_config
+
+    # Inspect the actual JSON stored on disk.
+    stored_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert stored_data == [
+        {
+            "id": str(account.id),
+            "name": "My WordPress",
+            "destination": "wordpress",
+            "wordpress_config": {
+                "site_url": "https://example.com",
+                "username": "admin",
+            },
+        }
+    ]
+
+    # Application passwords must never be persisted in JSON.
+    assert "password" not in file_path.read_text(
+        encoding="utf-8"
+    ).lower()

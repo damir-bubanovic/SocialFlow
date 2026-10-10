@@ -42,6 +42,9 @@ class WordPressConnectionVerifier(ConnectionVerifier):
             config: WordPressConnectionConfig | None = None,
     ) -> ConnectionResult:
         """Validate WordPress settings before HTTP verification."""
+        if config is None:
+            config = account.wordpress_config
+
         if config is None or not config.is_complete():
             return ConnectionResult(
                 status=ConnectionStatus.ERROR,

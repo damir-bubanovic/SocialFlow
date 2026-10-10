@@ -5,6 +5,7 @@ from socialflow.application.accounts.errors import (
     InvalidAccountError,
 )
 from socialflow.domain.account.account import Account
+from socialflow.domain.publishing.destination import PublishingDestination
 
 
 class UpdateAccount:
@@ -31,6 +32,14 @@ class UpdateAccount:
             name=updated.name.strip(),
             destination=updated.destination,
             id=current.id,
+            wordpress_config=(
+                updated.wordpress_config.normalized()
+                if (
+                        updated.destination == PublishingDestination.WORDPRESS
+                        and updated.wordpress_config is not None
+                )
+                else None
+            ),
         )
 
         if any(

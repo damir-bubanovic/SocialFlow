@@ -3,6 +3,9 @@ from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.account_serializer import (
     AccountSerializer,
 )
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
 
 
 def test_account_serializer_converts_account_to_dict() -> None:
@@ -64,3 +67,31 @@ def test_account_serializer_preserves_id() -> None:
     assert serialized["id"] == str(account.id)
     assert restored.id == account.id
     assert restored == account
+
+
+def test_account_serializer_preserves_wordpress_config() -> None:
+    """WordPress connection settings must survive JSON serialization."""
+    config = WordPressConnectionConfig(
+        site_url="https://example.com",
+        username="admin",
+    )
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=config,
+    )
+
+    serialized = AccountSerializer.to_dict(account)
+
+    assert serialized["wordpress_config"] == {
+        "site_url": "https://example.com",
+        "username": "admin",
+    }
+
+    restored = AccountSerializer.from_dict(serialized)
+
+    assert restored.id == account.id
+    assert restored.name == account.name
+    assert restored.destination == PublishingDestination.WORDPRESS
+    assert restored.wordpress_config == config
