@@ -594,7 +594,12 @@ def test_prepared_image_exists_during_publish_and_is_cleaned_afterward(
         / "source-instagram-1.jpg"
     )
 
-    service.execute(request)
+    results = service.execute(request)
+
+    assert len(results) == 1
+    assert results[0].succeeded is True
+    assert results[0].error is None
+    assert results[0].cleanup_error is None
 
     assert publisher.image_existed_during_publish
     assert publisher.image_size == (800, 450)
@@ -914,3 +919,501 @@ def test_publish_post_preserves_mixed_text_with_croatian_language() -> None:
     assert published_post.text == mixed_text
     assert published_post.language is Language.CROATIAN
     assert published_post is post
+
+
+def test_wordpress_failure_does_not_stop_other_accounts() -> None:
+    wordpress_account = Account(
+        name="Failing WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    facebook_account = Account(
+        name="Working Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    facebook_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        publishers={
+            PublishingDestination.FACEBOOK: facebook_publisher,
+        },
+        account_factories={
+            PublishingDestination.WORDPRESS: (
+                lambda _account: FailingPublisher()
+            ),
+        },
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    post = Post(
+        text="Testing publication failure handling",
+        language=Language.ENGLISH,
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(wordpress_account, facebook_account),
+        )
+    )
+
+    assert len(results) == 2
+
+    wordpress_result, facebook_result = results
+
+    assert wordpress_result.account is wordpress_account
+    assert wordpress_result.succeeded is False
+    assert isinstance(wordpress_result.error, RuntimeError)
+
+    assert facebook_result.account is facebook_account
+    assert facebook_result.succeeded is True
+    assert facebook_result.error is None
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert facebook_publisher.published_posts[0].source is post
+
+
+def test_publisher_resolution_failure_does_not_stop_other_accounts() -> None:
+    wordpress_account = Account(
+        name="Broken WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    facebook_account = Account(
+        name="Working Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    facebook_publisher = RecordingPublisher()
+
+    def failing_wordpress_factory(_account: Account) -> Publisher:
+        raise RuntimeError("Unable to create WordPress publisher")
+
+    router = PublisherRouter(
+        publishers={
+            PublishingDestination.FACEBOOK: facebook_publisher,
+        },
+        account_factories={
+            PublishingDestination.WORDPRESS: failing_wordpress_factory,
+        },
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    post = Post(
+        text="Testing publisher resolution failure",
+        language=Language.ENGLISH,
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(wordpress_account, facebook_account),
+        )
+    )
+
+    assert len(results) == 2
+
+    wordpress_result, facebook_result = results
+
+    assert wordpress_result.account is wordpress_account
+    assert wordpress_result.succeeded is False
+    assert isinstance(wordpress_result.error, RuntimeError)
+    assert str(wordpress_result.error) == (
+        "Unable to create WordPress publisher"
+    )
+
+    assert facebook_result.account is facebook_account
+    assert facebook_result.succeeded is True
+    assert facebook_result.error is None
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert facebook_publisher.published_posts[0].source is post
+
+
+def test_image_preparation_failure_does_not_stop_other_accounts(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+
+    image = Image.new("RGB", (800, 600))
+    image.save(source_path)
+
+    attachment = ImageAttachment(path=source_path)
+
+    instagram_account = Account(
+        name="Failing Instagram",
+        destination=PublishingDestination.INSTAGRAM,
+    )
+
+    facebook_account = Account(
+        name="Working Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    facebook_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        publishers={
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.INSTAGRAM: RecordingPublisher(),
+        },
+    )
+
+    class FailingImagePreparationService(ImagePreparationService):
+        def prepare_all(
+            self,
+            attachments,
+            destination,
+            output_directory,
+        ):
+            if destination == PublishingDestination.INSTAGRAM:
+                raise RuntimeError("Image preparation failed.")
+
+            return super().prepare_all(
+                attachments=attachments,
+                destination=destination,
+                output_directory=output_directory,
+            )
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+            PublishingDestination.INSTAGRAM: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+        image_preparation_service=FailingImagePreparationService(
+            profile_provider=profile_provider,
+        ),
+        image_output_directory=tmp_path / "prepared",
+    )
+
+    post = Post(
+        text="Testing image preparation failure",
+        language=Language.ENGLISH,
+        images=(attachment,),
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(instagram_account, facebook_account),
+        )
+    )
+
+    assert len(results) == 2
+
+    instagram_result, facebook_result = results
+
+    assert instagram_result.account is instagram_account
+    assert instagram_result.succeeded is False
+    assert isinstance(instagram_result.error, RuntimeError)
+    assert str(instagram_result.error) == "Image preparation failed."
+
+    assert facebook_result.account is facebook_account
+    assert facebook_result.succeeded is True
+    assert facebook_result.error is None
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert facebook_publisher.published_posts[0].source is post
+
+    assert source_path.exists()
+    assert not (
+        tmp_path
+        / "prepared"
+        / "facebook"
+        / "source-facebook-1.jpg"
+    ).exists()
+
+
+def test_cleanup_failure_does_not_stop_other_accounts(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+    Image.new("RGB", (800, 600)).save(source_path)
+
+    class FailingCleanupService(ImagePreparationService):
+        def __init__(
+                self,
+                image_profile_provider: ImageProfileProvider,
+        ) -> None:
+            super().__init__(image_profile_provider)
+            self.cleanup_calls = 0
+
+        def cleanup(
+            self,
+            prepared_images,
+        ) -> None:
+            self.cleanup_calls += 1
+
+            if self.cleanup_calls == 1:
+                raise PermissionError("Unable to remove prepared image")
+
+            super().cleanup(prepared_images)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    image_service = FailingCleanupService(
+        image_profile_provider=profile_provider,
+    )
+
+    publisher = RecordingPublisher()
+
+    service = PublishPost(
+        publisher_router=PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: publisher,
+            }
+        ),
+        publication_id_generator=create_publication_id_generator(),
+        image_preparation_service=image_service,
+        image_output_directory=tmp_path / "prepared",
+    )
+
+    first_account = Account(
+        name="First Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    second_account = Account(
+        name="Second Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    post = Post(
+        text="Testing cleanup failure handling",
+        language=Language.ENGLISH,
+        images=(ImageAttachment(path=source_path),),
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(first_account, second_account),
+        )
+    )
+
+    assert len(results) == 2
+
+    assert results[0].account is first_account
+    assert results[0].succeeded is True
+    assert results[0].error is None
+
+    assert results[1].account is second_account
+    assert results[1].succeeded
+    assert results[1].error is None
+
+    assert len(publisher.published_posts) == 2
+    assert image_service.cleanup_calls == 2
+    assert source_path.is_file()
+
+
+
+def test_publishing_error_is_preserved_when_cleanup_also_fails(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+    Image.new("RGB", (800, 600)).save(source_path)
+
+    class FailingCleanupService(ImagePreparationService):
+        def __init__(
+                self,
+                image_profile_provider: ImageProfileProvider,
+        ) -> None:
+            super().__init__(image_profile_provider)
+            self.cleanup_calls = 0
+
+        def cleanup(
+                self,
+                prepared_images,
+        ) -> None:
+            self.cleanup_calls += 1
+
+            if self.cleanup_calls == 1:
+                raise PermissionError("Cleanup failed.")
+
+            super().cleanup(prepared_images)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+            PublishingDestination.WORDPRESS: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    image_service = FailingCleanupService(
+        image_profile_provider=profile_provider,
+    )
+
+    facebook_account = Account(
+        name="Failing Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    wordpress_account = Account(
+        name="Working WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    wordpress_publisher = RecordingPublisher()
+
+    service = PublishPost(
+        publisher_router=PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: FailingPublisher(),
+                PublishingDestination.WORDPRESS: wordpress_publisher,
+            }
+        ),
+        publication_id_generator=create_publication_id_generator(),
+        image_preparation_service=image_service,
+        image_output_directory=tmp_path / "prepared",
+    )
+
+    post = Post(
+        text="Testing publishing and cleanup failures",
+        language=Language.ENGLISH,
+        images=(ImageAttachment(path=source_path),),
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(facebook_account, wordpress_account),
+        )
+    )
+
+    assert len(results) == 2
+
+    assert results[0].account is facebook_account
+    assert results[0].succeeded is False
+    assert isinstance(results[0].error, RuntimeError)
+    assert str(results[0].error) == "Publishing failed."
+    assert isinstance(results[0].cleanup_error, PermissionError)
+    assert str(results[0].cleanup_error) == "Cleanup failed."
+
+    assert results[1].account is wordpress_account
+    assert results[1].succeeded is True
+    assert results[1].error is None
+
+    assert len(wordpress_publisher.published_posts) == 1
+    assert source_path.is_file()
+
+
+
+def test_cleanup_failure_does_not_change_successful_publication(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+    Image.new("RGB", (800, 600)).save(source_path)
+
+    class FailingCleanupService(ImagePreparationService):
+        def cleanup(
+            self,
+            prepared_images,
+        ) -> None:
+            raise PermissionError("Cleanup failed.")
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    image_service = FailingCleanupService(
+        profile_provider=profile_provider,
+    )
+
+    publisher = RecordingPublisher()
+
+    service = PublishPost(
+        publisher_router=PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: publisher,
+            }
+        ),
+        publication_id_generator=create_publication_id_generator(),
+        image_preparation_service=image_service,
+        image_output_directory=tmp_path / "prepared",
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    post = Post(
+        text="Testing cleanup after successful publishing",
+        language=Language.ENGLISH,
+        images=(ImageAttachment(path=source_path),),
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(account,),
+        )
+    )
+
+    assert len(results) == 1
+    assert results[0].account is account
+
+    # Publishing succeeded even though cleanup failed.
+    assert results[0].succeeded is True
+    assert results[0].error is None
+    assert isinstance(results[0].cleanup_error, PermissionError)
+    assert str(results[0].cleanup_error) == "Cleanup failed."
+
+    assert len(publisher.published_posts) == 1
+    assert source_path.is_file()

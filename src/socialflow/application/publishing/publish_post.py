@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from socialflow.application.images.image_preparation_service import (
@@ -20,17 +21,21 @@ from socialflow.application.publishing.publication_id_generator import (
     PublicationIdGenerator,
 )
 
+
+logger = logging.getLogger(__name__)
+
+
 class PublishPost:
     """Application service for publishing a post."""
 
     def __init__(
-            self,
-            publisher_router: PublisherRouter,
-            publication_id_generator: PublicationIdGenerator,
-            image_preparation_service: ImagePreparationService | None = None,
-            image_output_directory: Path | None = None,
-            publication_repository: PublicationRepository | None = None,
-            clock: Clock | None = None,
+        self,
+        publisher_router: PublisherRouter,
+        publication_id_generator: PublicationIdGenerator,
+        image_preparation_service: ImagePreparationService | None = None,
+        image_output_directory: Path | None = None,
+        publication_repository: PublicationRepository | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._publisher_router = publisher_router
         self._publication_id_generator = publication_id_generator
@@ -45,8 +50,8 @@ class PublishPost:
             raise EmptyPostError("Cannot publish a post without content.")
 
         if request.post.images and (
-                self._image_preparation_service is None
-                or self._image_output_directory is None
+            self._image_preparation_service is None
+            or self._image_output_directory is None
         ):
             raise ImagePreparationNotConfiguredError(
                 "Image preparation must be configured before publishing images."
@@ -55,37 +60,36 @@ class PublishPost:
         results: list[PublishResult] = []
 
         for account in request.accounts:
-            publisher = self._publisher_router.publisher_for(
-                account.destination
-            )
-
             prepared_images = ()
 
-            if request.post.images:
-                destination_directory = (
+            try:
+                if request.post.images:
+                    destination_directory = (
                         self._image_output_directory
                         / str(account.destination)
-                )
-
-                prepared_images = (
-                    self._image_preparation_service.prepare_all(
-                        attachments=request.post.images,
-                        destination=account.destination,
-                        output_directory=destination_directory,
                     )
+
+                    prepared_images = (
+                        self._image_preparation_service.prepare_all(
+                            attachments=request.post.images,
+                            destination=account.destination,
+                            output_directory=destination_directory,
+                        )
+                    )
+
+                prepared_post = PreparedPost(
+                    source=request.post,
+                    images=prepared_images,
                 )
 
-            prepared_post = PreparedPost(
-                source=request.post,
-                images=prepared_images,
-            )
-
-            try:
+                publisher = self._publisher_router.publisher_for_account(
+                    account
+                )
                 publisher.publish(prepared_post)
 
                 if (
-                        self._publication_repository is not None
-                        and self._clock is not None
+                    self._publication_repository is not None
+                    and self._clock is not None
                 ):
                     self._publication_repository.add(
                         Publication(
@@ -102,6 +106,7 @@ class PublishPost:
                         succeeded=True,
                     )
                 )
+
             except Exception as error:
                 results.append(
                     PublishResult(
@@ -110,13 +115,30 @@ class PublishPost:
                         error=error,
                     )
                 )
+
             finally:
                 if (
-                        prepared_images
-                        and self._image_preparation_service is not None
+                    prepared_images
+                    and self._image_preparation_service is not None
                 ):
-                    self._image_preparation_service.cleanup(
-                        prepared_images
-                    )
+                    try:
+                        self._image_preparation_service.cleanup(
+                            prepared_images
+                        )
+                    # noinspection PyBroadException
+                    except Exception as cleanup_error:
+                        logger.exception(
+                            "Failed to clean up prepared images for account %s",
+                            account.name,
+                        )
+
+                        previous_result = results[-1]
+
+                        results[-1] = PublishResult(
+                            account=previous_result.account,
+                            succeeded=previous_result.succeeded,
+                            error=previous_result.error,
+                            cleanup_error=cleanup_error,
+                        )
 
         return tuple(results)

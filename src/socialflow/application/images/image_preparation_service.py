@@ -1,14 +1,15 @@
 from pathlib import Path
+from uuid import uuid4
 
 from socialflow.application.images.destination_image_processor import (
     DestinationImageProcessor,
 )
-from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
 from socialflow.application.images.prepared_image import PreparedImage
 from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.domain.publishing.destination import PublishingDestination
 
 
 class ImagePreparationService:
@@ -36,42 +37,65 @@ class ImagePreparationService:
         )
 
     def prepare_all(
-            self,
-            attachments: tuple[ImageAttachment, ...],
-            destination: PublishingDestination,
-            output_directory: Path,
+        self,
+        attachments: tuple[ImageAttachment, ...],
+        destination: PublishingDestination,
+        output_directory: Path,
     ) -> tuple[PreparedImage, ...]:
-        """Prepare multiple images for one publishing destination."""
+        """Prepare images and clean up partial output on failure."""
         output_directory.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        prepared_images = []
+        prepared_images: list[PreparedImage] = []
+        output_paths: list[Path] = []
 
-        for index, attachment in enumerate(
-            attachments,
-            start=1,
-        ):
-            output_path = output_directory / self._output_filename(
-                attachment=attachment,
-                destination=destination,
-                index=index,
-            )
-
-            prepared_path = self.prepare(
-                attachment=attachment,
-                destination=destination,
-                output_path=output_path,
-            )
-
-            prepared_images.append(
-                PreparedImage(
-                    source=attachment,
+        try:
+            for index, attachment in enumerate(
+                attachments,
+                start=1,
+            ):
+                output_path = output_directory / self._output_filename(
+                    attachment=attachment,
                     destination=destination,
-                    path=prepared_path,
+                    index=index,
                 )
-            )
+
+                base_output_path = output_path
+
+                while True:
+                    try:
+                        with output_path.open("xb"):
+                            pass
+                        break
+                    except FileExistsError:
+                        output_path = base_output_path.with_name(
+                            f"{base_output_path.stem}-{uuid4().hex}"
+                            f"{base_output_path.suffix}"
+                        )
+
+                output_paths.append(output_path)
+
+                prepared_path = self.prepare(
+                    attachment=attachment,
+                    destination=destination,
+                    output_path=output_path,
+                )
+
+                prepared_images.append(
+                    PreparedImage(
+                        source=attachment,
+                        destination=destination,
+                        path=prepared_path,
+                    )
+                )
+
+        except Exception:
+            for output_path in output_paths:
+                output_path.unlink(missing_ok=True)
+
+            raise
 
         return tuple(prepared_images)
 
@@ -101,8 +125,9 @@ class ImagePreparationService:
 
     @staticmethod
     def cleanup(
-            prepared_images: tuple[PreparedImage, ...],
+        prepared_images: tuple[PreparedImage, ...],
     ) -> None:
         """Remove prepared image files that still exist."""
         for prepared_image in prepared_images:
             prepared_image.path.unlink(missing_ok=True)
+

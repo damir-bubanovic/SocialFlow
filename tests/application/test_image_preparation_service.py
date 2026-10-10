@@ -337,3 +337,471 @@ def test_cleanup_ignores_missing_prepared_image_files(
 
     assert source_path.exists()
     assert not missing_path.exists()
+
+
+def test_prepare_all_cleans_partial_files_when_later_image_fails(
+    tmp_path: Path,
+) -> None:
+    import pytest
+
+    first_source = tmp_path / "first.png"
+    second_source = tmp_path / "second.png"
+
+    create_test_image(first_source, (800, 600))
+    create_test_image(second_source, (800, 600))
+
+    first_attachment = ImageAttachment(path=first_source)
+    second_attachment = ImageAttachment(path=second_source)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    class FailingSecondImageService(ImagePreparationService):
+        def prepare(
+            self,
+            attachment: ImageAttachment,
+            destination: PublishingDestination,
+            output_path: Path,
+        ) -> Path:
+            if attachment is second_attachment:
+                output_path.write_bytes(b"partial image data")
+                raise RuntimeError("Second image preparation failed.")
+
+            return super().prepare(
+                attachment=attachment,
+                destination=destination,
+                output_path=output_path,
+            )
+
+    service = FailingSecondImageService(
+        profile_provider=profile_provider,
+    )
+
+    output_directory = tmp_path / "prepared"
+
+    first_output = output_directory / "first-facebook-1.jpg"
+    second_output = output_directory / "second-facebook-2.jpg"
+
+    with pytest.raises(
+        RuntimeError,
+        match="Second image preparation failed.",
+    ):
+        service.prepare_all(
+            attachments=(first_attachment, second_attachment),
+            destination=PublishingDestination.FACEBOOK,
+            output_directory=output_directory,
+        )
+
+    assert not first_output.exists()
+    assert not second_output.exists()
+
+    assert first_source.is_file()
+    assert second_source.is_file()
+
+
+def test_prepare_all_does_not_delete_existing_file_on_failure(
+    tmp_path: Path,
+) -> None:
+    from PIL import Image
+    import pytest
+
+    source_path = tmp_path / "source.png"
+    Image.new("RGB", (800, 600)).save(source_path)
+
+    attachment = ImageAttachment(path=source_path)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    output_directory = tmp_path / "prepared"
+    output_directory.mkdir()
+
+    existing_path = output_directory / "source-facebook-1.jpg"
+    original_content = b"Existing file must be preserved"
+    existing_path.write_bytes(original_content)
+
+    class FailingPreparationService(ImagePreparationService):
+        # noinspection PyShadowingNames
+        def prepare(
+                self,
+                attachment: ImageAttachment,
+                destination: PublishingDestination,
+                output_path: Path,
+        ) -> Path:
+            raise RuntimeError("Preparation failed.")
+
+    service = FailingPreparationService(
+        profile_provider=profile_provider,
+    )
+
+    with pytest.raises(RuntimeError, match="Preparation failed."):
+        service.prepare_all(
+            attachments=(attachment,),
+            destination=PublishingDestination.FACEBOOK,
+            output_directory=output_directory,
+        )
+
+    assert existing_path.is_file()
+    assert existing_path.read_bytes() == original_content
+    assert source_path.is_file()
+
+def test_prepare_all_uses_unique_filename_when_output_exists(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+    Image.new("RGB", (800, 600)).save(source_path)
+
+    attachment = ImageAttachment(path=source_path)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = ImagePreparationService(
+        profile_provider=profile_provider,
+    )
+
+    output_directory = tmp_path / "prepared"
+    output_directory.mkdir()
+
+    existing_path = output_directory / "source-facebook-1.jpg"
+    existing_content = b"Existing image must not be overwritten"
+    existing_path.write_bytes(existing_content)
+
+    prepared_images = service.prepare_all(
+        attachments=(attachment,),
+        destination=PublishingDestination.FACEBOOK,
+        output_directory=output_directory,
+    )
+
+    assert len(prepared_images) == 1
+
+    prepared_path = prepared_images[0].path
+
+    assert prepared_path != existing_path
+    assert prepared_path.is_file()
+    assert prepared_path.suffix == ".jpg"
+
+    assert existing_path.read_bytes() == existing_content
+
+    with Image.open(prepared_path) as prepared_image:
+        assert prepared_image.format == "JPEG"
+        assert prepared_image.size == (800, 600)
+
+    service.cleanup(prepared_images)
+
+    assert not prepared_path.exists()
+    assert existing_path.read_bytes() == existing_content
+    assert source_path.is_file()
+
+
+def test_prepare_all_preserves_reserved_output_filename(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+    create_test_image(source_path, (800, 600))
+
+    attachment = ImageAttachment(path=source_path)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = ImagePreparationService(
+        profile_provider=profile_provider,
+    )
+
+    output_directory = tmp_path / "prepared"
+    output_directory.mkdir()
+
+    reserved_path = output_directory / "source-facebook-1.jpg"
+
+    with reserved_path.open("xb") as reserved_file:
+        reserved_file.write(b"Reserved by another operation")
+
+    prepared_images = service.prepare_all(
+        attachments=(attachment,),
+        destination=PublishingDestination.FACEBOOK,
+        output_directory=output_directory,
+    )
+
+    assert len(prepared_images) == 1
+
+    prepared_path = prepared_images[0].path
+
+    assert prepared_path != reserved_path
+    assert prepared_path.is_file()
+    assert reserved_path.read_bytes() == b"Reserved by another operation"
+
+    with Image.open(prepared_path) as image:
+        assert image.format == "JPEG"
+        assert image.size == (800, 600)
+
+    service.cleanup(prepared_images)
+
+    assert not prepared_path.exists()
+    assert reserved_path.read_bytes() == b"Reserved by another operation"
+    assert source_path.is_file()
+
+
+def test_concurrent_preparation_uses_distinct_output_files(
+    tmp_path: Path,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    source_path = tmp_path / "source.png"
+    create_test_image(source_path, (800, 600))
+
+    attachment = ImageAttachment(path=source_path)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = ImagePreparationService(
+        profile_provider=profile_provider,
+    )
+
+    output_directory = tmp_path / "prepared"
+
+    def prepare_once() -> tuple[PreparedImage, ...]:
+        return service.prepare_all(
+            attachments=(attachment,),
+            destination=PublishingDestination.FACEBOOK,
+            output_directory=output_directory,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(prepare_once)
+            for _ in range(2)
+        ]
+
+        first_result = futures[0].result()
+        second_result = futures[1].result()
+
+    first_path = first_result[0].path
+    second_path = second_result[0].path
+
+    assert first_path != second_path
+    assert first_path.is_file()
+    assert second_path.is_file()
+
+    with Image.open(first_path) as first_image:
+        assert first_image.format == "JPEG"
+
+    with Image.open(second_path) as second_image:
+        assert second_image.format == "JPEG"
+
+    service.cleanup(first_result)
+    service.cleanup(second_result)
+
+    assert not first_path.exists()
+    assert not second_path.exists()
+    assert source_path.is_file()
+
+
+def test_cleanup_does_not_remove_another_preparation_result(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.png"
+    create_test_image(source_path, (800, 600))
+
+    attachment = ImageAttachment(path=source_path)
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = ImagePreparationService(
+        profile_provider=profile_provider,
+    )
+
+    output_directory = tmp_path / "prepared"
+
+    first_result = service.prepare_all(
+        attachments=(attachment,),
+        destination=PublishingDestination.FACEBOOK,
+        output_directory=output_directory,
+    )
+
+    second_result = service.prepare_all(
+        attachments=(attachment,),
+        destination=PublishingDestination.FACEBOOK,
+        output_directory=output_directory,
+    )
+
+    first_path = first_result[0].path
+    second_path = second_result[0].path
+
+    assert first_path != second_path
+    assert first_path.is_file()
+    assert second_path.is_file()
+
+    service.cleanup(first_result)
+
+    assert not first_path.exists()
+    assert second_path.is_file()
+
+    with Image.open(second_path) as image:
+        assert image.format == "JPEG"
+        assert image.size == (800, 600)
+
+    service.cleanup(second_result)
+
+    assert not second_path.exists()
+    assert source_path.is_file()
+
+
+def test_cleanup_continues_when_prepared_image_is_missing(
+    tmp_path: Path,
+) -> None:
+    first_source = tmp_path / "first.png"
+    second_source = tmp_path / "second.png"
+
+    create_test_image(first_source, (800, 600))
+    create_test_image(second_source, (800, 600))
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = ImagePreparationService(
+        profile_provider=profile_provider,
+    )
+
+    prepared_images = service.prepare_all(
+        attachments=(
+            ImageAttachment(path=first_source),
+            ImageAttachment(path=second_source),
+        ),
+        destination=PublishingDestination.FACEBOOK,
+        output_directory=tmp_path / "prepared",
+    )
+
+    first_path = prepared_images[0].path
+    second_path = prepared_images[1].path
+
+    assert first_path.is_file()
+    assert second_path.is_file()
+
+    first_path.unlink()
+
+    service.cleanup(prepared_images)
+
+    assert not first_path.exists()
+    assert not second_path.exists()
+
+    assert first_source.is_file()
+    assert second_source.is_file()
+
+
+def test_cleanup_reports_file_deletion_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source_path = tmp_path / "source.png"
+    create_test_image(source_path, (800, 600))
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    service = ImagePreparationService(
+        profile_provider=profile_provider,
+    )
+
+    prepared_images = service.prepare_all(
+        attachments=(ImageAttachment(path=source_path),),
+        destination=PublishingDestination.FACEBOOK,
+        output_directory=tmp_path / "prepared",
+    )
+
+    prepared_path = prepared_images[0].path
+
+    original_unlink = Path.unlink
+
+    def failing_unlink(
+        path: Path,
+        missing_ok: bool = False,
+    ) -> None:
+        if path == prepared_path:
+            raise PermissionError("Permission denied")
+
+        original_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+    import pytest
+
+    with pytest.raises(PermissionError, match="Permission denied"):
+        service.cleanup(prepared_images)
+
+    assert prepared_path.is_file()
+    assert source_path.is_file()

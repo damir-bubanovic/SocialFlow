@@ -55,6 +55,12 @@ from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.application.credentials.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
+from socialflow.infrastructure.wordpress.wordpress_publisher import (
+    WordPressPublisher,
+)
+from socialflow.infrastructure.wordpress.urllib_wordpress_post_client import (
+    UrllibWordPressPostClient,
+)
 
 
 class MainContent(QWidget):
@@ -114,12 +120,23 @@ class MainContent(QWidget):
         # Publishing services.
         publisher = UnconfiguredPublisher()
 
+        wordpress_post_client = UrllibWordPressPostClient()
+
         publisher_router = PublisherRouter(
-            {
+            publishers={
                 PublishingDestination.FACEBOOK: publisher,
                 PublishingDestination.INSTAGRAM: publisher,
                 PublishingDestination.WORDPRESS: publisher,
-            }
+            },
+            account_factories={
+                PublishingDestination.WORDPRESS: (
+                    lambda account: WordPressPublisher(
+                        account=account,
+                        credential_store=credential_store,
+                        post_client=wordpress_post_client,
+                    )
+                ),
+            },
         )
 
         # Image preparation services.

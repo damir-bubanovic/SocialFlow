@@ -10,3 +10,4 @@ class PublishResult:
     account: Account
     succeeded: bool
     error: Exception | None = None
+    cleanup_error: Exception | None = None
