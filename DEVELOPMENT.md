@@ -130,7 +130,7 @@ the project root:
 python -m pip install -e ".[dev]"
 ```
 
-The current runtime dependencies are PySide6 and Pillow. The current
+The current runtime dependencies are PySide6, Pillow, and keyring. The current
 development dependencies are pytest and pytest-qt. JSON account persistence
 uses Python's standard library and therefore adds no additional runtime
 dependency.
@@ -146,6 +146,8 @@ Current technologies:
 
 -   PySide6 / Qt 6 --- desktop user interface
 -   Pillow --- image processing
+-   keyring --- OS-backed WordPress application-password storage
+-   Python `urllib.request` --- WordPress HTTPS verification (standard library)
 -   pytest --- automated testing
 -   pytest-qt --- Qt testing where appropriate
 
@@ -623,7 +625,12 @@ distributable version.
 
 ## 28. Current Implementation Checkpoint
 
-The last reported green project checkpoint includes account CRUD/persistence, the
+The latest user-reported green project checkpoint includes WordPress connection
+configuration persistence, secure application-password storage and cleanup,
+authenticated REST API connection verification, background Qt verification, and
+responsive main-window shutdown, in addition to the earlier features.
+
+The earlier checkpoint includes account CRUD/persistence, the
 post editor, account-targeted publishing orchestration, image selection and
 preview, destination-specific image preparation with cleanup, the generic tag
 selection/retrieval/creation workflow, and local publication history with stable
@@ -633,7 +640,9 @@ successfully can produce local publication records; live adapters are absent.
 Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
 editor. Legacy history without IDs is migrated in place. The current full-suite
-baseline is **433 passing tests**.
+baseline was **433 passing tests** before WordPress connection work. The user
+reported a passing full suite after the asynchronous shutdown integration; the
+exact latest count is not recorded in the archive.
 
 Useful focused test commands include:
 
@@ -653,7 +662,8 @@ The application can be launched from the activated project environment with:
 python -m socialflow
 ```
 
-Live Facebook, Instagram, and WordPress integrations are not yet present. The
+Live Facebook/Instagram integrations and live WordPress publishing are not yet
+present. WordPress REST API *connection verification* is implemented. The
 current runtime composes `UnconfiguredPublisher` and `NullTagProvider`.
 Unconfigured publishing must fail visibly and must not be recorded as a
 successful publication. Platform API work should begin by implementing
@@ -677,13 +687,43 @@ python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tes
 python -m pytest -q
 ```
 
-The last reported full run passed **433 tests**. This is a development
-checkpoint, not evidence of live API publishing. Never substitute
+The user reported a passing full suite after WordPress connection verification
+and shutdown changes (exact latest count not recorded in the archive). This is
+not evidence of live API publishing. Never substitute
 `NullPublisher` in the production composition root to simulate success.
 
 ------------------------------------------------------------------------
 
-## 30. Keep This Document Practical
+## 30. WordPress Connection and Shutdown Regression Checks
+
+WordPress account configuration (`site_url`, `username`) is persisted in account
+JSON; application passwords are stored through the operating-system keyring.
+The current verifier uses HTTPS `urllib` and the WordPress REST API current-user
+endpoint. Its 10-second default socket timeout is not a guaranteed whole-request
+deadline. Live publishing is not implemented.
+
+Run focused tests after changing WordPress connection settings, credentials,
+verification, worker/controller signals, or shutdown:
+
+```bash
+python -m pytest tests/domain/connections -v
+python -m pytest tests/application/test_save_wordpress_credentials.py tests/application/test_delete_wordpress_credentials.py -v
+python -m pytest tests/infrastructure/wordpress -v
+python -m pytest tests/ui/test_account_form.py tests/ui/test_accounts_page.py -v
+python -m pytest tests/ui/test_wordpress_verification_worker.py tests/ui/test_wordpress_verification_controller.py -v
+python -m pytest tests/ui/test_main_content.py tests/ui/test_main_window.py -v
+python -m pytest -q
+git diff --check
+```
+
+The normal test suite uses fake or mocked HTTP and credential dependencies; it
+must not require a live WordPress site or real application passwords. On Linux
+and Windows, separately verify that the configured OS keyring backend works.
+Do not commit `AGENTS.md`, runtime credentials, or other local secrets.
+
+------------------------------------------------------------------------
+
+## 31. Keep This Document Practical
 
 `DEVELOPMENT.md` should describe commands and workflows that actually
 exist.

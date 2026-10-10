@@ -46,6 +46,7 @@ Current implemented dependencies:
 -   Pillow
 -   pytest
 -   pytest-qt
+-   keyring (OS-backed credential storage)
 
 SQLite/SQLAlchemy and HTTPX remain planned for the broader relational
 persistence and live platform-integration work.
@@ -84,10 +85,20 @@ are kept intact as one post per selected destination, without automatic
 translation or splitting; the manual publishing-language choice remains separate
 from detected content language. The current runtime uses `UnconfiguredPublisher` for all three destinations
 and `NullTagProvider` for tags. Unconfigured publish attempts report a failure
-and are not recorded as successful local publications. Live Facebook, Instagram,
-and WordPress API integrations and remote post updates have not yet been
-implemented. The last reported full-suite checkpoint is **433 passing tests**. Additional quality tooling will be introduced as
-development requires it.
+and are not recorded as successful local publications.
+
+WordPress connection setup and verification are implemented: the Accounts page
+collects an HTTPS site URL and username, stores the WordPress application
+password in the operating-system credential store, persists non-secret connection
+settings, and verifies credentials against the WordPress REST API. Verification
+runs in a background Qt thread; application shutdown waits asynchronously for
+active verification to finish. Live publishing, remote post retrieval, and remote
+post updates remain unimplemented for all destinations, including WordPress.
+
+The latest user-reported full test suite passed after implementing asynchronous
+WordPress connection verification and responsive shutdown. The archive does not
+include a recorded final test count. Additional quality tooling will be introduced
+as development requires it.
 
 ## Documentation
 

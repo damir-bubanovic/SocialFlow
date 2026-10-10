@@ -43,7 +43,7 @@ pass.
 -   [x] Implement the PySide6 / Qt desktop application foundation.
 -   [ ] Implement application configuration management.
 -   [x] Implement local account data storage using UTF-8 JSON in the platform-specific application data directory.
--   [ ] Implement secure storage for credentials and access tokens.
+-   [~] Implement secure storage for credentials and access tokens; WordPress application passwords use OS-backed keyring storage, while other platform credentials remain pending.
 -   [ ] Implement application logging.
 -   [x] Implement automated testing infrastructure.
 -   [ ] Implement development quality checks.
@@ -92,11 +92,15 @@ supported publishing platforms.
 
 ### WordPress
 
--   [ ] Connect SocialFlow to a WordPress website through the WordPress
-    REST API.
--   [ ] Configure the WordPress site connection.
--   [ ] Authenticate securely with the WordPress site.
--   [ ] Verify that the configured WordPress connection is working.
+-   [~] Integrate WordPress through its REST API; authenticated connection verification is implemented, but publishing and other content operations are pending.
+-   [x] Configure and persist the WordPress HTTPS site URL and username per account.
+-   [x] Store WordPress application passwords in the OS credential store, not account JSON.
+-   [x] Use stable account UUID-based credential keys and clean up secrets when accounts are removed or converted away from WordPress.
+-   [x] Verify WordPress credentials with the authenticated REST API user endpoint.
+-   [x] Report connected, invalid-credentials, unreachable, and error outcomes in the Accounts UI.
+-   [x] Run verification in a background Qt worker and prevent concurrent checks.
+-   [x] Defer main-window closing while verification runs and close automatically after thread cleanup.
+-   [ ] Publish, retrieve, or update WordPress content through live APIs.
 
 ------------------------------------------------------------------------
 
@@ -236,8 +240,8 @@ while respecting the capabilities of each destination platform.
 -   [ ] Record technical error information in application logs.
 -   [~] Distinguish unconfigured publishers explicitly; broader error
     categorization is pending.
--   [ ] Handle network and API failures.
--   [ ] Handle authentication failures.
+-   [~] Handle network and API failures; WordPress connection verification categorizes unreachable/error responses, while other operations remain pending.
+-   [~] Handle authentication failures; WordPress connection verification reports invalid or missing credentials, while other platforms remain pending.
 -   [ ] Handle platform rate limits where applicable.
 -   [ ] Avoid exposing passwords, API secrets, access tokens, or other
     sensitive credentials in user-visible errors or logs.
@@ -297,7 +301,7 @@ No feature should be marked complete until its relevant tests pass.
 
 -   [ ] Never store passwords or API secrets directly in source code.
 -   [ ] Never commit credentials or access tokens to Git.
--   [ ] Store sensitive credentials securely.
+-   [~] Store sensitive credentials securely; WordPress application passwords use OS keyring, other platforms pending.
 -   [ ] Protect locally stored authentication information.
 -   [ ] Avoid sensitive information in logs.
 -   [ ] Avoid sensitive information in error-report emails.
@@ -373,8 +377,10 @@ Before SocialFlow is considered ready for a production release:
 -   [ ] Implement authenticated live publisher adapters for Facebook, Instagram,
     and WordPress, with mocked API tests before live testing.
 
-**Latest reported test checkpoint:** 433 passing tests. These tests do not
-constitute live external API verification.
+**Latest reported test checkpoint:** the full suite passed after the
+asynchronous WordPress verification and shutdown work (exact count not recorded
+in this archive). Automated HTTP tests use isolated clients/mocks; passing tests
+do not constitute verification against a live WordPress website.
 
 ------------------------------------------------------------------------
 

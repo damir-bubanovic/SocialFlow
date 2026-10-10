@@ -1227,6 +1227,102 @@ error reason beside the affected account in `PublishStatus`.
 
 ------------------------------------------------------------------------
 
+## ADR-045 --- Store WordPress Application Passwords in the OS Keyring
+
+**Status:** Accepted and implemented
+
+### Decision
+
+Use the `CredentialStore` contract and `KeyringCredentialStore` implementation
+for WordPress application passwords. Derive credential keys from stable account
+UUIDs. Save or delete credentials through application services, including
+cleanup after account removal or conversion away from WordPress.
+
+### Context
+
+Account JSON must not contain application passwords. Credentials need a
+platform-appropriate secure store and predictable cleanup behavior.
+
+### Consequences
+
+WordPress passwords remain separate from account persistence. Keyring failures
+are translated into credential-storage errors; Linux and Windows keyring
+backends require platform-specific verification before release.
+
+------------------------------------------------------------------------
+
+## ADR-046 --- Persist WordPress Connection Metadata Separately from Secrets
+
+**Status:** Accepted and implemented
+
+### Decision
+
+Store normalized `WordPressConnectionConfig` (HTTPS site URL and username) on
+`Account` and serialize it with the account record. Preserve existing account
+UUIDs on update, and support legacy records without WordPress configuration.
+
+### Context
+
+Connection verification must work with saved accounts after application restart
+without persisting their application passwords in JSON.
+
+### Consequences
+
+The account serializer remains backward compatible and non-secret connection
+metadata is available to the verification service.
+
+------------------------------------------------------------------------
+
+## ADR-047 --- Verify WordPress Connections Through a Dedicated HTTPS Adapter
+
+**Status:** Accepted and implemented
+
+### Decision
+
+Keep connection verification behind `ConnectionVerifier` and `WordPressHttpClient`
+contracts. The current production adapter uses standard-library `urllib`, HTTPS
+certificate validation, a non-redirecting handler, and the WordPress REST API
+current-user endpoint. Return typed `ConnectionResult` statuses.
+
+### Context
+
+Connection verification must not be coupled to Qt widgets or imply successful
+remote publishing. It needs testable HTTP behavior and safe credential handling.
+
+### Consequences
+
+The verifier can be tested with fake credential storage and HTTP clients.
+`urllib` is an implemented exception to the earlier preference for HTTPX
+(ADR-008); HTTPX remains a future integration preference, not a current
+runtime dependency. HTTP timeouts are not guaranteed end-to-end deadlines.
+
+------------------------------------------------------------------------
+
+## ADR-048 --- Run WordPress Verification in a Qt Worker with Deferred Shutdown
+
+**Status:** Accepted and implemented
+
+### Decision
+
+Run connection verification in a `QObject` worker moved to `QThread`, managed by
+`WordPressVerificationController`. Forward outcomes through Qt signals, reject
+concurrent starts, and defer main-window closing while verification is active.
+Complete closing after thread cleanup rather than blocking the GUI close event.
+
+### Context
+
+HTTPS requests can take time, and destroying a running Qt thread can crash the
+application. Verification should not block normal interaction or shutdown UI.
+
+### Consequences
+
+`AccountsPage` exposes public verification state and completion signals, while
+`MainWindow` coordinates deferred closing. Active network requests are not
+forcibly cancelled; the direct page shutdown path may still wait synchronously.
+Regression tests cover worker outcomes, thread cleanup, and window closing.
+
+------------------------------------------------------------------------
+
 ## Decision Maintenance
 
 When a significant technical decision is proposed:

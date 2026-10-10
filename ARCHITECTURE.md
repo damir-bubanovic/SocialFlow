@@ -56,7 +56,8 @@ spreading storage-specific logic throughout the UI or application services.
 
 ### HTTP Communication
 
--   HTTPX (planned; not yet a project dependency)
+-   `urllib.request` with an HTTPS-only client (implemented for WordPress connection verification)
+-   HTTPX (preferred for future integrations; not yet a project dependency)
 
 External API communication should be performed through dedicated
 integration services.
@@ -324,11 +325,19 @@ before implementation.
 
 WordPress communication will use the WordPress REST API.
 
-The WordPress integration will eventually be responsible for supported
+The implemented WordPress connection path uses `WordPressConnectionConfig`
+(site URL and username) on `Account`, serialized to UTF-8 JSON without secrets.
+`SaveWordPressCredentials` and `DeleteWordPressCredentials` use the
+`CredentialStore` contract and `KeyringCredentialStore` implementation, keyed by
+stable account UUID. `WordPressConnectionVerifier` retrieves the password and
+uses `WordPressHttpClient` / `UrllibWordPressHttpClient` to call the authenticated
+`/wp-json/wp/v2/users/me` endpoint. HTTPS and certificate verification are
+required; redirects are not followed with authentication headers. Verification
+returns a typed `ConnectionResult` and does not publish content.
+
+The WordPress integration will eventually be responsible for additional supported
 operations such as:
 
--   site authentication;
--   connection verification;
 -   retrieving posts;
 -   creating posts;
 -   updating posts;
@@ -477,6 +486,12 @@ Rules:
     practical.
 6.  Development secrets must remain outside tracked source files.
 
+Implemented: WordPress application passwords are saved and deleted via
+`KeyringCredentialStore` (the `keyring` dependency), while WordPress site URL
+and username are persisted as non-secret account configuration. Keyring access
+failures are translated into `CredentialStorageError`; the UI displays a generic
+message rather than the underlying secret-storage exception.
+
 ------------------------------------------------------------------------
 
 ## 16. Configuration
@@ -565,8 +580,15 @@ necessary.
 
 UI updates must remain safe with respect to Qt's threading rules.
 
-The exact concurrency mechanism will be selected when background
-processing is implemented.
+WordPress verification currently uses `WordPressVerificationWorker` moved to a
+`QThread`, with `WordPressVerificationController` owning thread lifecycle and
+forwarding result/error/completion signals. The Accounts page disables repeated
+verification while a worker is active. `MainWindow.closeEvent()` defers closure
+without blocking the UI and retries after verification completes and the thread
+is cleaned up. Direct `AccountsPage.shutdown()` waits for an active worker when
+the page itself is closed. The underlying `urllib` socket timeout defaults to
+10 seconds, but is not a guaranteed total-request deadline; active requests
+are not forcibly cancelled. Other background work remains to be designed.
 
 ------------------------------------------------------------------------
 
@@ -798,24 +820,36 @@ layers. The important current structure is:
 src/socialflow/
 ├── application/
 │   ├── accounts/       # repository contract + add/list/update/remove services
+│   ├── connections/    # connection verifier contract
+│   ├── credentials/    # credential storage contract + save/delete services
 │   ├── images/         # validation, profiles, processing, preparation, cleanup
 │   ├── publishing/     # prepared posts, router, publishers, PublishPost
 │   └── tags/           # TagProvider, ListTags, CreateTag, NullTagProvider
 ├── domain/
-│   ├── account/        # Account
+│   ├── account/        # Account + stable AccountId
+│   ├── connections/    # WordPressConnectionConfig, ConnectionResult/Status
 │   ├── language/       # Language
 │   ├── post/           # Post, ImageAttachment, Tag
 │   └── publishing/     # PublishingDestination + PublishRequest
 ├── infrastructure/
 │   ├── accounts/       # JSON repository, serializer, storage errors
+│   ├── credentials/    # keyring credential storage
+│   ├── wordpress/      # HTTPS REST client and connection verifier
 │   └── storage/        # cross-platform data paths + prepared-image path
 └── ui/
-    ├── accounts/       # account form/list/status/page
+    ├── accounts/       # account form/list/status/page, verification worker/controller
     └── posts/          # editor, destinations, images, tags, language, status
 ```
 
 Current responsibility boundaries include:
 
+-   `MainContent` constructs the shared keyring-backed WordPress credential
+    services and verifier, injecting them into `AccountsPage`.
+-   `Account.wordpress_config` persists a normalized HTTPS site URL and username;
+    application passwords are stored separately in the OS keyring.
+-   WordPress verification is asynchronous and uses Qt signals for UI results
+    and deferred main-window shutdown. This is connection verification, not
+    remote WordPress publishing.
 -   `MainContent` is the composition root for account services, publishing,
     image preparation, and the current null tag provider.
 -   `Post` contains text, language, source `ImageAttachment` values, and `Tag`
@@ -995,9 +1029,12 @@ displays the account, outcome, and available error reason. The UI-to-repository
 failure path has regression coverage.
 
 `NullPublisher` remains present but is **not** used for runtime external
-publishing. Real platform adapters, credentials, network communication, and
-remote identifiers are future work. Current successful publishing tests use
+publishing. Live platform publishing adapters and remote identifiers are future work.
+WordPress credentials and HTTPS connection verification are implemented, but
+not WordPress publishing. Current successful publishing tests use
 test publishers; they do not establish live platform connectivity.
 
-**Verification checkpoint:** 433 passing automated tests reported for the
-latest snapshot; no live platform API tests have been completed.
+**Verification checkpoint:** the user reported a passing full suite after
+asynchronous WordPress verification and responsive shutdown (exact latest count
+not recorded in the archive). Automated connection tests do not establish
+verification against a live WordPress website or live publishing.
