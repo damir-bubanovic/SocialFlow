@@ -34,7 +34,7 @@ from socialflow.infrastructure.publishing.in_memory_publication_repository impor
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.ui.posts.publish_status import PublishStatus
-from socialflow.domain.post.image_attachment import ImageAttachment
+from threading import Event
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -68,16 +68,16 @@ class RecordingPublisher(Publisher):
 
 
 class PublishButtonStateRecordingPublisher(Publisher):
-    """Publisher that records the publish button state during publishing."""
+    """Publisher that pauses until the test releases it."""
 
     def __init__(self) -> None:
-        self.publish_button = None
-        self.button_was_enabled_during_publish: bool | None = None
+        self.started = Event()
+        self.release = Event()
 
     def publish(self, post: PreparedPost) -> None:
-        self.button_was_enabled_during_publish = (
-            self.publish_button.isEnabled()
-        )
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise PublishingError("Test publisher timed out.")
 
 
 class FailingPublisher(Publisher):
@@ -325,7 +325,11 @@ def test_posts_page_delegates_publish_request(qtbot) -> None:
     page.post_editor.destination_selector._checkboxes[0].setChecked(
         True
     )
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert len(publisher.published_posts) == 1
     assert (
@@ -344,7 +348,11 @@ def test_posts_page_shows_status_after_publish(qtbot) -> None:
     page.post_editor.destination_selector._checkboxes[0].setChecked(
         True
     )
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert page.publish_status.text() == "Main Facebook — Published"
     assert page.publish_status.property("status") == "success"
@@ -386,7 +394,11 @@ def test_posts_page_shows_error_when_publish_fails(qtbot) -> None:
     page.post_editor.destination_selector._checkboxes[0].setChecked(
         True
     )
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert page.publish_status.text() == (
         "Main Facebook — Failed: Publishing failed."
@@ -444,7 +456,11 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
     ):
         checkbox.setChecked(True)
 
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert page.publish_status.text() == (
         "Main Facebook — Failed: Publishing failed.\n"
@@ -496,7 +512,11 @@ def test_posts_page_reenables_publish_button_after_publish(
         True
     )
 
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert page.post_editor.publish_button.isEnabled()
 
@@ -540,7 +560,11 @@ def test_posts_page_reenables_publish_button_after_failure(
         True
     )
 
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert page.post_editor.publish_button.isEnabled()
 
@@ -577,8 +601,6 @@ def test_posts_page_disables_publish_button_during_publish(
     )
     qtbot.addWidget(page)
 
-    publisher.publish_button = page.post_editor.publish_button
-
     page.post_editor.text_editor.setPlainText(
         "Hello from SocialFlow"
     )
@@ -586,9 +608,23 @@ def test_posts_page_disables_publish_button_during_publish(
         True
     )
 
-    page.post_editor.publish_button.click()
+    try:
+        with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+        ):
+            page.post_editor.publish_button.click()
 
-    assert publisher.button_was_enabled_during_publish is False
+            assert publisher.started.wait(timeout=2)
+            assert page.publishing_is_running
+            assert not page.post_editor.publish_button.isEnabled()
+
+            publisher.release.set()
+    finally:
+        publisher.release.set()
+        page.shutdown()
+
+    assert not page.publishing_is_running
     assert page.post_editor.publish_button.isEnabled()
 
 
@@ -1007,7 +1043,11 @@ def test_posts_page_refreshes_history_after_successful_publish(
 
     assert page.recent_posts_panel.recent_posts_list.count() == 0
 
-    page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+    ):
+        page.post_editor.publish_button.click()
 
     assert page.recent_posts_panel.recent_posts_list.count() == 1
     assert (

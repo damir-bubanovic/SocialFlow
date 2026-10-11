@@ -26,23 +26,38 @@ class MainWindow(QMainWindow):
         self.main_content.accounts_page.verification_finished.connect(
             self._finish_pending_close
         )
+        self.main_content.posts_page.publishing_finished.connect(
+            self._finish_pending_close
+        )
+
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Defer closing until active WordPress verification finishes."""
+        """Defer closing until background operations finish."""
         accounts_page = self.main_content.accounts_page
+        posts_page = self.main_content.posts_page
 
-        if accounts_page.verification_is_running:
+        if (
+            accounts_page.verification_is_running
+            or posts_page.publishing_is_running
+        ):
             self._close_pending = True
             event.ignore()
             return
 
         self._close_pending = False
         accounts_page.shutdown()
+        posts_page.shutdown()
         super().closeEvent(event)
 
     def _finish_pending_close(self) -> None:
-        """Close the window after background verification finishes."""
+        """Close when all background operations have finished."""
         if not self._close_pending:
+            return
+
+        if (
+            self.main_content.accounts_page.verification_is_running
+            or self.main_content.posts_page.publishing_is_running
+        ):
             return
 
         self.close()

@@ -1,7 +1,7 @@
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.list_accounts import ListAccounts
-from socialflow.application.publishing.errors import PublishingError
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
@@ -14,10 +14,13 @@ from socialflow.domain.publishing.publication import Publication
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_status import PublishStatus
 from socialflow.ui.posts.recent_posts_panel import RecentPostsPanel
+from socialflow.ui.posts.publishing_controller import PublishingController
+from socialflow.application.publishing.publish_result import PublishResult
 
 
 class PostsPage(QWidget):
     """Page for composing and publishing posts."""
+    publishing_finished = Signal()
 
     def __init__(
         self,
@@ -30,7 +33,23 @@ class PostsPage(QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self._publish_post = publish_post
+        self._publishing_controller = PublishingController(
+            publish_post,
+            self,
+        )
+        self._publishing_controller.result_ready.connect(
+            self._on_publish_results
+        )
+        self._publishing_controller.error_occurred.connect(
+            self._on_publish_error
+        )
+        self._publishing_controller.finished.connect(
+            self._on_publishing_finished
+        )
+        self._publishing_controller.finished.connect(
+            self.publishing_finished.emit
+        )
+
         self._list_accounts = list_accounts
         self._list_tags = list_tags
         self._create_tag = create_tag
@@ -128,19 +147,41 @@ class PostsPage(QWidget):
         """Load a historical publication into the post editor."""
         self.post_editor.load_post(publication.post)
 
+
+    @property
+    def publishing_is_running(self) -> bool:
+        """Report whether background publishing is active."""
+        return self._publishing_controller.is_running
+
     def _handle_publish_request(
         self,
         request: PublishRequest,
     ) -> None:
-        """Publish a request created by the post editor."""
-        self.post_editor.publish_button.setEnabled(False)
+        """Start publishing without blocking the UI."""
+        if self._publishing_controller.is_running:
+            return
 
-        try:
-            results = self._publish_post.execute(request)
-        except PublishingError:
-            self.publish_status.show_error()
-        else:
-            self.publish_status.show_results(results)
-            self._refresh_recent_posts()
-        finally:
-            self.post_editor.publish_button.setEnabled(True)
+        self.post_editor.publish_button.setEnabled(False)
+        self.publish_status.setText("Publishing...")
+
+        self._publishing_controller.start(request)
+
+    def _on_publish_results(
+            self,
+            results: tuple[PublishResult, ...],
+    ) -> None:
+        """Display publishing results and refresh history."""
+        self.publish_status.show_results(results)
+        self._refresh_recent_posts()
+
+    def _on_publish_error(self, _message: str) -> None:
+        """Display a publishing failure."""
+        self.publish_status.show_error()
+
+    def _on_publishing_finished(self) -> None:
+        """Restore publishing controls after thread cleanup."""
+        self.post_editor.publish_button.setEnabled(True)
+
+    def shutdown(self) -> None:
+        """Wait for active publishing to finish."""
+        self._publishing_controller.shutdown()

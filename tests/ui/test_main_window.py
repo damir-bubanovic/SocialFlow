@@ -169,3 +169,112 @@ def test_main_window_closes_after_active_verification_finishes(
     finally:
         release.set()
         controller.shutdown()
+
+
+def test_main_window_defers_close_until_publishing_finishes(
+    qtbot,
+) -> None:
+    """Keep the window open until publishing finishes."""
+    from unittest.mock import PropertyMock, patch
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    posts_page = window.main_content.posts_page
+
+    with patch.object(
+        type(posts_page),
+        "publishing_is_running",
+        new_callable=PropertyMock,
+    ) as is_running:
+        is_running.return_value = True
+
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        is_running.return_value = False
+
+        posts_page.publishing_finished.emit()
+
+        qtbot.waitUntil(
+            lambda: not window.isVisible(),
+            timeout=3000,
+        )
+
+    assert not window._close_pending
+
+
+def test_main_window_closes_after_active_publishing_finishes(
+    qtbot,
+) -> None:
+    """Keep the window open until a real publishing worker finishes."""
+    from threading import Event
+    from unittest.mock import Mock
+
+    from socialflow.application.publishing.publish_post import PublishPost
+    from socialflow.domain.publishing.publish_request import PublishRequest
+    from socialflow.ui.posts.publishing_controller import PublishingController
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    posts_page = window.main_content.posts_page
+
+    started = Event()
+    release = Event()
+
+    publish_post = Mock(spec=PublishPost)
+
+    def execute(_request):
+        started.set()
+
+        if not release.wait(timeout=5):
+            return ()
+
+        return ()
+
+    publish_post.execute.side_effect = execute
+
+    controller = PublishingController(
+        publish_post,
+        parent=posts_page,
+    )
+    posts_page._publishing_controller = controller
+
+    controller.finished.connect(
+        posts_page.publishing_finished.emit
+    )
+
+    request = PublishRequest(
+        post=Mock(),
+        accounts=(),
+    )
+
+    try:
+        controller.start(request)
+
+        assert started.wait(timeout=2)
+        assert posts_page.publishing_is_running
+
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        release.set()
+
+        qtbot.waitUntil(
+            lambda: not window.isVisible(),
+            timeout=5000,
+        )
+
+        assert not posts_page.publishing_is_running
+        publish_post.execute.assert_called_once_with(request)
+
+    finally:
+        release.set()
+        controller.shutdown()

@@ -200,7 +200,11 @@ def test_main_content_does_not_persist_unconfigured_publication(
         0
     ].setChecked(True)
 
-    content.posts_page.post_editor.publish_button.click()
+    with qtbot.waitSignal(
+            content.posts_page.publishing_finished,
+            timeout=5000,
+    ):
+        content.posts_page.post_editor.publish_button.click()
 
     publication_repository = JsonPublicationRepository(
         paths.publications_file
@@ -238,7 +242,11 @@ def test_main_content_displays_unconfigured_publishing_error(
 
     editor.destination_selector._checkboxes[0].setChecked(True)
 
-    editor.publish_button.click()
+    with qtbot.waitSignal(
+            content.posts_page.publishing_finished,
+            timeout=5000,
+    ):
+        editor.publish_button.click()
 
     assert content.posts_page.publish_status.text() == (
         "Main Facebook — Failed: "
