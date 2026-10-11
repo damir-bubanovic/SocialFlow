@@ -639,10 +639,8 @@ indicators, and publishing failure reporting. Only publishers that return
 successfully can produce local publication records; live adapters are absent.
 Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
-editor. Legacy history without IDs is migrated in place. The current full-suite
-baseline was **433 passing tests** before WordPress connection work. The user
-reported a passing full suite after the asynchronous shutdown integration; the
-exact latest count is not recorded in the archive.
+editor. Legacy history without IDs is migrated in place. The developer reported **662 passing tests** after WordPress post/media
+publishing and image cleanup regression work. This is not a live API test.
 
 Useful focused test commands include:
 
@@ -662,11 +660,12 @@ The application can be launched from the activated project environment with:
 python -m socialflow
 ```
 
-Live Facebook/Instagram integrations and live WordPress publishing are not yet
-present. WordPress REST API *connection verification* is implemented. The
-current runtime composes `UnconfiguredPublisher` and `NullTagProvider`.
-Unconfigured publishing must fail visibly and must not be recorded as a
-successful publication. Platform API work should begin by implementing
+Live Facebook/Instagram integrations and live WordPress verification against
+a real site remain outstanding. WordPress REST API connection verification and
+text/image publishing are implemented. The current runtime composes
+`WordPressPublisher` for WordPress accounts, `UnconfiguredPublisher` for
+Facebook/Instagram, and `NullTagProvider` for tags. Unconfigured publishing
+must fail visibly and must not be recorded as a successful publication. Platform API work should begin by implementing
 adapters behind the existing application contracts rather than placing API
 logic in UI classes. Local publication history
 must not be described as remote synchronization: remote recent-post retrieval,
@@ -687,9 +686,9 @@ python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tes
 python -m pytest -q
 ```
 
-The user reported a passing full suite after WordPress connection verification
-and shutdown changes (exact latest count not recorded in the archive). This is
-not evidence of live API publishing. Never substitute
+The developer reported 662 passing tests after WordPress publishing and media
+cleanup changes. This is not evidence of successful publishing against a live
+WordPress server. Never substitute
 `NullPublisher` in the production composition root to simulate success.
 
 ------------------------------------------------------------------------
@@ -700,7 +699,7 @@ WordPress account configuration (`site_url`, `username`) is persisted in account
 JSON; application passwords are stored through the operating-system keyring.
 The current verifier uses HTTPS `urllib` and the WordPress REST API current-user
 endpoint. Its 10-second default socket timeout is not a guaranteed whole-request
-deadline. Live publishing is not implemented.
+deadline. WordPress text/image publishing is implemented through a separate REST client and publisher; live-server validation remains pending.
 
 Run focused tests after changing WordPress connection settings, credentials,
 verification, worker/controller signals, or shutdown:
@@ -720,6 +719,44 @@ The normal test suite uses fake or mocked HTTP and credential dependencies; it
 must not require a live WordPress site or real application passwords. On Linux
 and Windows, separately verify that the configured OS keyring backend works.
 Do not commit `AGENTS.md`, runtime credentials, or other local secrets.
+
+------------------------------------------------------------------------
+
+## 30A. WordPress Publishing and Media Cleanup Regression Checks
+
+The production composition root (`src/socialflow/ui/main_content.py`) routes
+WordPress accounts to `WordPressPublisher` with `UrllibWordPressPostClient` and
+the shared OS keyring store. Facebook and Instagram still use
+`UnconfiguredPublisher`. WordPress post creation supports text and prepared
+images; media uploads generate Gutenberg image blocks. WordPress tags, remote
+post retrieval, and remote post editing are not yet implemented.
+
+After changing WordPress publishing, media handling, image preparation, or
+publisher routing, run:
+
+```bash
+python -m pytest -q tests/infrastructure/wordpress/
+python -m pytest -q tests/application/test_image_preparation_service.py
+python -m pytest -q tests/application/test_publish_post.py
+python -m pytest -q tests/ui/test_main_content.py
+python -m pytest -q
+git diff --check
+```
+
+Regression coverage includes preserving the original image-processing error
+when partial-file deletion fails, continuing cleanup of remaining files,
+reverse-order deletion of previously uploaded WordPress media on upload failure,
+and logging media deletion failures. Post-creation failures do not trigger media
+rollback. Do not use real credentials or a live WordPress site in the normal
+pytest suite; live integration testing is a separate manual/controlled step.
+
+**Latest user-reported full-suite checkpoint:** 662 tests passed. This count
+comes from the developer's test run, not from running pytest while updating
+these documentation files.
+
+WordPress publishing is currently invoked synchronously from the Posts page.
+Avoid claiming it is a background operation; only connection verification has
+the current dedicated Qt worker/controller lifecycle.
 
 ------------------------------------------------------------------------
 

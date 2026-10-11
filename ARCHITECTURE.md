@@ -323,28 +323,43 @@ before implementation.
 
 ## 11. WordPress Integration
 
-WordPress communication will use the WordPress REST API.
+WordPress uses the authenticated HTTPS REST API through separate, testable
+connection-verification and publishing adapters.
 
-The implemented WordPress connection path uses `WordPressConnectionConfig`
-(site URL and username) on `Account`, serialized to UTF-8 JSON without secrets.
-`SaveWordPressCredentials` and `DeleteWordPressCredentials` use the
-`CredentialStore` contract and `KeyringCredentialStore` implementation, keyed by
-stable account UUID. `WordPressConnectionVerifier` retrieves the password and
-uses `WordPressHttpClient` / `UrllibWordPressHttpClient` to call the authenticated
-`/wp-json/wp/v2/users/me` endpoint. HTTPS and certificate verification are
-required; redirects are not followed with authentication headers. Verification
-returns a typed `ConnectionResult` and does not publish content.
+`WordPressConnectionConfig` holds a normalized site URL and username on the
+`Account` domain model. The OS-backed `KeyringCredentialStore` stores application
+passwords under stable account-UUID-based keys. `SaveWordPressCredentials` and
+`DeleteWordPressCredentials` manage credential lifecycle without writing secrets
+to account JSON.
 
-The WordPress integration will eventually be responsible for additional supported
-operations such as:
+`WordPressConnectionVerifier` uses the `WordPressHttpClient` contract and
+`UrllibWordPressHttpClient` to request `/wp-json/wp/v2/users/me`. The
+`WordPressVerificationWorker` / `WordPressVerificationController` handle this
+verification asynchronously, with safe deferred main-window shutdown.
 
--   retrieving posts;
--   creating posts;
--   updating posts;
--   uploading media;
--   retrieving tags;
--   creating tags;
--   assigning tags and other supported metadata.
+**Publishing is implemented and connected to the UI composition root.**
+`MainContent` configures `PublisherRouter.account_factories` so WordPress
+accounts create `WordPressPublisher(account, credential_store, post_client)`.
+`UrllibWordPressPostClient` implements `WordPressPostClient` using authenticated
+HTTPS REST requests:
+
+- `POST /wp-json/wp/v2/posts` creates a published text/HTML post and returns its HTTP status.
+- `POST /wp-json/wp/v2/media` uploads prepared image bytes and returns validated `WordPressMedia(media_id, source_url)`.
+- `DELETE /wp-json/wp/v2/media/{id}?force=true` permanently deletes media for best-effort upload rollback.
+
+`WordPressPublisher` validates configuration, credentials, text, and prepared
+image state. It rejects WordPress tags until that feature exists. For each
+uploaded image, it HTML-escapes the returned URL and appends a Gutenberg
+`wp:image` block to the post content. A successful post creation requires HTTP
+201. An upload failure triggers reverse-order best-effort deletion of previously
+uploaded media; deletion errors are logged, and the original upload exception
+is re-raised. A post-creation failure does **not** delete successfully uploaded
+media, so orphan media may require later cleanup.
+
+The `urllib` clients use HTTPS certificate verification and disallow redirect
+following with authorization credentials. Live publishing against a real
+WordPress server has not yet been verified. Retrieval, remote updates, and
+WordPress tag operations are not implemented.
 
 ------------------------------------------------------------------------
 
@@ -834,7 +849,7 @@ src/socialflow/
 ├── infrastructure/
 │   ├── accounts/       # JSON repository, serializer, storage errors
 │   ├── credentials/    # keyring credential storage
-│   ├── wordpress/      # HTTPS REST client and connection verifier
+│   ├── wordpress/      # HTTPS REST verification, post/media client and publisher
 │   └── storage/        # cross-platform data paths + prepared-image path
 └── ui/
     ├── accounts/       # account form/list/status/page, verification worker/controller
@@ -847,9 +862,7 @@ Current responsibility boundaries include:
     services and verifier, injecting them into `AccountsPage`.
 -   `Account.wordpress_config` persists a normalized HTTPS site URL and username;
     application passwords are stored separately in the OS keyring.
--   WordPress verification is asynchronous and uses Qt signals for UI results
-    and deferred main-window shutdown. This is connection verification, not
-    remote WordPress publishing.
+-   WordPress connection verification is asynchronous and uses Qt signals for UI results and deferred main-window shutdown. WordPress publishing is separately implemented through an account-aware publisher factory.
 -   `MainContent` is the composition root for account services, publishing,
     image preparation, and the current null tag provider.
 -   `Post` contains text, language, source `ImageAttachment` values, and `Tag`
@@ -875,10 +888,10 @@ Current responsibility boundaries include:
 -   Account CRUD remains isolated behind `AccountRepository`;
     `JsonAccountRepository` persists UTF-8 account data and account changes are
     propagated to the Posts page with Qt signals.
--   `MainContent` registers `UnconfiguredPublisher` for Facebook, Instagram,
-    and WordPress. It raises `PublisherNotConfiguredError` rather than claiming
-    external delivery. `NullPublisher` remains available as a test/no-op utility.
-    Live authentication and API publishing are not implemented.
+-   `MainContent` registers `UnconfiguredPublisher` for Facebook and Instagram;
+    WordPress uses an account-aware `WordPressPublisher` backed by an authenticated
+    REST client. `NullPublisher` remains a test/no-op utility. Live WordPress
+    server verification and Facebook/Instagram API publishing remain pending.
 -   Manual Croatian/English publishing-language selection remains independent
     of automatic rule-based detection. `LanguageDetector`,
     `ParagraphLanguageDetector`, and `PostLanguageClassifier` support English,
@@ -989,6 +1002,31 @@ implementation details.
 
 ------------------------------------------------------------------------
 
+## 29A. WordPress Publishing and Image Cleanup (Implemented)
+
+The composition root wires `UrllibWordPressPostClient` and the shared credential
+store into `WordPressPublisher` for WordPress accounts. Facebook and Instagram
+continue to resolve to `UnconfiguredPublisher`. `PublishPost` prepares images per
+account and destination, dispatches the publisher, records local success only
+after publisher return, and reports independent account results.
+
+`ImagePreparationService.prepare_all()` reserves destination-specific output
+filenames with exclusive creation and UUID suffixes on collisions. If processing
+fails, it attempts to unlink every reserved output path. An `OSError` during
+partial cleanup is logged and does not replace the original processing error;
+cleanup continues to subsequent files. Normal post-publish cleanup is performed
+by `PublishPost`, with cleanup errors reported separately in `PublishResult`.
+
+The Posts page invokes publishing synchronously at present. The background
+verification worker does not make publishing asynchronous; publishing and media
+uploads should move to a Qt-safe worker before production use to avoid UI stalls.
+
+Automated tests cover WordPress post/media requests, publisher validation,
+Gutenberg content, upload rollback, and cleanup failures. Live server tests
+remain outstanding.
+
+------------------------------------------------------------------------
+
 ## 30. Architecture Evolution
 
 This architecture is expected to evolve as SocialFlow is implemented.
@@ -1010,31 +1048,13 @@ Changes should follow these rules:
 
 ## 31. Language Classification and Publishing Safety (Implemented)
 
-`application/language/` contains the rule-based `LanguageDetector`,
-`ParagraphLanguageDetector`, and `PostLanguageClassifier`. The post-level
-classification is English, Croatian, mixed, or unknown. `PostEditor` connects
-these services to `ParagraphLanguageHighlighter` and
-`ContentLanguageIndicator`. Detected language is advisory; the manually chosen
-`Post.language` remains the publishing-language field. Mixed-language posts
-are passed unchanged as one post per selected account. The application does
-not split, duplicate, or translate the text.
+Paragraph-level classification distinguishes Croatian, English, mixed, and
+unknown content without changing the manual publishing language or splitting
+posts. UI indicators provide explicit labels as well as visual cues.
 
-`Publisher` is the application contract and `PublisherRouter` maps platform
-destinations to implementations. `MainContent` currently maps Facebook,
-Instagram, and WordPress to `UnconfiguredPublisher`, which raises
-`PublisherNotConfiguredError`. `PublishPost` converts publisher exceptions into
-per-account failed `PublishResult` values. It records local publication history
-only after a publisher returns successfully. `PublishStatus.show_results()`
-displays the account, outcome, and available error reason. The UI-to-repository
-failure path has regression coverage.
-
-`NullPublisher` remains present but is **not** used for runtime external
-publishing. Live platform publishing adapters and remote identifiers are future work.
-WordPress credentials and HTTPS connection verification are implemented, but
-not WordPress publishing. Current successful publishing tests use
-test publishers; they do not establish live platform connectivity.
-
-**Verification checkpoint:** the user reported a passing full suite after
-asynchronous WordPress verification and responsive shutdown (exact latest count
-not recorded in the archive). Automated connection tests do not establish
-verification against a live WordPress website or live publishing.
+Unconfigured Facebook and Instagram publishers fail explicitly, while WordPress
+uses an account-specific REST publisher for text and prepared-image posts.
+Successful publisher returns may be persisted to local history; remote post
+identifiers, remote editing, and publication-history image/tag serialization
+remain pending. The developer reported 662 passing automated tests for the
+current project snapshot. This does not replace live WordPress API verification.

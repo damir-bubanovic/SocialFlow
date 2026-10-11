@@ -48,57 +48,60 @@ Current implemented dependencies:
 -   pytest-qt
 -   keyring (OS-backed credential storage)
 
-SQLite/SQLAlchemy and HTTPX remain planned for the broader relational
-persistence and live platform-integration work.
+SQLite/SQLAlchemy and HTTPX are architectural preferences for future work,
+not current runtime dependencies. WordPress REST communication currently uses
+Python standard-library `urllib` over HTTPS.
 
 ## Development Status
 
-SocialFlow is currently under active development.
+SocialFlow is under active development. The current Python/PySide6 desktop
+application has Posts and Accounts pages, persistent local accounts and
+publication history, a common post editor, Croatian/English paragraph-language
+indicators, destination selection, image attachment/preview/preparation, and
+application-level tag selection services.
 
-The Python/PySide6 application foundation and the local publishing-history
-workflow are implemented. SocialFlow currently provides `Posts` and `Accounts`
-navigation, local account add/list/update/remove workflows, UTF-8 JSON
-persistence for configured accounts, manual Croatian/English publishing-language
-selection, automatic rule-based paragraph language detection and mixed-language
-content indication, account-specific publishing selection, image attachment and preview,
-destination-specific image preparation, and a tested tag-selection/tag-service
-workflow.
+**WordPress publishing is implemented and wired into the running application.**
+For a configured WordPress account, `MainContent` constructs a
+`WordPressPublisher` through the account-aware `PublisherRouter`. The publisher
+uses the account's HTTPS site URL and username, retrieves its application
+password from the OS keyring, and creates published posts through the WordPress
+REST API. Prepared images are uploaded to WordPress media, and their returned
+URLs and IDs are inserted as Gutenberg image blocks in the post content.
+WordPress tags are explicitly rejected until remote tag integration exists.
 
-Successful local publish operations can now be recorded as `Publication`
-objects with stable UUID-backed `PublicationId` values and timestamps. Runtime
-publication history is stored in `publications.json`, recent history can be
-listed for the first selected account (up to five by default), and selecting a
-historical publication loads its post back into the editor. The editor loading
-path supports text, language, images, and tags when those values are present in
-the `Publication` object. The current JSON publication serializer persists the
-publication ID, account, text, language, and timestamp; persisted images and
-tags are not yet included in that format. Legacy publication records without an
-ID are migrated once and rewritten with a generated stable ID.
+WordPress connection verification also works through an authenticated REST API
+endpoint and runs in a Qt background worker. The UI prevents overlapping
+verification attempts and defers application closing until the worker finishes.
 
-Posts can carry text, images, language, and tags. Images are validated and
-prepared per destination before publishing, with temporary prepared files
-cleaned up afterward. Tags can be displayed, selected, cleared, created, and
-merged across selected accounts through application-level tag services.
-Publishing results are reported independently per account, including partial
-success/failure cases and readable error reasons. Mixed Croatian/English posts
-are kept intact as one post per selected destination, without automatic
-translation or splitting; the manual publishing-language choice remains separate
-from detected content language. The current runtime uses `UnconfiguredPublisher` for all three destinations
-and `NullTagProvider` for tags. Unconfigured publish attempts report a failure
-and are not recorded as successful local publications.
+Image preparation preserves source files, avoids overwriting reserved output
+names, and removes temporary outputs after publishing. On preparation failure,
+cleanup attempts all partial outputs; deletion errors are logged without masking
+the original processing error. On WordPress media-upload failure, the publisher
+attempts to delete previously uploaded media in reverse order and logs any
+failed deletion without hiding the upload error. **If post creation fails after
+uploads succeed, uploaded media is retained**; it is not rolled back by the
+current implementation.
 
-WordPress connection setup and verification are implemented: the Accounts page
-collects an HTTPS site URL and username, stores the WordPress application
-password in the operating-system credential store, persists non-secret connection
-settings, and verifies credentials against the WordPress REST API. Verification
-runs in a background Qt thread; application shutdown waits asynchronously for
-active verification to finish. Live publishing, remote post retrieval, and remote
-post updates remain unimplemented for all destinations, including WordPress.
+Facebook and Instagram still use `UnconfiguredPublisher` and report failure
+rather than pretending to publish. The application supports independent
+per-account publishing results and local history of successful publisher calls.
+History is stored in UTF-8 `publications.json`, including a stable publication
+ID, account, text, language, and timestamp. Images and tags are not yet
+serialized into publication history. Selecting a history entry reloads the
+available post data into the editor; it does not update the remote post.
 
-The latest user-reported full test suite passed after implementing asynchronous
-WordPress connection verification and responsive shutdown. The archive does not
-include a recorded final test count. Additional quality tooling will be introduced
-as development requires it.
+The current tag provider is `NullTagProvider`; remote tag retrieval and creation
+are not implemented. Remote post retrieval and updates, Facebook/Instagram API
+publishing, centralized production logging, email error reporting, and release
+packaging remain future work. Publishing currently runs synchronously from the
+Posts page; unlike WordPress connection verification, it has not yet been moved
+to a background worker.
+
+**Testing checkpoint:** the developer reported **662 passing automated tests**
+after the WordPress image-publishing and cleanup regression work. The tests use
+mocked/fake network dependencies and do **not** establish successful publishing
+against a live WordPress site. Live API, Linux/Windows packaging, and platform
+credential-backend checks remain outstanding.
 
 ## Documentation
 

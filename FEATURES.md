@@ -92,7 +92,7 @@ supported publishing platforms.
 
 ### WordPress
 
--   [~] Integrate WordPress through its REST API; authenticated connection verification is implemented, but publishing and other content operations are pending.
+-   [~] Integrate WordPress through its REST API; connection verification, text publishing, and image/media upload are implemented, while remote retrieval, editing, and tags remain pending.
 -   [x] Configure and persist the WordPress HTTPS site URL and username per account.
 -   [x] Store WordPress application passwords in the OS credential store, not account JSON.
 -   [x] Use stable account UUID-based credential keys and clean up secrets when accounts are removed or converted away from WordPress.
@@ -100,7 +100,17 @@ supported publishing platforms.
 -   [x] Report connected, invalid-credentials, unreachable, and error outcomes in the Accounts UI.
 -   [x] Run verification in a background Qt worker and prevent concurrent checks.
 -   [x] Defer main-window closing while verification runs and close automatically after thread cleanup.
--   [ ] Publish, retrieve, or update WordPress content through live APIs.
+-   [x] Route configured WordPress accounts to `WordPressPublisher` in the desktop runtime.
+-   [x] Create WordPress posts with text through the authenticated HTTPS REST API.
+-   [x] Upload prepared images to WordPress media and append Gutenberg image blocks.
+-   [x] Validate HTTPS site URL, required text, prepared images, and available credentials before publishing.
+-   [x] Reject unsupported WordPress tags explicitly.
+-   [x] Attempt reverse-order media cleanup after an upload failure; log deletion errors and preserve the original upload error.
+-   [x] Preserve uploaded media if WordPress post creation subsequently fails (current deliberate behavior, not a remote rollback).
+-   [ ] Retrieve existing remote WordPress posts.
+-   [ ] Update existing remote WordPress posts.
+-   [ ] Integrate remote WordPress tags and metadata.
+-   [ ] Verify publishing against a live WordPress installation.
 
 ------------------------------------------------------------------------
 
@@ -111,8 +121,8 @@ supported publishing platforms.
 -   [x] Allow images to be attached to posts.
 -   [x] Allow applicable tags to be selected and carried by the post model; live platform metadata remains pending.
 -   [x] Allow the user to choose one or more configured publishing accounts; each account retains its platform destination.
--   [~] Allow publishing to one configured account through the application publishing pipeline; live platform publishers are not implemented yet.
--   [~] Allow one publishing action to target multiple configured accounts; live platform publishers are not implemented yet.
+-   [~] Allow publishing to one configured account through the application publishing pipeline; WordPress is wired to a real REST publisher, while Facebook/Instagram remain unconfigured.
+-   [~] Allow one publishing action to target multiple configured accounts; WordPress can publish while unconfigured Facebook/Instagram destinations report independent failures.
 -   [x] Display the publishing result separately for each destination.
 -   [x] Handle partial publishing failures when one destination succeeds
     and another fails.
@@ -162,6 +172,9 @@ supported publishing platforms.
 -   [x] Generate destination-specific prepared image files without modifying the source image.
 -   [x] Carry prepared-image metadata separately from the source `ImageAttachment`.
 -   [x] Clean up temporary prepared image files after each publish attempt.
+-   [x] Attempt cleanup of every partially prepared file after a processing error, even if one deletion fails.
+-   [x] Preserve the original processing error and log failed partial-file deletions.
+-   [x] Reserve unique output filenames without overwriting existing prepared images.
 -   [~] Display image-selection/validation errors in the editor; broader publishing/preparation error presentation remains to be expanded.
 -   [ ] Verify live platform image requirements against official APIs before production integration.
 
@@ -237,7 +250,7 @@ while respecting the capabilities of each destination platform.
     SocialFlow; per-account publisher exceptions are captured, but broader
     exception handling remains to be completed.
 -   [x] Display publishing failure reasons for each account in the Posts UI.
--   [ ] Record technical error information in application logs.
+-   [~] Record technical error information in application logs; image-preparation and WordPress media-cleanup failures use module loggers, but centralized production logging remains pending.
 -   [~] Distinguish unconfigured publishers explicitly; broader error
     categorization is pending.
 -   [~] Handle network and API failures; WordPress connection verification categorizes unreachable/error responses, while other operations remain pending.
@@ -262,7 +275,7 @@ while respecting the capabilities of each destination platform.
 
 ## 14. Logging and Audit
 
--   [ ] Maintain application logs.
+-   [~] Maintain application logs; targeted module-level exception logging exists, but centralized logging setup is not yet implemented.
 -   [ ] Log important application operations.
 -   [ ] Log publishing attempts and their results.
 -   [ ] Log update attempts and their results.
@@ -281,12 +294,10 @@ phase.
 -   [x] Configure pytest and pytest-qt.
 -   [x] Add unit tests for implemented application logic.
 -   [x] Add tests for the implemented image-processing and preparation behavior.
--   [ ] Add tests for platform integration services using mocks/fakes
-    where appropriate.
+-   [x] Add mocked/fake HTTP tests for the implemented WordPress verification, publishing, and media operations; future platform integrations still need tests.
 -   [x] Add tests for the implemented JSON/storage behavior.
 -   [x] Add UI tests for the implemented PySide6 workflows.
--   [~] Add tests for important failure scenarios; unconfigured publishing,
-    failure reporting, and partial publishing results are covered.
+-   [~] Add tests for important failure scenarios; unconfigured publishing, partial results, WordPress upload/cleanup failures, and image-preparation exception preservation are covered; future integrations need coverage.
 -   [~] Add regression tests for completed publishing safety and UI changes;
     continue for future fixes.
 -   [x] Run relevant tests while developing each implemented feature.
@@ -369,19 +380,16 @@ Before SocialFlow is considered ready for a production release:
     with accessible descriptions; manual publishing-language selection is separate.
 -   [x] Preserve mixed-language text, paragraph breaks, and Croatian characters
     as one intact post per selected destination; do not translate or split.
--   [x] Use `UnconfiguredPublisher` for destinations without live adapters;
-    never report these attempts as successful external publishing.
+-   [x] Use `UnconfiguredPublisher` for Facebook/Instagram, while routing configured WordPress accounts to the live REST publisher; never report unconfigured attempts as successful external publishing.
 -   [x] Avoid writing failed unconfigured attempts into successful local history.
 -   [x] Display per-account failure reasons and cover the full UI-to-repository
     failure path with tests.
--   [ ] Implement authenticated live publisher adapters for Facebook, Instagram,
-    and WordPress, with mocked API tests before live testing.
+-   [~] Implement authenticated live publisher adapters: WordPress post/media publishing is implemented with mocked API tests; Facebook and Instagram remain pending, and live WordPress testing is outstanding.
 
-**Latest reported test checkpoint:** the full suite passed after the
-asynchronous WordPress verification and shutdown work (exact count not recorded
-in this archive). Automated HTTP tests use isolated clients/mocks; passing tests
-do not constitute verification against a live WordPress website.
-
+**Latest reported test checkpoint:** 662 automated tests passed after the
+WordPress publishing, media upload/rollback, and partial image cleanup work.
+The suite uses isolated fake/mock HTTP dependencies and does not establish
+publishing success against a live WordPress website.
 ------------------------------------------------------------------------
 
 ## 21. Scope Management

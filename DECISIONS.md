@@ -1323,6 +1323,85 @@ Regression tests cover worker outcomes, thread cleanup, and window closing.
 
 ------------------------------------------------------------------------
 
+## ADR-049 --- Route WordPress Publishers by Configured Account
+
+**Status:** Accepted and implemented
+
+### Decision
+
+Use `PublisherRouter.account_factories` to construct `WordPressPublisher` with
+the selected `Account`, shared `CredentialStore`, and `WordPressPostClient`.
+`MainContent` wires the production `UrllibWordPressPostClient`. Continue using
+`UnconfiguredPublisher` for Facebook and Instagram until their adapters exist.
+
+### Consequences
+
+- Each WordPress publish uses the selected account's connection settings and OS-stored application password.
+- Publishers remain mockable independently of Qt widgets and transport code.
+- Unconfigured destinations cannot be mistaken for successful remote publishes.
+
+------------------------------------------------------------------------
+
+## ADR-050 --- Use a Dedicated WordPress Post and Media REST Client
+
+**Status:** Accepted and implemented
+
+### Decision
+
+Keep WordPress post creation and media operations behind `WordPressPostClient`,
+implemented by `UrllibWordPressPostClient` using authenticated HTTPS requests.
+Validate site URLs, media responses, and post-creation status. Represent
+uploaded media as `WordPressMedia(media_id, source_url)`. Append escaped media
+URLs and IDs as Gutenberg image blocks, and reject tags until remote metadata
+support is implemented.
+
+### Consequences
+
+- HTTP transport and publisher orchestration can be tested separately with fakes.
+- The implemented transport uses standard-library `urllib`, consistent with the earlier WordPress verification adapter, despite the future HTTPX preference in ADR-008.
+- Remote post retrieval, updates, and tag operations remain outside the implemented scope.
+
+------------------------------------------------------------------------
+
+## ADR-051 --- Best-Effort Rollback for WordPress Media Upload Failures
+
+**Status:** Accepted and implemented
+
+### Decision
+
+If an image upload fails during WordPress publishing, attempt to permanently
+delete previously uploaded media in reverse order. Log recoverable deletion
+errors without replacing the original upload exception. Do not automatically
+delete uploaded media when the subsequent post-creation request fails.
+
+### Consequences
+
+- Failed uploads do not normally leave all earlier media behind when deletion succeeds.
+- Cleanup is best-effort and may leave orphaned media; remote transactions are not atomic.
+- Post-creation failure may leave uploaded media in place and requires a future recovery policy.
+
+------------------------------------------------------------------------
+
+## ADR-052 --- Preserve Image-Processing Errors During Partial Cleanup
+
+**Status:** Accepted and implemented
+
+### Decision
+
+`ImagePreparationService.prepare_all()` tracks reserved temporary output paths.
+When image processing fails, attempt to delete every partial output. Catch and
+log `OSError` from individual deletion attempts, continue cleanup, and re-raise
+the original processing exception. Preserve unique filename reservation to
+avoid overwriting other outputs.
+
+### Consequences
+
+- Cleanup failures cannot mask the original image-processing failure.
+- Other temporary outputs can still be removed after one deletion fails.
+- Regression tests explicitly cover exception identity, deletion attempts, and logging.
+
+------------------------------------------------------------------------
+
 ## Decision Maintenance
 
 When a significant technical decision is proposed:
