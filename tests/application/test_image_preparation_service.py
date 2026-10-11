@@ -1,6 +1,8 @@
+from PIL import Image
+
 from pathlib import Path
 
-from PIL import Image
+import pytest
 
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.application.images.image_preparation_service import (
@@ -805,3 +807,142 @@ def test_cleanup_reports_file_deletion_failure(
 
     assert prepared_path.is_file()
     assert source_path.is_file()
+
+def test_preserves_processing_error_when_partial_cleanup_fails(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    from unittest.mock import Mock
+
+    from socialflow.application.images.image_preparation_service import (
+        ImagePreparationService,
+    )
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+
+    service = ImagePreparationService(profile_provider=Mock())
+
+    attachment = Mock()
+    attachment.path = tmp_path / "source.jpg"
+
+    expected_error = RuntimeError("Image processing failed.")
+
+    monkeypatch.setattr(
+        service,
+        "prepare",
+        Mock(side_effect=expected_error),
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_output_filename",
+        Mock(return_value="prepared.jpg"),
+    )
+
+    original_unlink = Path.unlink
+
+    def failing_unlink(path, missing_ok=False):
+        if path.name == "prepared.jpg":
+            raise OSError("Temporary file deletion failed.")
+        return original_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+    with pytest.raises(RuntimeError, match="Image processing failed") as exc:
+        service.prepare_all(
+            attachments=(attachment,),
+            destination=PublishingDestination.WORDPRESS,
+            output_directory=tmp_path / "prepared",
+        )
+
+    assert exc.value is expected_error
+
+    assert "Failed to remove partially prepared image" in caplog.text
+    assert "Temporary file deletion failed" in caplog.text
+
+def test_partial_cleanup_continues_after_one_deletion_fails(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    from unittest.mock import Mock
+
+    service = ImagePreparationService(
+        profile_provider=Mock(),
+    )
+
+    first_source = tmp_path / "first.jpg"
+    second_source = tmp_path / "second.jpg"
+
+    first_source.touch()
+    second_source.touch()
+
+    first_attachment = ImageAttachment(path=first_source)
+    second_attachment = ImageAttachment(path=second_source)
+
+    processing_error = RuntimeError("Second image processing failed.")
+
+    prepare_mock = Mock(
+        side_effect=[
+            tmp_path / "prepared" / "first.jpg",
+            processing_error,
+        ],
+    )
+
+    monkeypatch.setattr(
+        service,
+        "prepare",
+        prepare_mock,
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_output_filename",
+        Mock(side_effect=["first.jpg", "second.jpg"]),
+    )
+
+    first_output = tmp_path / "prepared" / "first.jpg"
+    second_output = tmp_path / "prepared" / "second.jpg"
+
+    original_unlink = Path.unlink
+    attempted_deletions: list[Path] = []
+
+    def failing_unlink(
+        path: Path,
+        missing_ok: bool = False,
+    ) -> None:
+        attempted_deletions.append(path)
+
+        if path == first_output:
+            raise OSError("First temporary image could not be deleted.")
+
+        original_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Second image processing failed",
+    ) as exc:
+        service.prepare_all(
+            attachments=(first_attachment, second_attachment),
+            destination=PublishingDestination.WORDPRESS,
+            output_directory=tmp_path / "prepared",
+        )
+
+    assert exc.value is processing_error
+
+    assert attempted_deletions == [
+        first_output,
+        second_output,
+    ]
+
+    assert first_output.exists()
+    assert not second_output.exists()
+
+    assert "Failed to remove partially prepared image" in caplog.text
+    assert "First temporary image could not be deleted" in caplog.text
+
+    assert prepare_mock.call_count == 2

@@ -10,6 +10,9 @@ import pytest
 from socialflow.infrastructure.wordpress.urllib_wordpress_post_client import (
     UrllibWordPressPostClient,
 )
+from socialflow.infrastructure.wordpress.wordpress_media import (
+    WordPressMedia,
+)
 
 
 def make_response(status=201):
@@ -164,3 +167,370 @@ def test_uses_configured_timeout():
         )
 
     assert opener.open.call_args.kwargs["timeout"] == 5.0
+
+def test_uploads_wordpress_media(tmp_path):
+    image_path = tmp_path / "photo.jpg"
+    image_data = b"test-image-data"
+    image_path.write_bytes(image_data)
+
+    response = make_response()
+    response.read.return_value = (
+        b'{"id": 123, '
+        b'"source_url": "https://example.com/wp-content/uploads/photo.jpg"}'
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        media = client.upload_media(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            image_path=image_path,
+        )
+
+    assert isinstance(media, WordPressMedia)
+    assert media.media_id == 123
+    assert media.source_url == (
+        "https://example.com/wp-content/uploads/photo.jpg"
+    )
+
+    request = opener.open.call_args.args[0]
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/media"
+    )
+    assert request.get_method() == "POST"
+    assert request.data == image_data
+
+    assert request.get_header("Content-type") == "image/jpeg"
+    assert request.get_header("Content-disposition") == (
+        'attachment; filename="photo.jpg"'
+    )
+
+    expected_auth = base64.b64encode(
+        b"admin:secret"
+    ).decode("ascii")
+
+    assert request.get_header("Authorization") == (
+        f"Basic {expected_auth}"
+    )
+
+@pytest.mark.parametrize(
+    "response_body",
+    [
+        b"{}",
+        b'{"id": null}',
+        b'{"id": 0}',
+        b'{"id": -1}',
+        b'{"id": "123"}',
+        b'{"id": true}',
+    ],
+)
+def test_upload_media_rejects_invalid_media_id(
+    tmp_path,
+    response_body,
+):
+    image_path = tmp_path / "photo.jpg"
+    image_path.write_bytes(b"test-image-data")
+
+    response = make_response()
+    response.read.return_value = response_body
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="valid media ID",
+        ):
+            client.upload_media(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                image_path=image_path,
+            )
+
+@pytest.mark.parametrize(
+    "status_code",
+    [400, 401, 403, 413, 500],
+)
+def test_upload_media_propagates_http_errors(
+    tmp_path,
+    status_code,
+):
+    image_path = tmp_path / "photo.jpg"
+    image_path.write_bytes(b"test-image-data")
+
+    error = HTTPError(
+        url="https://example.com/wp-json/wp/v2/media",
+        code=status_code,
+        msg="Media upload failed",
+        hdrs=Message(),
+        fp=BytesIO(b""),
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.side_effect = error
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(HTTPError) as exc_info:
+            client.upload_media(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                image_path=image_path,
+            )
+
+    assert exc_info.value.code == status_code
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "document.pdf",
+        "archive.zip",
+        "script.py",
+        "photo.bmp",
+        "image.svg",
+        "file.txt",
+    ],
+)
+def test_upload_media_rejects_unsupported_formats(
+    tmp_path,
+    filename,
+):
+    image_path = tmp_path / filename
+    image_path.write_bytes(b"test-file-data")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="Unsupported WordPress image format",
+        ):
+            client.upload_media(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                image_path=image_path,
+            )
+
+        build_opener.assert_not_called()
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.com",
+        "https://user:password@example.com",
+        "https://example.com?token=secret",
+        "https://example.com#fragment",
+        "not-a-url",
+    ],
+)
+def test_upload_media_rejects_invalid_urls(
+    tmp_path,
+    url,
+):
+    image_path = tmp_path / "photo.jpg"
+    image_path.write_bytes(b"test-image-data")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(ValueError, match="HTTPS"):
+            client.upload_media(
+                site_url=url,
+                username="admin",
+                application_password="secret",
+                image_path=image_path,
+            )
+
+        build_opener.assert_not_called()
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        'photo"name.jpg',
+        "photo\\name.jpg",
+        "photo\nname.jpg",
+        "photo\rname.jpg",
+    ],
+)
+def test_upload_media_rejects_unsafe_filenames(
+    tmp_path,
+    filename,
+):
+    image_path = tmp_path / filename
+    image_path.write_bytes(b"test-image-data")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="Unsafe image filename",
+        ):
+            client.upload_media(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                image_path=image_path,
+            )
+
+        build_opener.assert_not_called()
+
+def test_upload_media_returns_media_id_and_source_url(tmp_path):
+    image_path = tmp_path / "photo.jpg"
+    image_path.write_bytes(b"test-image-data")
+
+    response = make_response()
+    response.read.return_value = (
+        b'{"id": 123, '
+        b'"source_url": "https://example.com/wp-content/uploads/photo.jpg"}'
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        media = client.upload_media(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            image_path=image_path,
+        )
+
+    assert isinstance(media, WordPressMedia)
+    assert media.media_id == 123
+    assert media.source_url == (
+        "https://example.com/wp-content/uploads/photo.jpg"
+    )
+
+def test_deletes_wordpress_media():
+    response = make_response()
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        client.delete_media(
+            site_url="https://example.com",
+            username="admin",
+            application_password="test-password",
+            media_id=123,
+        )
+
+        opener.open.assert_called_once()
+
+        request = opener.open.call_args.args[0]
+
+        assert request.get_method() == "DELETE"
+
+        assert request.full_url == (
+            "https://example.com/wp-json/wp/v2/media/"
+            "123?force=true"
+        )
+
+        assert request.get_header("Accept") == "application/json"
+
+        assert request.get_header("Authorization").startswith("Basic ")
+
+        assert opener.open.call_args.kwargs["timeout"] == 10.0
+
+@pytest.mark.parametrize(
+    "media_id",
+    [
+        0,
+        -1,
+        True,
+        False,
+        "123",
+        None,
+        12.5,
+    ],
+)
+def test_delete_media_rejects_invalid_media_id(media_id):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="valid WordPress media ID",
+        ):
+            client.delete_media(
+                site_url="https://example.com",
+                username="admin",
+                application_password="test-password",
+                media_id=media_id,
+            )
+
+        build_opener.assert_not_called()
+
+@pytest.mark.parametrize(
+    "status_code",
+    [400, 401, 403, 404, 500],
+)
+def test_delete_media_propagates_http_errors(status_code):
+    error = HTTPError(
+        url="https://example.com/wp-json/wp/v2/media/123?force=true",
+        code=status_code,
+        msg="Media deletion failed",
+        hdrs=Message(),
+        fp=BytesIO(b""),
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.side_effect = error
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(HTTPError) as exc_info:
+            client.delete_media(
+                site_url="https://example.com",
+                username="admin",
+                application_password="test-password",
+                media_id=123,
+            )
+
+        assert exc_info.value.code == status_code
+
+        build_opener.return_value.open.assert_called_once()

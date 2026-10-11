@@ -1,4 +1,5 @@
-
+import mimetypes
+from pathlib import Path
 import base64
 import json
 import ssl
@@ -13,6 +14,9 @@ from urllib.request import (
 
 from socialflow.infrastructure.wordpress.wordpress_post_client import (
     WordPressPostClient,
+)
+from socialflow.infrastructure.wordpress.wordpress_media import (
+    WordPressMedia,
 )
 
 
@@ -92,3 +96,161 @@ class UrllibWordPressPostClient(WordPressPostClient):
                 return response.status
         except HTTPError as error:
             return error.code
+
+
+    def upload_media(
+        self,
+        site_url: str,
+        username: str,
+        application_password: str,
+        image_path: Path,
+    ) -> WordPressMedia:
+        """Upload an image and return its WordPress media information."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("A valid HTTPS WordPress URL is required.")
+
+        image_path = Path(image_path)
+
+        filename = image_path.name
+
+        if any(
+                character in filename
+                for character in ('"', "\\", "\r", "\n")
+        ) or any(ord(character) < 32 or ord(character) == 127 for character in filename):
+            raise ValueError("Unsafe image filename.")
+
+        content_type, _ = mimetypes.guess_type(image_path.name)
+
+        if content_type not in {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+        }:
+            raise ValueError("Unsupported WordPress image format.")
+
+        image_data = image_path.read_bytes()
+
+        endpoint = (
+            site_url.rstrip("/")
+            + "/wp-json/wp/v2/media"
+        )
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        request = Request(
+            endpoint,
+            data=image_data,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+                "Content-Type": content_type,
+                "Content-Disposition": (
+                    f'attachment; filename="{image_path.name}"'
+                ),
+            },
+            method="POST",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(context=ssl.create_default_context()),
+            _NoRedirectHandler(),
+        )
+
+        with opener.open(
+            request,
+            timeout=self._timeout,
+        ) as response:
+            payload = json.load(response)
+
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid WordPress media response.")
+
+        media_id = payload.get("id")
+        source_url = payload.get("source_url")
+
+        if type(media_id) is not int or media_id <= 0:
+            raise ValueError(
+                "WordPress did not return a valid media ID."
+            )
+
+        if (
+                not isinstance(source_url, str)
+                or not source_url.strip()
+                or not source_url.startswith("https://")
+        ):
+            raise ValueError(
+                "WordPress did not return a valid media URL."
+            )
+
+        return WordPressMedia(
+            media_id=media_id,
+            source_url=source_url,
+        )
+
+    def delete_media(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            media_id: int,
+    ) -> None:
+        """Permanently delete an uploaded WordPress media item."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+                parsed.scheme.lower() != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+        ):
+            raise ValueError("A valid HTTPS WordPress URL is required.")
+
+        if type(media_id) is not int or media_id <= 0:
+            raise ValueError("A valid WordPress media ID is required.")
+
+        endpoint = (
+                site_url.rstrip("/")
+                + f"/wp-json/wp/v2/media/{media_id}?force=true"
+        )
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        request = Request(
+            endpoint,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+            },
+            method="DELETE",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(context=ssl.create_default_context()),
+            _NoRedirectHandler(),
+        )
+
+        with opener.open(
+                request,
+                timeout=self._timeout,
+        ):
+            pass

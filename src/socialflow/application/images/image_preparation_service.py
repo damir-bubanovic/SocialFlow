@@ -1,3 +1,5 @@
+
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +12,9 @@ from socialflow.application.images.image_profile_provider import (
 from socialflow.application.images.prepared_image import PreparedImage
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.publishing.destination import PublishingDestination
+
+
+logger = logging.getLogger(__name__)
 
 
 class ImagePreparationService:
@@ -93,7 +98,13 @@ class ImagePreparationService:
 
         except Exception:
             for output_path in output_paths:
-                output_path.unlink(missing_ok=True)
+                try:
+                    output_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception(
+                        "Failed to remove partially prepared image: %s",
+                        output_path,
+                    )
 
             raise
 
@@ -130,4 +141,3 @@ class ImagePreparationService:
         """Remove prepared image files that still exist."""
         for prepared_image in prepared_images:
             prepared_image.path.unlink(missing_ok=True)
-

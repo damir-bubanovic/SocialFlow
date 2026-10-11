@@ -1,4 +1,5 @@
-
+import logging
+from html import escape
 from urllib.parse import urlsplit
 
 from socialflow.application.credentials.credential_store import CredentialStore
@@ -10,8 +11,9 @@ from socialflow.infrastructure.wordpress.wordpress_credential_keys import WordPr
 from socialflow.infrastructure.wordpress.wordpress_post_client import WordPressPostClient
 
 
+logger = logging.getLogger(__name__)
 class WordPressPublisher(Publisher):
-    """Publish text-only posts using a configured WordPress account."""
+    """Publish posts and images using a configured WordPress account."""
 
     def __init__(
         self,
@@ -45,8 +47,11 @@ class WordPressPublisher(Publisher):
         ):
             raise ValueError("A valid HTTPS WordPress site URL is required.")
 
-        if post.source.images or post.images or post.source.tags:
-            raise ValueError("WordPress images and tags are not supported yet.")
+        if post.source.tags:
+            raise ValueError("WordPress tags are not supported yet.")
+
+        if post.source.images and not post.images:
+            raise ValueError("WordPress images must be prepared before publishing.")
 
         if not post.source.text.strip():
             raise ValueError("WordPress post text is required.")
@@ -58,11 +63,54 @@ class WordPressPublisher(Publisher):
         if not password:
             raise ValueError("WordPress application password is missing.")
 
+        content = post.source.text
+        uploaded_media_ids: list[int] = []
+
+        try:
+            for image in post.images:
+                media = self._post_client.upload_media(
+                    site_url=config.site_url,
+                    username=config.username,
+                    application_password=password,
+                    image_path=image.path,
+                )
+
+                uploaded_media_ids.append(media.media_id)
+
+                escaped_url = escape(media.source_url, quote=True)
+
+                content += (
+                    f'\n\n<!-- wp:image {{"id":{media.media_id}}} -->'
+                    f'\n<figure class="wp-block-image">'
+                    f'<img src="{escaped_url}" '
+                    f'class="wp-image-{media.media_id}" />'
+                    f'\n</figure>'
+                    f'\n<!-- /wp:image -->'
+                )
+
+        except Exception:
+            for media_id in reversed(uploaded_media_ids):
+                try:
+                    self._post_client.delete_media(
+                        site_url=config.site_url,
+                        username=config.username,
+                        application_password=password,
+                        media_id=media_id,
+                    )
+                except (OSError, RuntimeError, ValueError):
+                    logger.exception(
+                        "Failed to delete WordPress media %s for account %s",
+                        media_id,
+                        self._account.id,
+                    )
+
+            raise
+
         status = self._post_client.create_post(
             site_url=config.site_url,
             username=config.username,
             application_password=password,
-            content=post.source.text,
+            content=content,
         )
 
         if status != 201:
