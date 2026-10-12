@@ -37,6 +37,9 @@ class PostsPage(QWidget):
             publish_post,
             self,
         )
+        self._publishing_controller.progress.connect(
+            self._on_publish_progress
+        )
         self._publishing_controller.result_ready.connect(
             self._on_publish_results
         )
@@ -50,6 +53,8 @@ class PostsPage(QWidget):
             self.publishing_finished.emit
         )
 
+        self._publishing_completed = 0
+        self._publishing_total = 0
         self._list_accounts = list_accounts
         self._list_tags = list_tags
         self._create_tag = create_tag
@@ -161,10 +166,24 @@ class PostsPage(QWidget):
         if self._publishing_controller.is_running:
             return
 
+        self._publishing_completed = 0
+        self._publishing_total = len(request.accounts)
+
         self.post_editor.publish_button.setEnabled(False)
-        self.publish_status.setText("Publishing...")
+        self.publish_status.setText(
+            f"Publishing 0 of {self._publishing_total} accounts..."
+        )
 
         self._publishing_controller.start(request)
+
+    def _on_publish_progress(self, _result: PublishResult) -> None:
+        """Update progress when an account finishes publishing."""
+        self._publishing_completed += 1
+
+        self.publish_status.setText(
+            f"Publishing {self._publishing_completed} "
+            f"of {self._publishing_total} accounts..."
+        )
 
     def _on_publish_results(
             self,

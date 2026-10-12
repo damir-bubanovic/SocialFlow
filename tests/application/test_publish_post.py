@@ -1417,3 +1417,57 @@ def test_cleanup_failure_does_not_change_successful_publication(
 
     assert len(publisher.published_posts) == 1
     assert source_path.is_file()
+
+
+def test_publish_post_reports_progress_for_each_account() -> None:
+    """Report each completed account while preserving final results."""
+    facebook_publisher = RecordingPublisher()
+    wordpress_publisher = FailingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    accounts = (
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        ),
+        Account(
+            name="Main Website",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+    )
+
+    request = PublishRequest(
+        post=Post(
+            text="Publishing progress test",
+            language=Language.ENGLISH,
+        ),
+        accounts=accounts,
+    )
+
+    progress = []
+
+    results = service.execute(
+        request,
+        on_progress=progress.append,
+    )
+
+    assert len(progress) == 2
+    assert progress == list(results)
+
+    assert progress[0].account == accounts[0]
+    assert progress[0].succeeded
+
+    assert progress[1].account == accounts[1]
+    assert not progress[1].succeeded
+    assert isinstance(progress[1].error, RuntimeError)

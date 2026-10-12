@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class PublishingWorker(QObject):
     """Execute a single publishing request and report its outcome."""
 
+    progress = Signal(object)
     finished = Signal(object)
     failed = Signal(str)
 
@@ -31,7 +32,10 @@ class PublishingWorker(QObject):
     def run(self) -> None:
         """Execute publishing and emit exactly one completion signal."""
         try:
-            results = self._publish_post.execute(self._request)
+            results = self._publish_post.execute(
+                self._request,
+                on_progress=self.progress.emit,
+            )
         except PublishingError:
             logger.exception("Background publishing failed")
             self.failed.emit("Publishing could not be completed.")

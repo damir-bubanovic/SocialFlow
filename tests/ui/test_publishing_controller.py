@@ -29,7 +29,11 @@ def test_controller_returns_results(qtbot) -> None:
     ):
         controller.start(request)
 
-    service.execute.assert_called_once_with(request)
+    service.execute.assert_called_once()
+    args, kwargs = service.execute.call_args
+
+    assert args == (request,)
+    assert callable(kwargs["on_progress"])
     listener.assert_called_once_with(results)
     assert not controller.is_running
 
@@ -62,7 +66,8 @@ def test_controller_prevents_concurrent_publishing(qtbot) -> None:
     started = Event()
     release = Event()
 
-    def execute(_request):
+    def execute(_request, *, on_progress=None):
+        assert callable(on_progress)
         started.set()
         if not release.wait(timeout=2):
             raise PublishingError("Worker was not released.")
@@ -89,3 +94,39 @@ def test_controller_prevents_concurrent_publishing(qtbot) -> None:
         timeout=3000,
     )
     assert service.execute.call_count == 1
+
+def test_controller_forwards_publishing_progress(qtbot) -> None:
+    """Forward individual publishing results before completion."""
+    service = Mock(spec=PublishPost)
+    request = create_request()
+
+    first_result = object()
+    second_result = object()
+    results = (first_result, second_result)
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+
+        for result in results:
+            on_progress(result)
+
+        return results
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+    progress_listener = Mock()
+
+    controller.progress.connect(progress_listener)
+
+    with qtbot.waitSignals(
+        [controller.progress, controller.progress, controller.finished],
+        timeout=3000,
+        order="strict",
+    ):
+        controller.start(request)
+
+    assert progress_listener.call_count == 2
+    assert progress_listener.call_args_list[0].args == (first_result,)
+    assert progress_listener.call_args_list[1].args == (second_result,)
+    assert not controller.is_running

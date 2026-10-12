@@ -18,7 +18,10 @@ def test_worker_emits_publish_results(qtbot) -> None:
     with qtbot.waitSignal(worker.finished, timeout=1000) as signal:
         worker.run()
 
-    service.execute.assert_called_once_with(request)
+    service.execute.assert_called_once_with(
+        request,
+        on_progress=worker.progress.emit,
+    )
     assert signal.args == [results]
 
 
@@ -31,7 +34,10 @@ def test_worker_emits_safe_failure_message(qtbot) -> None:
     with qtbot.waitSignal(worker.failed, timeout=1000) as signal:
         worker.run()
 
-    service.execute.assert_called_once_with(request)
+    service.execute.assert_called_once_with(
+        request,
+        on_progress=worker.progress.emit,
+    )
     assert signal.args == ["Publishing could not be completed."]
 
 def test_worker_handles_missing_image_preparation(qtbot) -> None:
@@ -52,3 +58,35 @@ def test_worker_handles_missing_image_preparation(qtbot) -> None:
         worker.run()
 
     assert signal.args == ["Publishing could not be completed."]
+
+def test_worker_emits_progress_for_each_account(qtbot) -> None:
+    """Forward each account result through the progress signal."""
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    first_result = object()
+    second_result = object()
+    results = (first_result, second_result)
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+
+        for result in results:
+            on_progress(result)
+
+        return results
+
+    service.execute.side_effect = execute
+
+    worker = PublishingWorker(service, request)
+    progress_listener = Mock()
+
+    worker.progress.connect(progress_listener)
+
+    with qtbot.waitSignal(worker.finished, timeout=1000) as signal:
+        worker.run()
+
+    assert signal.args == [results]
+    assert progress_listener.call_count == 2
+    assert progress_listener.call_args_list[0].args == (first_result,)
+    assert progress_listener.call_args_list[1].args == (second_result,)

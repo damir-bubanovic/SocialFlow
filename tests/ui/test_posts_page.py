@@ -470,6 +470,81 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
     assert len(wordpress_publisher.published_posts) == 1
 
 
+def test_posts_page_updates_progress_for_each_account(qtbot) -> None:
+    """Display per-account progress and final publishing results."""
+    repository = InMemoryAccountRepository()
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository.add(facebook)
+    repository.add(wordpress)
+
+    facebook_publisher = RecordingPublisher()
+    wordpress_publisher = FailingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Publishing progress test"
+    )
+
+    for checkbox in page.post_editor.destination_selector._checkboxes:
+        checkbox.setChecked(True)
+
+    progress_messages = []
+
+    def record_progress(_result) -> None:
+        progress_messages.append(page.publish_status.text())
+
+    page._publishing_controller.progress.connect(record_progress)
+
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+        assert page.publish_status.text() == (
+            "Publishing 0 of 2 accounts..."
+        )
+        assert not page.post_editor.publish_button.isEnabled()
+
+    assert progress_messages == [
+        "Publishing 1 of 2 accounts...",
+        "Publishing 2 of 2 accounts...",
+    ]
+
+    assert page.publish_status.text() == (
+        "Main Facebook — Published\n"
+        "Main Website — Failed: Publishing failed."
+    )
+    assert page.publish_status.property("status") == "error"
+    assert page.post_editor.publish_button.isEnabled()
+
+
 # Publish button state
 
 

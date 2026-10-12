@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from collections.abc import Callable
 
 from socialflow.application.images.image_preparation_service import (
     ImagePreparationService,
@@ -44,7 +45,11 @@ class PublishPost:
         self._publication_repository = publication_repository
         self._clock = clock
 
-    def execute(self, request: PublishRequest) -> tuple[PublishResult, ...]:
+    def execute(
+        self,
+        request: PublishRequest,
+        on_progress: Callable[[PublishResult], None] | None = None,
+    ) -> tuple[PublishResult, ...]:
         """Publish the post and return one result for every account."""
         if not request.post.has_content():
             raise EmptyPostError("Cannot publish a post without content.")
@@ -140,5 +145,8 @@ class PublishPost:
                             error=previous_result.error,
                             cleanup_error=cleanup_error,
                         )
+
+            if on_progress is not None:
+                on_progress(results[-1])
 
         return tuple(results)

@@ -9,6 +9,7 @@ from socialflow.ui.posts.publishing_worker import PublishingWorker
 class PublishingController(QObject):
     """Manage background publishing and worker lifetime."""
 
+    progress = Signal(object)
     result_ready = Signal(object)
     error_occurred = Signal(str)
     finished = Signal()
@@ -42,6 +43,7 @@ class PublishingController(QObject):
 
         thread.started.connect(worker.run)
 
+        worker.progress.connect(self.progress.emit)
         worker.finished.connect(self.result_ready.emit)
         worker.failed.connect(self.error_occurred.emit)
 

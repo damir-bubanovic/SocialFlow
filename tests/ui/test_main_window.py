@@ -229,7 +229,8 @@ def test_main_window_closes_after_active_publishing_finishes(
 
     publish_post = Mock(spec=PublishPost)
 
-    def execute(_request):
+    def execute(_request, *, on_progress=None):
+        assert callable(on_progress)
         started.set()
 
         if not release.wait(timeout=5):
@@ -273,7 +274,11 @@ def test_main_window_closes_after_active_publishing_finishes(
         )
 
         assert not posts_page.publishing_is_running
-        publish_post.execute.assert_called_once_with(request)
+        publish_post.execute.assert_called_once()
+        args, kwargs = publish_post.execute.call_args
+
+        assert args == (request,)
+        assert callable(kwargs["on_progress"])
 
     finally:
         release.set()
