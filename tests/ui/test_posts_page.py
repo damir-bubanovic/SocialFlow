@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from PySide6.QtWidgets import QWidget
-
+from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.application.accounts.account_repository import AccountRepository
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.publishing.errors import PublishingError
@@ -35,6 +35,8 @@ from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.ui.posts.publish_status import PublishStatus
 from threading import Event
+from socialflow.application.publishing.publish_result import PublishResult
+from socialflow.domain.publishing.publish_request import PublishRequest
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -73,8 +75,10 @@ class PublishButtonStateRecordingPublisher(Publisher):
     def __init__(self) -> None:
         self.started = Event()
         self.release = Event()
+        self.publish_count = 0
 
     def publish(self, post: PreparedPost) -> None:
+        self.publish_count += 1
         self.started.set()
         if not self.release.wait(timeout=5):
             raise PublishingError("Test publisher timed out.")
@@ -83,8 +87,24 @@ class PublishButtonStateRecordingPublisher(Publisher):
 class FailingPublisher(Publisher):
     """Test publisher that always fails."""
 
+    def __init__(self) -> None:
+        self.publish_count = 0
+
     def publish(self, post: PreparedPost) -> None:
+        self.publish_count += 1
         raise PublishingError("Publishing failed.")
+
+class FailOncePublisher(Publisher):
+    """Fail on the first attempt and succeed on subsequent attempts."""
+
+    def __init__(self) -> None:
+        self.publish_count = 0
+
+    def publish(self, post: PreparedPost) -> None:
+        self.publish_count += 1
+
+        if self.publish_count == 1:
+            raise PublishingError("Temporary publishing failure.")
 
 
 class AccountTagProvider(TagProvider):
@@ -533,8 +553,10 @@ def test_posts_page_updates_progress_for_each_account(qtbot) -> None:
         assert not page.post_editor.publish_button.isEnabled()
 
     assert progress_messages == [
-        "Publishing 1 of 2 accounts...",
-        "Publishing 2 of 2 accounts...",
+        "Publishing 1 of 2 accounts...\n"
+        "Main Facebook — Published",
+        "Publishing 2 of 2 accounts...\n"
+        "Main Website — Failed",
     ]
 
     assert page.publish_status.text() == (
@@ -701,6 +723,677 @@ def test_posts_page_disables_publish_button_during_publish(
 
     assert not page.publishing_is_running
     assert page.post_editor.publish_button.isEnabled()
+
+def test_posts_page_prevents_duplicate_publish_clicks(qtbot) -> None:
+    """Repeated clicks must not start another publishing operation."""
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = PublishButtonStateRecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Duplicate publishing protection test"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    try:
+        with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+            page.post_editor.publish_button.click()
+
+            assert publisher.started.wait(timeout=2)
+            assert page.publishing_is_running
+            assert not page.post_editor.publish_button.isEnabled()
+
+            page.post_editor.publish_button.click()
+            page.post_editor.publish_button.click()
+
+            assert page.publishing_is_running
+
+            publisher.release.set()
+    finally:
+        publisher.release.set()
+        page.shutdown()
+
+    assert not page.publishing_is_running
+    assert page.post_editor.publish_button.isEnabled()
+    assert publisher.publish_count == 1
+
+def test_posts_page_allows_retry_after_failed_publish(qtbot) -> None:
+    """A failed publication must not block another attempt."""
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = FailingPublisher()
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Publishing retry test"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    for attempt in range(2):
+        with qtbot.waitSignal(
+            page.publishing_finished,
+            timeout=5000,
+        ):
+            page.post_editor.publish_button.click()
+
+        assert page.publish_status.text() == (
+            "Main Facebook — Failed: Publishing failed."
+        )
+        assert page.publish_status.property("status") == "error"
+        assert page.post_editor.publish_button.isEnabled()
+        assert not page.publishing_is_running
+
+    assert publisher.publish_count == 2
+
+def test_posts_page_stores_original_request_and_results(qtbot) -> None:
+    """Preserve publishing state for a subsequent selective retry."""
+    repository = InMemoryAccountRepository()
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository.add(facebook)
+    repository.add(wordpress)
+
+    facebook_publisher = RecordingPublisher()
+    wordpress_publisher = FailingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Selective retry state test"
+    )
+
+    for checkbox in page.post_editor.destination_selector._checkboxes:
+        checkbox.setChecked(True)
+
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+    request = page._last_publish_request
+    results = page._last_publish_results
+
+    assert request is not None
+    assert request.post.text == "Selective retry state test"
+    assert request.accounts == (facebook, wordpress)
+
+    assert len(results) == 2
+    assert results[0].account == facebook
+    assert results[0].succeeded
+
+    assert results[1].account == wordpress
+    assert not results[1].succeeded
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert wordpress_publisher.publish_count == 1
+
+def test_posts_page_builds_retry_for_failed_accounts(qtbot) -> None:
+    """Only failed accounts should appear in the retry request."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    original_request = PublishRequest(
+        post=Post(
+            text="Selective retry test",
+            language=Language.ENGLISH,
+        ),
+        accounts=(facebook, wordpress),
+    )
+
+    page._last_publish_request = original_request
+    page._last_publish_results = (
+        PublishResult(account=facebook, succeeded=True),
+        PublishResult(
+            account=wordpress,
+            succeeded=False,
+            error=PublishingError("WordPress publishing failed."),
+        ),
+    )
+
+    retry_request = page._build_failed_retry_request()
+
+    assert retry_request is not None
+    assert retry_request.post is original_request.post
+    assert retry_request.accounts == (wordpress,)
+
+def test_retry_failed_button_is_initially_disabled(qtbot) -> None:
+    """Retry must be unavailable before publishing."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    assert not page.retry_failed_button.isEnabled()
+
+def test_retry_remains_disabled_when_all_accounts_succeed(qtbot) -> None:
+    """Successful publishing must not create a retry request."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Successful publication without retry"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+    assert len(page._last_publish_results) == 1
+    assert page._last_publish_results[0].succeeded
+
+    assert page._build_failed_retry_request() is None
+    assert not page.retry_failed_button.isEnabled()
+    assert not page.publishing_is_running
+
+def test_retry_is_blocked_while_publishing_is_running(qtbot) -> None:
+    """Retry must not start another operation during active publishing."""
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(account)
+
+    publisher = PublishButtonStateRecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Retry concurrency protection test"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    try:
+        with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+            page.post_editor.publish_button.click()
+
+            assert publisher.started.wait(timeout=2)
+            assert page.publishing_is_running
+            assert not page.retry_failed_button.isEnabled()
+
+            # Invoke the retry handler directly to verify its guard.
+            page._retry_failed_publications()
+
+            assert publisher.publish_count == 1
+            assert page.publishing_is_running
+
+            publisher.release.set()
+    finally:
+        publisher.release.set()
+        page.shutdown()
+
+    assert publisher.publish_count == 1
+    assert not page.publishing_is_running
+    assert not page.retry_failed_button.isEnabled()
+
+def test_retry_failed_publishes_only_failed_accounts(qtbot) -> None:
+    """Retry must not republish accounts that already succeeded."""
+    repository = InMemoryAccountRepository()
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository.add(facebook)
+    repository.add(wordpress)
+
+    facebook_publisher = RecordingPublisher()
+    wordpress_publisher = FailingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Selective retry integration test"
+    )
+
+    for checkbox in page.post_editor.destination_selector._checkboxes:
+        checkbox.setChecked(True)
+
+    # First attempt: Facebook succeeds, WordPress fails.
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert wordpress_publisher.publish_count == 1
+    assert page.retry_failed_button.isEnabled()
+
+    # Second attempt: retry only WordPress.
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.retry_failed_button.click()
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert wordpress_publisher.publish_count == 2
+
+    assert page._last_publish_request is not None
+    assert page._last_publish_request.accounts == (wordpress,)
+
+    assert page.retry_failed_button.isEnabled()
+    assert not page.publishing_is_running
+
+def test_retry_success_disables_retry_button(qtbot) -> None:
+    """A successful retry must not leave failed accounts to retry."""
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(account)
+
+    publisher = FailOncePublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Retry recovery test"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    # First attempt fails.
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+    assert publisher.publish_count == 1
+    assert page.retry_failed_button.isEnabled()
+    assert not page._last_publish_results[0].succeeded
+
+    # Retry succeeds.
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.retry_failed_button.click()
+
+    assert publisher.publish_count == 2
+    assert page._last_publish_results[0].succeeded
+    assert not page.retry_failed_button.isEnabled()
+    assert page._build_failed_retry_request() is None
+    assert not page.publishing_is_running
+
+def test_selective_retry_recovers_failed_account_without_republishing_successful_account(
+    qtbot,
+) -> None:
+    """Retry only the failed account and finish with no remaining failures."""
+    repository = InMemoryAccountRepository()
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository.add(facebook)
+    repository.add(wordpress)
+
+    facebook_publisher = RecordingPublisher()
+    wordpress_publisher = FailOncePublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=router,
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Multi-account retry recovery test"
+    )
+
+    for checkbox in page.post_editor.destination_selector._checkboxes:
+        checkbox.setChecked(True)
+
+    # First attempt: Facebook succeeds, WordPress fails.
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert wordpress_publisher.publish_count == 1
+
+    assert len(page._last_publish_results) == 2
+    assert page._last_publish_results[0].account == facebook
+    assert page._last_publish_results[0].succeeded
+    assert page._last_publish_results[1].account == wordpress
+    assert not page._last_publish_results[1].succeeded
+
+    assert page.retry_failed_button.isEnabled()
+
+    retry_request = page._build_failed_retry_request()
+    assert retry_request is not None
+    assert retry_request.accounts == (wordpress,)
+
+    # Second attempt: only WordPress is retried and succeeds.
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.retry_failed_button.click()
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert wordpress_publisher.publish_count == 2
+
+    assert page._last_publish_request is not None
+    assert page._last_publish_request.accounts == (wordpress,)
+
+    assert len(page._last_publish_results) == 1
+    assert page._last_publish_results[0].account == wordpress
+    assert page._last_publish_results[0].succeeded
+
+    assert page._build_failed_retry_request() is None
+    assert not page.retry_failed_button.isEnabled()
+    assert not page.publishing_is_running
+    assert page.post_editor.publish_button.isEnabled()
+
+def test_editing_post_text_invalidates_retry(qtbot) -> None:
+    """Editing the draft must discard the previous retry request."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    page._last_publish_request = PublishRequest(
+        post=Post(
+            text="Original text",
+            language=Language.ENGLISH,
+        ),
+        accounts=(account,),
+    )
+    page._last_publish_results = (
+        PublishResult(
+            account=account,
+            succeeded=False,
+            error=PublishingError("Publishing failed."),
+        ),
+    )
+    page.retry_failed_button.setEnabled(True)
+
+    page.post_editor.text_editor.setPlainText("Edited text")
+
+    assert page._last_publish_request is None
+    assert page._last_publish_results == ()
+    assert not page.retry_failed_button.isEnabled()
+
+def test_changing_post_language_invalidates_retry(qtbot) -> None:
+    """Changing the selected language must discard retry state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    page._last_publish_request = PublishRequest(
+        post=Post(
+            text="Original text",
+            language=Language.ENGLISH,
+        ),
+        accounts=(account,),
+    )
+    page._last_publish_results = (
+        PublishResult(
+            account=account,
+            succeeded=False,
+            error=PublishingError("Publishing failed."),
+        ),
+    )
+    page.retry_failed_button.setEnabled(True)
+
+    selector = page.post_editor.language_controls.selector
+    original_index = selector.currentIndex()
+
+    new_index = next(
+        index
+        for index in range(selector.count())
+        if index != original_index
+    )
+    selector.setCurrentIndex(new_index)
+
+    assert page._last_publish_request is None
+    assert page._last_publish_results == ()
+    assert not page.retry_failed_button.isEnabled()
+
+def test_changing_post_images_invalidates_retry(qtbot, tmp_path) -> None:
+    """Changing image attachments must discard retry state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    page._last_publish_request = PublishRequest(
+        post=Post(
+            text="Original text",
+            language=Language.ENGLISH,
+        ),
+        accounts=(account,),
+    )
+    page._last_publish_results = (
+        PublishResult(
+            account=account,
+            succeeded=False,
+            error=PublishingError("Publishing failed."),
+        ),
+    )
+    page.retry_failed_button.setEnabled(True)
+
+    image_path = tmp_path / "example.png"
+    image_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    page.post_editor.image_selector.set_selected_images(
+        (
+            ImageAttachment(path=image_path),
+        )
+    )
+
+    assert page._last_publish_request is None
+    assert page._last_publish_results == ()
+    assert not page.retry_failed_button.isEnabled()
+
+def test_changing_post_tags_invalidates_retry(qtbot) -> None:
+    """Changing selected tags must discard retry state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    page._last_publish_request = PublishRequest(
+        post=Post(
+            text="Original text",
+            language=Language.ENGLISH,
+        ),
+        accounts=(account,),
+    )
+    page._last_publish_results = (
+        PublishResult(
+            account=account,
+            succeeded=False,
+            error=PublishingError("Publishing failed."),
+        ),
+    )
+    page.retry_failed_button.setEnabled(True)
+
+    page.post_editor.tag_selector.set_selected_tags(
+        (Tag(name="SocialFlow"),)
+    )
+
+    assert page.post_editor.tag_selector.selected_tags() == (
+        Tag(name="SocialFlow"),
+    )
+    assert page._last_publish_request is None
+    assert page._last_publish_results == ()
+    assert not page.retry_failed_button.isEnabled()
 
 
 # Tags

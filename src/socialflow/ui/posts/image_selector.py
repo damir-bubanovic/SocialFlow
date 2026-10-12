@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 
 from PySide6.QtWidgets import (
@@ -18,6 +18,7 @@ from socialflow.domain.post.image_attachment import ImageAttachment
 
 class ImageSelector(QWidget):
     """UI control for selecting images to attach to a post."""
+    selection_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -120,15 +121,16 @@ class ImageSelector(QWidget):
             self.status_label.setText("No images selected.")
             self.filenames_label.clear()
             self._clear_previews()
-            return
+        else:
+            self.status_label.setText(
+                f"{len(self._images)} image(s) selected."
+            )
+            self.filenames_label.setText(
+                "\n".join(image.filename for image in self._images)
+            )
+            self._refresh_previews()
 
-        self.status_label.setText(
-            f"{len(self._images)} image(s) selected."
-        )
-        self.filenames_label.setText(
-            "\n".join(image.filename for image in self._images)
-        )
-        self._refresh_previews()
+        self.selection_changed.emit()
 
     def _refresh_previews(self) -> None:
         """Display thumbnail previews for the selected images."""

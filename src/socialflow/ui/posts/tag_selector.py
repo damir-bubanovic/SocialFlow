@@ -15,6 +15,7 @@ class TagSelector(QWidget):
     """UI control for selecting and creating post tags."""
 
     tag_created = Signal(Tag)
+    selection_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -183,15 +184,16 @@ class TagSelector(QWidget):
         self._update_selection_display()
 
     def _update_selection_display(self) -> None:
-        """Refresh the selected-tag display."""
+        """Refresh the selected-tag display and notify listeners."""
         if not self._selected_tags:
             self.status_label.setText("No tags selected.")
             self.selected_tags_label.clear()
-            return
+        else:
+            self.status_label.setText(
+                f"{len(self._selected_tags)} tag(s) selected."
+            )
+            self.selected_tags_label.setText(
+                ", ".join(tag.name for tag in self._selected_tags)
+            )
 
-        self.status_label.setText(
-            f"{len(self._selected_tags)} tag(s) selected."
-        )
-        self.selected_tags_label.setText(
-            ", ".join(tag.name for tag in self._selected_tags)
-        )
+        self.selection_changed.emit()

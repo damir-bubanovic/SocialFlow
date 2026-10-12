@@ -16,6 +16,9 @@ from socialflow.ui.posts.publish_status import PublishStatus
 from socialflow.ui.posts.recent_posts_panel import RecentPostsPanel
 from socialflow.ui.posts.publishing_controller import PublishingController
 from socialflow.application.publishing.publish_result import PublishResult
+from socialflow.application.publishing.build_retry_request import (
+    BuildRetryRequest,
+)
 
 
 class PostsPage(QWidget):
@@ -55,6 +58,8 @@ class PostsPage(QWidget):
 
         self._publishing_completed = 0
         self._publishing_total = 0
+        self._last_publish_request: PublishRequest | None = None
+        self._last_publish_results: tuple[PublishResult, ...] = ()
         self._list_accounts = list_accounts
         self._list_tags = list_tags
         self._create_tag = create_tag
@@ -65,6 +70,11 @@ class PostsPage(QWidget):
         self.new_post_button.clicked.connect(
             self.post_editor.new_post
         )
+        self.retry_failed_button = QPushButton("Retry Failed", self)
+        self.retry_failed_button.setEnabled(False)
+        self.retry_failed_button.clicked.connect(
+            self._retry_failed_publications
+        )
         self.publish_status = PublishStatus(self)
         self.recent_posts_panel = RecentPostsPanel(
             list_recent_publications,
@@ -74,8 +84,11 @@ class PostsPage(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.new_post_button)
         layout.addWidget(self.post_editor)
+        layout.addWidget(self.retry_failed_button)
         layout.addWidget(self.publish_status)
         layout.addWidget(self.recent_posts_panel)
+
+
 
         self.setLayout(layout)
 
@@ -97,6 +110,26 @@ class PostsPage(QWidget):
 
         self.recent_posts_panel.publication_selected.connect(
             self._load_publication
+        )
+        self.post_editor.text_editor.textChanged.connect(
+            self._invalidate_retry
+        )
+        self.post_editor.language_controls.selector.currentIndexChanged.connect(
+            self._invalidate_retry
+        )
+        self.post_editor.image_selector.selection_changed.connect(
+            self._invalidate_retry
+        )
+        self.post_editor.tag_selector.selection_changed.connect(
+            self._invalidate_retry
+        )
+
+        self.new_post_button.clicked.connect(
+            self._invalidate_retry
+        )
+
+        self.post_editor.account_selection_changed.connect(
+            self._invalidate_retry
         )
 
         self.refresh_accounts()
@@ -158,43 +191,97 @@ class PostsPage(QWidget):
         """Report whether background publishing is active."""
         return self._publishing_controller.is_running
 
-    def _handle_publish_request(
-        self,
-        request: PublishRequest,
-    ) -> None:
-        """Start publishing without blocking the UI."""
-        if self._publishing_controller.is_running:
-            return
+    def _invalidate_retry(self) -> None:
+        """Discard retry state when the draft changes."""
+        self._last_publish_request = None
+        self._last_publish_results = ()
+        self.retry_failed_button.setEnabled(False)
 
+    def _start_publishing(self, request: PublishRequest) -> None:
+        """Start a publishing operation with shared UI handling."""
         self._publishing_completed = 0
         self._publishing_total = len(request.accounts)
 
         self.post_editor.publish_button.setEnabled(False)
+        self.retry_failed_button.setEnabled(False)
+
         self.publish_status.setText(
             f"Publishing 0 of {self._publishing_total} accounts..."
         )
 
         self._publishing_controller.start(request)
 
-    def _on_publish_progress(self, _result: PublishResult) -> None:
-        """Update progress when an account finishes publishing."""
+    def _retry_failed_publications(self) -> None:
+        """Retry only accounts that failed in the previous operation."""
+        if self._publishing_controller.is_running:
+            return
+
+        retry_request = self._build_failed_retry_request()
+        if retry_request is None:
+            return
+
+        self._last_publish_request = retry_request
+        self._last_publish_results = ()
+
+        self._start_publishing(retry_request)
+
+    def _handle_publish_request(
+            self,
+            request: PublishRequest,
+    ) -> None:
+        """Start a new publishing operation."""
+        if self._publishing_controller.is_running:
+            return
+
+        self._last_publish_request = request
+        self._last_publish_results = ()
+
+        self._start_publishing(request)
+
+    def _build_failed_retry_request(self) -> PublishRequest | None:
+        """Build a retry request for the last failed accounts."""
+        if self._last_publish_request is None:
+            return None
+
+        if not self._last_publish_results:
+            return None
+
+        return BuildRetryRequest.execute(
+            self._last_publish_request,
+            self._last_publish_results,
+        )
+
+    def _on_publish_progress(self, result: PublishResult) -> None:
+        """Display progress and the outcome of the completed account."""
         self._publishing_completed += 1
+
+        outcome = "Published" if result.succeeded else "Failed"
 
         self.publish_status.setText(
             f"Publishing {self._publishing_completed} "
-            f"of {self._publishing_total} accounts..."
+            f"of {self._publishing_total} accounts...\n"
+            f"{result.account.name} — {outcome}"
         )
 
     def _on_publish_results(
             self,
             results: tuple[PublishResult, ...],
     ) -> None:
-        """Display publishing results and refresh history."""
+        """Store publishing results and refresh the interface."""
+        self._last_publish_results = results
+        self.retry_failed_button.setEnabled(
+            self._build_failed_retry_request() is not None
+        )
+
         self.publish_status.show_results(results)
         self._refresh_recent_posts()
 
     def _on_publish_error(self, _message: str) -> None:
-        """Display a publishing failure."""
+        """Clear retry state after an unexpected publishing error."""
+        self._last_publish_request = None
+        self._last_publish_results = ()
+
+        self.retry_failed_button.setEnabled(False)
         self.publish_status.show_error()
 
     def _on_publishing_finished(self) -> None:
