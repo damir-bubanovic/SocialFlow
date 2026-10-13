@@ -171,6 +171,9 @@ def test_run_returns_nonzero_when_window_show_fails(
         def show(self):
             raise RuntimeError("Sensitive display details")
 
+        def close(self):
+            pass
+
     monkeypatch.setattr(
         "socialflow.main.create_application",
         FailingWindow,
@@ -182,3 +185,69 @@ def test_run_returns_nonzero_when_window_show_fails(
     assert exit_code == 1
     assert "Application startup failed: RuntimeError" in caplog.text
     assert "Sensitive display details" not in caplog.text
+
+def test_run_closes_window_when_show_fails(
+    monkeypatch,
+    caplog,
+) -> None:
+    """Close an initialized window if displaying it fails."""
+
+    class FailingWindow:
+        def __init__(self):
+            self.close_called = False
+
+        def show(self):
+            raise RuntimeError("Sensitive display details")
+
+        def close(self):
+            self.close_called = True
+
+    window = FailingWindow()
+
+    monkeypatch.setattr(
+        "socialflow.main.create_application",
+        lambda: window,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="socialflow"):
+        exit_code = run(start_event_loop=False)
+
+    assert exit_code == 1
+    assert window.close_called
+    assert "Application startup failed: RuntimeError" in caplog.text
+    assert "Sensitive display details" not in caplog.text
+
+def test_run_handles_window_cleanup_failure(
+    monkeypatch,
+    caplog,
+) -> None:
+    """Cleanup failure must not mask the original startup failure."""
+
+    class FailingWindow:
+        def show(self):
+            raise RuntimeError("Sensitive display details")
+
+        def close(self):
+            raise RuntimeError("Sensitive cleanup details")
+
+    monkeypatch.setattr(
+        "socialflow.main.create_application",
+        FailingWindow,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="socialflow"):
+        exit_code = run(start_event_loop=False)
+
+    assert exit_code == 1
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "socialflow"
+    ]
+
+    assert messages.count("Startup window cleanup failed.") == 1
+    assert messages.count("Application startup failed: RuntimeError") == 1
+
+    assert "Sensitive display details" not in caplog.text
+    assert "Sensitive cleanup details" not in caplog.text

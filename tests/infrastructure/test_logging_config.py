@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from socialflow.infrastructure.logging_config import (
+    configure_fallback_logging,
     configure_logging,
 )
 
@@ -84,3 +85,112 @@ def test_configure_logging_replaces_handler_when_directory_changes(
 
     assert first_handler not in logger.handlers
     assert first_handler.stream is None
+
+def test_fallback_logging_avoids_duplicate_stream_handlers(
+    capsys,
+) -> None:
+    """Repeated fallback configuration must not duplicate warnings."""
+    logger = logging.getLogger("socialflow")
+
+    original_handlers = logger.handlers[:]
+    original_level = logger.level
+
+    try:
+        logger.handlers = []
+
+        configure_fallback_logging()
+        configure_fallback_logging()
+
+        logger.warning("Fallback diagnostic test")
+
+        captured = capsys.readouterr()
+
+        assert captured.err.count("Fallback diagnostic test") == 1
+
+    finally:
+        for handler in logger.handlers[:]:
+            if handler not in original_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+
+        logger.handlers = original_handlers
+        logger.setLevel(original_level)
+
+def test_file_logging_removes_fallback_handler(
+    tmp_path,
+) -> None:
+    """Successful file logging removes the temporary terminal fallback."""
+    logger = logging.getLogger("socialflow")
+
+    original_handlers = logger.handlers[:]
+    original_level = logger.level
+
+    try:
+        logger.handlers = []
+
+        configure_fallback_logging()
+
+        fallback_handlers = [
+            handler
+            for handler in logger.handlers
+            if getattr(handler, "_socialflow_fallback", False)
+        ]
+
+        assert len(fallback_handlers) == 1
+
+        log_file = configure_logging(tmp_path / "logs")
+
+        assert log_file.is_file()
+
+        assert not any(
+            getattr(handler, "_socialflow_fallback", False)
+            for handler in logger.handlers
+        )
+
+        assert any(
+            isinstance(handler, RotatingFileHandler)
+            for handler in logger.handlers
+        )
+
+    finally:
+        for handler in logger.handlers[:]:
+            if handler not in original_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+
+        logger.handlers = original_handlers
+        logger.setLevel(original_level)
+
+def test_fallback_logging_preserves_external_stream_handlers() -> None:
+    """Fallback logging must not replace external logging handlers."""
+    logger = logging.getLogger("socialflow")
+
+    original_handlers = logger.handlers[:]
+    original_level = logger.level
+
+    try:
+        logger.handlers = []
+
+        external_handler = logging.StreamHandler()
+        logger.addHandler(external_handler)
+
+        configure_fallback_logging()
+        configure_fallback_logging()
+
+        fallback_handlers = [
+            handler
+            for handler in logger.handlers
+            if getattr(handler, "_socialflow_fallback", False)
+        ]
+
+        assert len(fallback_handlers) == 1
+        assert external_handler in logger.handlers
+
+    finally:
+        for handler in logger.handlers[:]:
+            if handler not in original_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+
+        logger.handlers = original_handlers
+        logger.setLevel(original_level)

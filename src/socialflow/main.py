@@ -2,7 +2,10 @@ import sys
 import logging
 from PySide6.QtWidgets import QApplication
 
-from socialflow.infrastructure.logging_config import configure_logging
+from socialflow.infrastructure.logging_config import (
+    configure_fallback_logging,
+    configure_logging,
+)
 from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.ui.main_window import MainWindow
 from socialflow.constants import APP_NAME, APP_ORGANIZATION
@@ -21,6 +24,7 @@ def create_application() -> MainWindow:
     try:
         configure_logging(data_directory() / "logs")
     except OSError:
+        configure_fallback_logging()
         logging.getLogger("socialflow").warning(
             "Persistent logging is unavailable."
         )
@@ -29,10 +33,19 @@ def create_application() -> MainWindow:
 
 def run(*, start_event_loop: bool = True) -> int:
     """Start the SocialFlow desktop application."""
+    window = None
+
     try:
         window = create_application()
         window.show()
     except Exception as error:
+        if window is not None:
+            try:
+                window.close()
+            except (RuntimeError, OSError):
+                logging.getLogger("socialflow").warning(
+                    "Startup window cleanup failed."
+                )
         logging.getLogger("socialflow").error(
             "Application startup failed: %s",
             type(error).__name__,

@@ -46,6 +46,18 @@ def test_main_window_shuts_down_accounts_page_on_close(qtbot) -> None:
 
     shutdown.assert_called_once_with()
 
+def test_main_window_closes_without_initialized_content(
+    qtbot,
+) -> None:
+    """Allow a partially initialized window to close safely."""
+    window = MainWindow.__new__(MainWindow)
+    QMainWindow.__init__(window)
+
+    qtbot.addWidget(window)
+
+    assert not hasattr(window, "main_content")
+    assert window.close()
+
 def test_main_window_defers_close_until_verification_finishes(
     qtbot,
 ) -> None:
@@ -283,3 +295,23 @@ def test_main_window_closes_after_active_publishing_finishes(
     finally:
         release.set()
         controller.shutdown()
+
+def test_main_window_closes_with_partially_initialized_content(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """Closing tolerates content whose child pages are incomplete."""
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    class PartialContent:
+        pass
+
+    monkeypatch.setattr(
+        window,
+        "main_content",
+        PartialContent(),
+    )
+
+    assert window.close()

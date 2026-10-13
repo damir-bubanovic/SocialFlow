@@ -23,6 +23,7 @@ def configure_logging(log_directory: Path) -> Path:
             continue
 
         if Path(handler.baseFilename) == log_file.resolve():
+            _remove_fallback_handlers(logger)
             return log_file
 
         logger.removeHandler(handler)
@@ -44,5 +45,35 @@ def configure_logging(log_directory: Path) -> Path:
     )
 
     logger.addHandler(handler)
+    _remove_fallback_handlers(logger)
 
     return log_file
+
+def _remove_fallback_handlers(logger: logging.Logger) -> None:
+    """Remove terminal fallback handlers after file logging recovers."""
+    for handler in logger.handlers[:]:
+        if not getattr(handler, "_socialflow_fallback", False):
+            continue
+
+        logger.removeHandler(handler)
+        handler.close()
+
+def configure_fallback_logging() -> None:
+    """Configure terminal logging when persistent logging fails."""
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.setLevel(logging.INFO)
+
+    for handler in logger.handlers:
+        if getattr(handler, "_socialflow_fallback", False):
+            return
+
+    handler = logging.StreamHandler()
+    handler._socialflow_fallback = True
+    handler.setLevel(logging.WARNING)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(levelname)s | %(name)s | %(message)s"
+        )
+    )
+
+    logger.addHandler(handler)

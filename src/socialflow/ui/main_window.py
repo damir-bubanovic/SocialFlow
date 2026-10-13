@@ -33,8 +33,18 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Defer closing until background operations finish."""
-        accounts_page = self.main_content.accounts_page
-        posts_page = self.main_content.posts_page
+        main_content = getattr(self, "main_content", None)
+
+        if main_content is None:
+            super().closeEvent(event)
+            return
+
+        accounts_page = getattr(main_content, "accounts_page", None)
+        posts_page = getattr(main_content, "posts_page", None)
+
+        if accounts_page is None or posts_page is None:
+            super().closeEvent(event)
+            return
 
         if (
             accounts_page.verification_is_running
