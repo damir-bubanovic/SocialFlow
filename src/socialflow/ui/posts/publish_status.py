@@ -1,4 +1,7 @@
 from socialflow.application.publishing.publish_result import PublishResult
+from socialflow.ui.posts.publishing_error_formatter import (
+    PublishingErrorFormatter,
+)
 from PySide6.QtWidgets import QLabel, QWidget
 
 
@@ -31,7 +34,8 @@ class PublishStatus(QLabel):
             outcome = "Published" if result.succeeded else "Failed"
 
             if not result.succeeded and result.error is not None:
-                outcome = f"{outcome}: {result.error}"
+                message = PublishingErrorFormatter.format(result)
+                outcome = f"{outcome}: {message}"
 
             lines.append(f"{result.account.name} — {outcome}")
 

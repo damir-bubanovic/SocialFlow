@@ -54,6 +54,11 @@ class FailingPublisher(Publisher):
     def publish(self, post: PreparedPost) -> None:
         raise RuntimeError("Publishing failed.")
 
+class ConnectionFailingPublisher(Publisher):
+    """Simulate a platform connection failure."""
+
+    def publish(self, post: PreparedPost) -> None:
+        raise ConnectionError("Platform connection lost.")
 
 class InspectingPublisher(Publisher):
     """Test publisher that inspects prepared images while publishing."""
@@ -151,6 +156,49 @@ def test_publish_post_publishes_to_requested_accounts() -> None:
     assert wordpress_publisher.published_posts[0].source is post
     assert wordpress_publisher.published_posts[0].images == ()
 
+def test_publish_failure_logs_safe_diagnostic_information(
+    caplog,
+) -> None:
+    """Log failure context without exposing raw exception messages."""
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: ConnectionFailingPublisher(),
+        }
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    request = PublishRequest(
+        post=Post(
+            text="Confidential draft content",
+            language=Language.ENGLISH,
+        ),
+        accounts=(account,),
+    )
+
+    with caplog.at_level(
+        "ERROR",
+        logger="socialflow.application.publishing.publish_post",
+    ):
+        results = service.execute(request)
+
+    assert len(results) == 1
+    assert not results[0].succeeded
+    assert isinstance(results[0].error, ConnectionError)
+
+    assert "Main Facebook" in caplog.text
+    assert "ConnectionError" in caplog.text
+
+    assert "Confidential draft content" not in caplog.text
+    assert "Platform connection lost." not in caplog.text
 
 def test_publish_post_rejects_empty_post() -> None:
     publisher = RecordingPublisher()
@@ -187,6 +235,56 @@ def test_publish_post_rejects_empty_post() -> None:
 
     assert publisher.published_posts == []
 
+def test_connection_failure_does_not_stop_other_accounts() -> None:
+    """A connection failure must not prevent other accounts publishing."""
+    facebook_publisher = ConnectionFailingPublisher()
+    wordpress_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: facebook_publisher,
+            PublishingDestination.WORDPRESS: wordpress_publisher,
+        }
+    )
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    post = Post(
+        text="Publishing reliability test",
+        language=Language.ENGLISH,
+    )
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(facebook, wordpress),
+        )
+    )
+
+    assert len(results) == 2
+
+    assert results[0].account == facebook
+    assert not results[0].succeeded
+    assert isinstance(results[0].error, ConnectionError)
+    assert str(results[0].error) == "Platform connection lost."
+
+    assert results[1].account == wordpress
+    assert results[1].succeeded
+    assert results[1].error is None
+
+    assert len(wordpress_publisher.published_posts) == 1
 
 def test_publish_post_prepares_images_for_destination(
     tmp_path: Path,

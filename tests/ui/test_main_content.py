@@ -250,7 +250,7 @@ def test_main_content_displays_unconfigured_publishing_error(
 
     assert content.posts_page.publish_status.text() == (
         "Main Facebook — Failed: "
-        "External publishing is not configured."
+        "Publishing configuration needs attention."
     )
 
     assert (

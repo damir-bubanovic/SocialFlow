@@ -113,6 +113,12 @@ class PublishPost:
                 )
 
             except Exception as error:
+                logger.error(
+                    "Publishing failed for account %s (%s): %s",
+                    account.name,
+                    account.destination,
+                    type(error).__name__,
+                )
                 results.append(
                     PublishResult(
                         account=account,

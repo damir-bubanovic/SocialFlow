@@ -421,7 +421,7 @@ def test_posts_page_shows_error_when_publish_fails(qtbot) -> None:
         page.post_editor.publish_button.click()
 
     assert page.publish_status.text() == (
-        "Main Facebook — Failed: Publishing failed."
+        "Main Facebook — Failed: Publishing failed. Please check the details."
     )
     assert page.publish_status.property("status") == "error"
 
@@ -483,7 +483,7 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
         page.post_editor.publish_button.click()
 
     assert page.publish_status.text() == (
-        "Main Facebook — Failed: Publishing failed.\n"
+        "Main Facebook — Failed: Publishing failed. Please check the details.\n"
         "Main Website — Published"
     )
     assert page.publish_status.property("status") == "error"
@@ -561,7 +561,7 @@ def test_posts_page_updates_progress_for_each_account(qtbot) -> None:
 
     assert page.publish_status.text() == (
         "Main Facebook — Published\n"
-        "Main Website — Failed: Publishing failed."
+        "Main Website — Failed: Publishing failed. Please check the details."
     )
     assert page.publish_status.property("status") == "error"
     assert page.post_editor.publish_button.isEnabled()
@@ -831,7 +831,7 @@ def test_posts_page_allows_retry_after_failed_publish(qtbot) -> None:
             page.post_editor.publish_button.click()
 
         assert page.publish_status.text() == (
-            "Main Facebook — Failed: Publishing failed."
+            "Main Facebook — Failed: Publishing failed. Please check the details."
         )
         assert page.publish_status.property("status") == "error"
         assert page.post_editor.publish_button.isEnabled()

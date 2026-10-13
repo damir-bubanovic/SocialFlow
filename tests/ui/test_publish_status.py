@@ -105,7 +105,8 @@ def test_publish_status_can_show_partial_failure(qtbot) -> None:
 
     assert status.text() == (
         "Main Facebook — Published\n"
-        "Main Website — Failed: Publishing failed."
+        "Main Website — Failed: "
+        "Publishing failed. Please check the details."
     )
     assert status.property("status") == "error"
 
@@ -135,6 +136,6 @@ def test_publish_status_displays_publishing_error(qtbot) -> None:
 
     assert status.text() == (
         "Main Facebook — Failed: "
-        "External publishing is not configured."
+        "Publishing configuration needs attention."
     )
     assert status.property("status") == "error"
