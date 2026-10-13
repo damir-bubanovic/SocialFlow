@@ -537,7 +537,7 @@ the same storage mechanism.
 
 ## 17. Logging
 
-SocialFlow will maintain application logs.
+SocialFlow maintains persistent application logs through `infrastructure/logging_config.py`.
 
 Logs should support diagnosis of:
 
@@ -552,8 +552,17 @@ Logs should support diagnosis of:
 Logs must avoid storing authentication credentials and other sensitive
 data.
 
-Logging should be centralized rather than implemented independently by
-every UI component.
+Startup calls `configure_logging(data_directory() / "logs")`, creating a
+UTF-8 `RotatingFileHandler` for `socialflow.log` (2 MiB maximum, three backups).
+Repeated configuration with the same directory reuses the handler; switching
+log directories removes and closes the previous rotating handler. Logging
+initialization `OSError` is handled with a generic warning so startup can
+continue. Module loggers under `socialflow.*` propagate to the configured
+application logger. Publishing diagnostics record account/destination and
+exception type, not post text or raw publishing exception messages.
+
+The logging setup is implemented; comprehensive production exception reporting,
+secret-redaction audits, and email delivery are not.
 
 ------------------------------------------------------------------------
 
@@ -1017,9 +1026,10 @@ partial cleanup is logged and does not replace the original processing error;
 cleanup continues to subsequent files. Normal post-publish cleanup is performed
 by `PublishPost`, with cleanup errors reported separately in `PublishResult`.
 
-The Posts page invokes publishing synchronously at present. The background
-verification worker does not make publishing asynchronous; publishing and media
-uploads should move to a Qt-safe worker before production use to avoid UI stalls.
+The Posts page invokes publishing asynchronously through
+`PublishingController` and `PublishingWorker`. WordPress connection verification
+uses a separate worker/controller. Network publishing and media uploads now
+execute in the publishing worker; live-platform validation remains pending.
 
 Automated tests cover WordPress post/media requests, publisher validation,
 Gutenberg content, upload rollback, and cleanup failures. Live server tests
@@ -1056,5 +1066,54 @@ Unconfigured Facebook and Instagram publishers fail explicitly, while WordPress
 uses an account-specific REST publisher for text and prepared-image posts.
 Successful publisher returns may be persisted to local history; remote post
 identifiers, remote editing, and publication-history image/tag serialization
-remain pending. The developer reported 662 passing automated tests for the
+remain pending. The earlier numbered checkpoint was 662 passing tests for the
 current project snapshot. This does not replace live WordPress API verification.
+
+## 32. Background Publishing and Selective Retry (Implemented)
+
+`ui/posts/publishing_controller.py` owns the publishing `QThread` and worker
+lifecycle. `ui/posts/publishing_worker.py` calls
+`application/publishing/publish_post.py` outside the UI thread and emits
+per-account progress and a final result. The Posts page disables overlapping
+publishing and restores controls after worker cleanup. `MainWindow.closeEvent`
+defers shutdown while publishing or WordPress verification is running.
+
+`PublishPost.execute()` attempts each selected account independently and
+continues after account-specific exceptions. It emits progress via an optional
+callback. Success is recorded in local history only after the publisher call
+succeeds. Temporary prepared images are cleaned up after each attempt.
+
+`application/publishing/build_retry_request.py` builds a new request containing
+only failed accounts from the previous request/results. The Posts page retains
+retry state until it is invalidated by draft changes (text, language, accounts,
+images, tags, or starting a new post). Retry is not automatic and is not
+restricted to transient errors. A successful retry does not republish accounts
+that already succeeded.
+
+## 33. Publishing Error Classification and Presentation (Implemented)
+
+`application/publishing/error_classifier.py` maps `ConnectionError` and
+`TimeoutError` to `TRANSIENT`; known invalid-content/configuration exceptions
+to `PERMANENT`; and other exceptions to `UNKNOWN`. `PublishResult.error_category`
+exposes this classification. `ui/posts/publishing_error_formatter.py` turns it
+into generic user-facing status text. The original exception remains available
+internally, but its raw message is not displayed in the per-account status.
+
+`PublishPost` records a safe technical log message with account name,
+destination, and exception class. Some other existing module loggers use
+exception tracebacks; a comprehensive logging/redaction review is still
+required before production release.
+
+## 34. Application Startup and Logging Failure Handling (Implemented)
+
+`main.create_application()` configures persistent logs after setting Qt
+application identity. It catches `OSError` from log setup, emits a generic
+warning, and continues. If `MainWindow()` construction fails, it logs the
+exception type and re-raises. `main.run()` catches application creation and
+window-display failures, logs the exception type, and returns `1`; normal
+non-event-loop startup returns `0`.
+
+The construction failure can currently be logged both by `create_application()`
+and by `run()`. Deduplication, startup resource cleanup, and a reliable fallback
+diagnostic when file logging is unavailable remain review items, not completed
+features.

@@ -1415,3 +1415,81 @@ When a significant technical decision is proposed:
 If an existing decision is replaced, do not silently rewrite project
 history. Mark the previous decision as superseded where appropriate and
 record the new decision separately.
+
+## ADR-053 --- Use Qt Workers for Publishing
+
+### Decision
+
+Run the publishing use case through `PublishingWorker` and
+`PublishingController` on a `QThread`. Emit per-account progress and final
+results to the UI. Prevent overlapping publish requests and defer main-window
+shutdown until active publishing work completes.
+
+### Context
+
+WordPress publishing and media operations can block the desktop UI. WordPress
+connection verification already established a Qt worker pattern.
+
+### Consequences
+
+The UI remains responsive during publishing. Worker lifetime and shutdown must
+be tested, and UI updates remain on the Qt UI thread.
+
+## ADR-054 --- Retry Only Failed Publishing Accounts
+
+### Decision
+
+Build a retry request from the last request and its failed account results.
+Do not republish successful accounts. Invalidate retry state whenever the draft
+or account selection changes. Retry is user-initiated, not automatic.
+
+### Consequences
+
+Successful destinations are protected from accidental repeat publication during
+selective retry. Error classification is advisory for presentation and does not
+automatically restrict retry eligibility.
+
+## ADR-055 --- Classify and Sanitize Publishing Failures
+
+### Decision
+
+Classify errors as transient, permanent, or unknown in the application layer,
+and format safe user-facing messages in the UI. Log account/destination and
+exception type for publishing failures without logging raw exception messages
+or post text.
+
+### Consequences
+
+UI diagnostics are consistent and avoid exposing raw platform errors. The
+classifier does not determine retry policy. Existing traceback-based log
+statements elsewhere still require a broader security review.
+
+## ADR-056 --- Store Rotating Logs in Application Data
+
+### Decision
+
+Initialize the `socialflow` logger at startup using UTF-8 rotating files under
+the platform-specific application data directory. Use 2 MiB per file and three
+backups. Reuse handlers for the same location; close replaced rotating handlers
+when switching locations.
+
+### Consequences
+
+Diagnostics survive application restarts without unbounded single-file growth.
+Filesystem permission errors during log initialization must not prevent the UI
+from starting. This does not implement email error reporting.
+
+## ADR-057 --- Return Nonzero on Startup Failure
+
+### Decision
+
+Log safe exception-type diagnostics for main-window construction and top-level
+startup/display failures. Preserve the original constructor exception for
+callers of `create_application()`, while `run()` returns exit code `1` when
+startup fails. Catch logging initialization `OSError` separately and continue.
+
+### Consequences
+
+Startup failures have a predictable process-level status. Main-window
+construction failures currently cause duplicate log entries when called through
+`run()`; consolidation and resource-cleanup review remain follow-up work.

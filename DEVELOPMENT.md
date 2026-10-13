@@ -561,7 +561,12 @@ Production/user data must not be committed to Git.
 
 ## 24. Logging During Development
 
-Application logging will be centralized when implemented.
+Application logging is configured in `src/socialflow/infrastructure/logging_config.py`
+and initialized by `create_application()` in `src/socialflow/main.py`.
+Logs are UTF-8 rotating files in `data_directory() / "logs" / "socialflow.log"`
+(2 MiB per file, three backups). The data directory follows the existing
+platform-specific Linux/Windows path logic. Startup tolerates filesystem
+`OSError` from log setup with a generic warning. Never commit runtime logs.
 
 Development logs should provide enough information to diagnose failures
 without exposing secrets.
@@ -639,8 +644,7 @@ indicators, and publishing failure reporting. Only publishers that return
 successfully can produce local publication records; live adapters are absent.
 Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
-editor. Legacy history without IDs is migrated in place. The developer reported **662 passing tests** after WordPress post/media
-publishing and image cleanup regression work. This is not a live API test.
+editor. Legacy history without IDs is migrated in place. The earlier explicitly numbered checkpoint was **662 passing tests** after WordPress post/media publishing and image cleanup. Later full-suite runs were reported as passing after background publishing, retry, and startup logging changes; no updated numerical total was provided. This is not a live API test.
 
 Useful focused test commands include:
 
@@ -686,8 +690,7 @@ python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tes
 python -m pytest -q
 ```
 
-The developer reported 662 passing tests after WordPress publishing and media
-cleanup changes. This is not evidence of successful publishing against a live
+The earlier explicitly numbered baseline was 662 passing tests. Later full-suite runs were reported as passing, without a newer numerical total. This is not evidence of successful publishing against a live
 WordPress server. Never substitute
 `NullPublisher` in the production composition root to simulate success.
 
@@ -750,13 +753,14 @@ and logging media deletion failures. Post-creation failures do not trigger media
 rollback. Do not use real credentials or a live WordPress site in the normal
 pytest suite; live integration testing is a separate manual/controlled step.
 
-**Latest user-reported full-suite checkpoint:** 662 tests passed. This count
-comes from the developer's test run, not from running pytest while updating
-these documentation files.
+**Test reporting:** The last numbered baseline was 662 passing tests; later
+full-suite runs were reported as passing without a new numerical count.
+Documentation maintenance does not itself execute the full test suite.
 
-WordPress publishing is currently invoked synchronously from the Posts page.
-Avoid claiming it is a background operation; only connection verification has
-the current dedicated Qt worker/controller lifecycle.
+WordPress publishing is invoked through the Posts page's Qt background
+`PublishingController`/`PublishingWorker`. WordPress connection verification
+uses its own worker/controller. The main window defers closing while either
+operation is active.
 
 ------------------------------------------------------------------------
 
@@ -773,3 +777,44 @@ When tools or commands are introduced:
 
 Avoid documenting speculative commands or development processes that
 have not yet been established.
+
+## 32. Background Publishing and Retry Regression Checks
+
+After changes to publishing concurrency, progress, retry state, or worker
+shutdown, run:
+
+```bash
+python -m pytest -q tests/application/test_build_retry_request.py
+python -m pytest -q tests/application/test_publish_post.py
+python -m pytest -q tests/ui/test_publishing_worker.py tests/ui/test_publishing_controller.py
+python -m pytest -q tests/ui/test_posts_page.py tests/ui/test_main_window.py
+python -m pytest -q
+```
+
+The retry request includes failed accounts only; changing text, publishing
+language, accounts, images, or tags invalidates retry state. Background
+publishing must not block the UI, overlap with itself, or cause the main
+window to close before worker cleanup.
+
+## 33. Publishing Diagnostics and Startup Regression Checks
+
+After changes to classification, status formatting, persistent logging,
+or startup behavior, run:
+
+```bash
+python -m pytest -q tests/application/test_error_classifier.py
+python -m pytest -q tests/ui/test_publishing_error_formatter.py tests/ui/test_publish_status.py
+python -m pytest -q tests/infrastructure/test_logging_config.py tests/test_main.py
+python -m pytest -q
+git diff --check
+```
+
+The startup tests cover log file creation, safe handling of log-directory
+`OSError`, safe constructor diagnostics, and nonzero return values from
+`run()` on startup failures. The logging tests cover repeated initialization
+and switching directories. Publishing logs intentionally omit post text and
+raw publishing exception messages.
+
+**Open review items:** avoid duplicate startup log entries, examine resource
+cleanup on startup failure, and ensure useful fallback diagnostics if file
+logging cannot initialize. Production email reporting is not implemented.

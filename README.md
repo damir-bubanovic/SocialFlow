@@ -92,16 +92,20 @@ available post data into the editor; it does not update the remote post.
 
 The current tag provider is `NullTagProvider`; remote tag retrieval and creation
 are not implemented. Remote post retrieval and updates, Facebook/Instagram API
-publishing, centralized production logging, email error reporting, and release
-packaging remain future work. Publishing currently runs synchronously from the
-Posts page; unlike WordPress connection verification, it has not yet been moved
-to a background worker.
+publishing, email error reporting, and release packaging remain future work.
+Publishing now runs in a Qt background worker, with per-account progress,
+independent outcomes, guarded concurrent starts, and deferred window closing.
+After partial failure, **Retry Failed** targets only failed accounts; editing the
+draft or changing its accounts, images, language, or tags invalidates that retry.
+A failed publisher does not prevent later accounts from being attempted.
 
-**Testing checkpoint:** the developer reported **662 passing automated tests**
-after the WordPress image-publishing and cleanup regression work. The tests use
-mocked/fake network dependencies and do **not** establish successful publishing
-against a live WordPress site. Live API, Linux/Windows packaging, and platform
-credential-backend checks remain outstanding.
+**Testing checkpoint:** The earlier documented numerical baseline was **662
+passing tests**. The developer subsequently reported that all tests passed
+after the background publishing, selective retry, safe error formatting,
+persistent logging, and startup-handling changes; no newer numerical total was
+provided. Tests use mocked/fake network dependencies and do **not** establish
+successful publishing against a live WordPress site. Live API, Linux/Windows
+packaging, and platform credential-backend checks remain outstanding.
 
 ## Documentation
 
@@ -133,3 +137,21 @@ content across supported publishing platforms.
 Platform-specific functionality depends on the capabilities and
 restrictions of the official APIs provided by Facebook/Instagram and
 WordPress.
+
+## Publishing Reliability and Diagnostics
+
+- Publishing results classify failures as **transient**, **permanent**, or
+  **unknown** for user-facing status messages. This classification does not
+  automatically determine retry eligibility.
+- The publishing service logs account/destination and exception type rather
+  than the raw publishing exception message or post text.
+- Persistent UTF-8 rotating logs are initialized at application startup under
+  the platform-specific application data directory in `logs/socialflow.log`.
+  Rotation is configured at 2 MiB with three backups.
+- Logging setup filesystem errors are handled with a generic warning; main
+  window construction failures are logged and re-raised internally, while the
+  top-level `run()` function returns exit code `1` on startup creation/display
+  failure. A main-window construction error may currently produce two log
+  entries (a known review item).
+- Production-wide exception capture, email notifications, and validation of
+  real platform integrations remain pending.

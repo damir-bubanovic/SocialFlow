@@ -44,7 +44,7 @@ pass.
 -   [ ] Implement application configuration management.
 -   [x] Implement local account data storage using UTF-8 JSON in the platform-specific application data directory.
 -   [~] Implement secure storage for credentials and access tokens; WordPress application passwords use OS-backed keyring storage, while other platform credentials remain pending.
--   [ ] Implement application logging.
+-   [x] Initialize persistent rotating UTF-8 application logs at startup, with platform-specific storage and handler lifecycle tests.
 -   [x] Implement automated testing infrastructure.
 -   [ ] Implement development quality checks.
 -   [~] Support Unicode throughout the application; account serialization and persistence are covered, while remaining future workflows still require verification.
@@ -246,13 +246,10 @@ while respecting the capabilities of each destination platform.
 
 ## 12. Error Handling
 
--   [~] Handle application errors without unnecessarily terminating
-    SocialFlow; per-account publisher exceptions are captured, but broader
-    exception handling remains to be completed.
--   [x] Display publishing failure reasons for each account in the Posts UI.
--   [~] Record technical error information in application logs; image-preparation and WordPress media-cleanup failures use module loggers, but centralized production logging remains pending.
--   [~] Distinguish unconfigured publishers explicitly; broader error
-    categorization is pending.
+-   [~] Handle application errors without unnecessarily terminating SocialFlow; per-account exceptions are isolated, logging filesystem errors do not prevent startup, and top-level startup failures return a nonzero exit code. Broader runtime exception handling remains pending.
+-   [x] Display safe, categorized publishing failure messages for each account in the Posts UI.
+-   [x] Record publishing failures with account/destination and exception type in application logs without including raw publishing exception messages or post text.
+-   [x] Classify publishing errors as transient, permanent, or unknown; classification does not automatically control retry eligibility.
 -   [~] Handle network and API failures; WordPress connection verification categorizes unreachable/error responses, while other operations remain pending.
 -   [~] Handle authentication failures; WordPress connection verification reports invalid or missing credentials, while other platforms remain pending.
 -   [ ] Handle platform rate limits where applicable.
@@ -275,7 +272,7 @@ while respecting the capabilities of each destination platform.
 
 ## 14. Logging and Audit
 
--   [~] Maintain application logs; targeted module-level exception logging exists, but centralized logging setup is not yet implemented.
+-   [x] Configure persistent UTF-8 rotating logs (2 MiB, three backups) at startup; prevent duplicate handlers and close replaced handlers.
 -   [ ] Log important application operations.
 -   [ ] Log publishing attempts and their results.
 -   [ ] Log update attempts and their results.
@@ -386,10 +383,7 @@ Before SocialFlow is considered ready for a production release:
     failure path with tests.
 -   [~] Implement authenticated live publisher adapters: WordPress post/media publishing is implemented with mocked API tests; Facebook and Instagram remain pending, and live WordPress testing is outstanding.
 
-**Latest reported test checkpoint:** 662 automated tests passed after the
-WordPress publishing, media upload/rollback, and partial image cleanup work.
-The suite uses isolated fake/mock HTTP dependencies and does not establish
-publishing success against a live WordPress website.
+**Test checkpoint:** 662 was the last explicitly numbered full-suite result in the earlier documentation. The developer subsequently reported that all tests passed after Steps 16–17.8.3; no updated test count was provided. Mocked HTTP tests do not prove live WordPress publishing.
 ------------------------------------------------------------------------
 
 ## 21. Scope Management
@@ -407,3 +401,28 @@ A new feature should first be:
 
 This document represents the agreed functional scope and roadmap for
 SocialFlow.
+
+## 22. Background Publishing, Retry, and Startup Reliability (Implemented)
+
+-   [x] Execute publishing in a Qt worker/controller instead of blocking the Posts UI.
+-   [x] Report per-account progress and final results through Qt signals.
+-   [x] Prevent overlapping publish requests while a worker is active.
+-   [x] Defer main-window closing until active publishing/verification workers finish.
+-   [x] Isolate individual account failures, including unexpected publisher exceptions.
+-   [x] Build a retry request containing only accounts that failed in the previous attempt.
+-   [x] Disable **Retry Failed** when there are no failed accounts or after retry succeeds.
+-   [x] Invalidate retry state when draft text, language, accounts, images, or tags change.
+-   [x] Format transient/permanent/unknown failures into safe user-facing messages.
+-   [x] Log safe per-account technical diagnostics.
+-   [x] Handle persistent-log setup `OSError` without aborting application startup.
+-   [x] Log main-window initialization failures and propagate the original exception.
+-   [x] Return nonzero from `run()` when application creation or window display fails.
+-   [ ] Review duplicate diagnostics for main-window construction failures.
+-   [ ] Review startup resource cleanup and fallback logging behavior.
+-   [ ] Add production email error notifications and configuration.
+
+**Remaining product work:** Facebook/Instagram adapters, live WordPress validation,
+remote posts and updates, remote tags, publication-history image/tag
+serialization, production-grade credential/backend checks, and Linux/Windows
+packaging remain separate tasks. Publishing error classification does **not**
+automatically limit manual retry to transient errors.
