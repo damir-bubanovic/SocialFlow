@@ -71,12 +71,12 @@ def test_create_application_continues_when_logging_fails(
 
     assert isinstance(window, MainWindow)
 
-def test_create_application_reports_main_window_failure(
+def test_create_application_propagates_main_window_failure(
     monkeypatch,
     tmp_path,
     caplog,
 ) -> None:
-    """Main window initialization failures must be logged and re-raised."""
+    """Main window failures propagate without duplicate logging."""
 
     def failing_main_window():
         raise RuntimeError("Sensitive initialization details")
@@ -95,9 +95,12 @@ def test_create_application_reports_main_window_failure(
         with pytest.raises(RuntimeError):
             create_application()
 
-    assert "Main window initialization failed" in caplog.text
-    assert "RuntimeError" in caplog.text
-    assert "Sensitive initialization details" not in caplog.text
+    assert not [
+        record
+        for record in caplog.records
+        if record.name == "socialflow"
+        and record.levelno >= logging.ERROR
+    ]
 
 def test_run_returns_nonzero_when_application_creation_fails(
     monkeypatch,
@@ -120,6 +123,43 @@ def test_run_returns_nonzero_when_application_creation_fails(
     assert "Application startup failed: RuntimeError" in caplog.text
     assert "Sensitive startup details" not in caplog.text
 
+def test_run_logs_main_window_failure_exactly_once(
+    monkeypatch,
+    tmp_path,
+    caplog,
+) -> None:
+    """Main window initialization failure produces one sanitized error."""
+
+    def failing_main_window():
+        raise RuntimeError("Sensitive initialization details")
+
+    monkeypatch.setattr(
+        "socialflow.main.data_directory",
+        lambda: tmp_path,
+    )
+
+    monkeypatch.setattr(
+        "socialflow.main.MainWindow",
+        failing_main_window,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="socialflow"):
+        exit_code = run(start_event_loop=False)
+
+    error_records = [
+        record
+        for record in caplog.records
+        if record.name == "socialflow"
+        and record.levelno >= logging.ERROR
+    ]
+
+    assert exit_code == 1
+    assert len(error_records) == 1
+    assert (
+        error_records[0].getMessage()
+        == "Application startup failed: RuntimeError"
+    )
+    assert "Sensitive initialization details" not in caplog.text
 
 def test_run_returns_nonzero_when_window_show_fails(
     monkeypatch,

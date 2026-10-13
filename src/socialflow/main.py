@@ -25,14 +25,7 @@ def create_application() -> MainWindow:
             "Persistent logging is unavailable."
         )
 
-    try:
-        return MainWindow()
-    except Exception as error:
-        logging.getLogger("socialflow").error(
-            "Main window initialization failed: %s",
-            type(error).__name__,
-        )
-        raise
+    return MainWindow()
 
 def run(*, start_event_loop: bool = True) -> int:
     """Start the SocialFlow desktop application."""
