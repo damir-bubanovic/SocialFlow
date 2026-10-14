@@ -1488,6 +1488,20 @@ def test_posts_page_combines_unique_tags_from_selected_accounts(
         True
     )
 
+    qtbot.waitUntil(
+        lambda: page.post_editor.tag_selector.available_tags()
+                == (
+                    Tag(name="SocialFlow"),
+                    Tag(name="Python"),
+                    Tag(name="WordPress"),
+                ),
+        timeout=5000,
+    )
+    qtbot.waitUntil(
+        lambda: not page._tag_loading_controller.is_running,
+        timeout=5000,
+    )
+
     assert page.post_editor.tag_selector.available_tags() == (
         Tag(name="SocialFlow"),
         Tag(name="Python"),
@@ -1544,6 +1558,19 @@ def test_posts_page_refreshes_tags_when_account_is_deselected(
 
     facebook_checkbox.setChecked(True)
     wordpress_checkbox.setChecked(True)
+
+    qtbot.waitUntil(
+        lambda: page.post_editor.tag_selector.available_tags()
+                == (
+                    Tag(name="FacebookTag"),
+                    Tag(name="WordPressTag"),
+                ),
+        timeout=5000,
+    )
+    qtbot.waitUntil(
+        lambda: not page._tag_loading_controller.is_running,
+        timeout=5000,
+    )
 
     assert page.post_editor.tag_selector.available_tags() == (
         Tag(name="FacebookTag"),
@@ -1658,9 +1685,22 @@ def test_posts_page_creates_new_tag_for_all_selected_accounts(
         ),
     ]
 
+    qtbot.waitUntil(
+        lambda: page.post_editor.tag_selector.available_tags()
+                == (Tag(name="SocialFlow"),),
+        timeout=5000,
+    )
+
+    qtbot.waitUntil(
+        lambda: not page._tag_loading_controller.is_running,
+        timeout=5000,
+    )
+
     assert page.post_editor.tag_selector.available_tags() == (
         Tag(name="SocialFlow"),
     )
+
+    page.shutdown()
 
 
 # Recent publication history
@@ -1884,6 +1924,13 @@ def test_posts_page_shows_history_for_first_selected_account(
         True
     )
 
+    qtbot.waitUntil(
+        lambda: not page._tag_loading_controller.is_running,
+        timeout=5000,
+    )
+
+    page.shutdown()
+
 def test_new_post_button_clears_editor(qtbot) -> None:
     page = create_posts_page()
     qtbot.addWidget(page)
@@ -1957,3 +2004,154 @@ def test_new_post_button_resets_editor_after_selecting_history(
     )
 
     assert page.post_editor.selected_language() is Language.ENGLISH
+
+def test_posts_page_ignores_tags_without_active_loading_account(
+    qtbot,
+) -> None:
+    """Ignore background results when no account owns the request."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    assert page._tag_loading_account is None
+
+    page._tag_loading_controller.tags_ready.emit(
+        (Tag(name="Unexpected"),)
+    )
+
+    assert page.post_editor.tag_selector.available_tags() == ()
+
+
+def test_posts_page_ignores_tags_after_account_deselection(
+    qtbot,
+) -> None:
+    """Do not display results for an account that was deselected."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    checkbox = page.post_editor.destination_selector._checkboxes[0]
+    checkbox.setChecked(True)
+
+    account = page.post_editor.selected_accounts()[0]
+    page._tag_loading_account = account
+
+    checkbox.setChecked(False)
+
+    page._tag_loading_controller.tags_ready.emit(
+        (Tag(name="StaleTag"),)
+    )
+
+    assert page.post_editor.tag_selector.available_tags() == ()
+
+def test_posts_page_loads_queued_wordpress_tags_in_background(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    expected_tags = (
+        Tag(name="Python"),
+        Tag(name="WordPress"),
+    )
+    provider = AccountTagProvider({account: expected_tags})
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(provider),
+        create_tag=CreateTag(provider),
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+
+    with qtbot.waitSignal(
+            page._tag_loading_controller.finished,
+            timeout=5000,
+    ):
+        page.post_editor.destination_selector._checkboxes[0].setChecked(
+            True
+        )
+
+    assert page.post_editor.tag_selector.available_tags() == expected_tags
+    assert page._pending_tag_accounts == []
+    assert not page._tag_loading_controller.is_running
+
+    page.shutdown()
+
+def test_posts_page_starts_wordpress_tag_loading_automatically(
+    qtbot,
+) -> None:
+    """Selecting WordPress must start background tag loading."""
+    repository = InMemoryAccountRepository()
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    expected_tags = (
+        Tag(name="Python"),
+        Tag(name="WordPress"),
+    )
+    provider = AccountTagProvider({account: expected_tags})
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(provider),
+        create_tag=CreateTag(provider),
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    try:
+        with qtbot.waitSignal(
+            page._tag_loading_controller.finished,
+            timeout=5000,
+        ):
+            page.post_editor.destination_selector._checkboxes[0].setChecked(
+                True
+            )
+
+        assert page.post_editor.tag_selector.available_tags() == expected_tags
+        assert not page._tag_loading_controller.is_running
+    finally:
+        page.shutdown()
+
+def test_posts_page_shutdown_prevents_queued_tag_loading(qtbot) -> None:
+    """Shutdown must clear pending requests and prevent new workers."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    page.post_editor.destination_selector._checkboxes[0].setChecked(True)
+    account = page.post_editor.selected_accounts()[0]
+    page._pending_tag_accounts.append(account)
+
+    assert page._pending_tag_accounts == [account]
+
+    page.shutdown()
+
+    assert page._tag_loading_shutting_down
+    assert page._pending_tag_accounts == []
+
+    page._start_next_tag_loading()
+
+    assert not page._tag_loading_controller.is_running
+    assert page._tag_loading_controller._thread is None

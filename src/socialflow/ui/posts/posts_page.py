@@ -8,6 +8,7 @@ from socialflow.application.publishing.list_recent_publications import (
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
+from socialflow.domain.account.account import Account
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.publish_request import PublishRequest
 from socialflow.domain.publishing.publication import Publication
@@ -19,6 +20,10 @@ from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.application.publishing.build_retry_request import (
     BuildRetryRequest,
 )
+from socialflow.ui.workers.tag_loading_controller import (
+    TagLoadingController,
+)
+from socialflow.domain.publishing.destination import PublishingDestination
 
 
 class PostsPage(QWidget):
@@ -63,6 +68,21 @@ class PostsPage(QWidget):
         self._list_accounts = list_accounts
         self._list_tags = list_tags
         self._create_tag = create_tag
+
+        self._tag_loading_controller = TagLoadingController(
+            list_tags=list_tags,
+            parent=self,
+        )
+        self._tag_loading_account: Account | None = None
+        self._pending_tag_accounts: list[Account] = []
+        self._tag_loading_shutting_down = False
+        self._loaded_tags_by_account: dict[object, tuple[Tag, ...]] = {}
+        self._tag_loading_controller.tags_ready.connect(
+            self._on_tags_loaded
+        )
+        self._tag_loading_controller.finished.connect(
+            self._on_tag_loading_finished
+        )
         self._list_recent_publications = list_recent_publications
 
         self.post_editor = PostEditor(self)
@@ -140,13 +160,34 @@ class PostsPage(QWidget):
             self._list_accounts.execute()
         )
 
-    def _refresh_available_tags(self) -> None:
-        """Refresh tags available for the selected accounts."""
-        tags = []
-        seen_tags = set()
+    def _on_tags_loaded(self, tags: tuple[Tag, ...]) -> None:
+        """Store tags only while the page is active and account selected."""
+        if self._tag_loading_shutting_down:
+            return
+
+        account = self._tag_loading_account
+
+        if account is None:
+            return
+
+        if account not in self.post_editor.selected_accounts():
+            return
+
+        self._loaded_tags_by_account[account.id] = tags
+        self._display_loaded_tags()
+
+    def _display_loaded_tags(self) -> None:
+        """Combine selected accounts' tags without duplicates."""
+        tags: list[Tag] = []
+        seen_tags: set[Tag] = set()
 
         for account in self.post_editor.selected_accounts():
-            for tag in self._list_tags.execute(account):
+            account_tags = self._loaded_tags_by_account.get(
+                account.id,
+                (),
+            )
+
+            for tag in account_tags:
                 if tag not in seen_tags:
                     seen_tags.add(tag)
                     tags.append(tag)
@@ -154,6 +195,64 @@ class PostsPage(QWidget):
         self.post_editor.tag_selector.set_available_tags(
             tuple(tags)
         )
+
+    def _on_tag_loading_finished(self) -> None:
+        """Continue loading queued accounts after thread cleanup."""
+        self._tag_loading_account = None
+        self._start_next_tag_loading()
+
+    def _start_next_tag_loading(self) -> None:
+        """Start the next queued account when the controller is idle."""
+        if self._tag_loading_shutting_down:
+            return
+        if self._tag_loading_controller.is_running:
+            return
+
+        selected_accounts = self.post_editor.selected_accounts()
+
+        while self._pending_tag_accounts:
+            account = self._pending_tag_accounts.pop(0)
+
+            if account not in selected_accounts:
+                continue
+
+            if account.id in self._loaded_tags_by_account:
+                continue
+
+            self._tag_loading_account = account
+            self._tag_loading_controller.start(account)
+            return
+
+    def _refresh_available_tags(self) -> None:
+        """Load WordPress tags in the background."""
+        if self._tag_loading_shutting_down:
+            return
+
+        selected_accounts = self.post_editor.selected_accounts()
+        selected_ids = {account.id for account in selected_accounts}
+
+        self._loaded_tags_by_account = {
+            account_id: tags
+            for account_id, tags in self._loaded_tags_by_account.items()
+            if account_id in selected_ids
+        }
+
+        self._pending_tag_accounts.clear()
+
+        for account in selected_accounts:
+            if account.id in self._loaded_tags_by_account:
+                continue
+
+            if account.destination == PublishingDestination.WORDPRESS:
+                self._pending_tag_accounts.append(account)
+                continue
+
+            self._loaded_tags_by_account[account.id] = (
+                self._list_tags.execute(account)
+            )
+
+        self._display_loaded_tags()
+        self._start_next_tag_loading()
 
     def _refresh_recent_posts(self) -> None:
         """Refresh history for the first selected account."""
@@ -166,8 +265,8 @@ class PostsPage(QWidget):
         self.recent_posts_panel.set_account(accounts[0])
 
     def _create_tag_for_selected_accounts(
-        self,
-        tag: Tag,
+            self,
+            tag: Tag,
     ) -> None:
         """Create a new tag for every selected account."""
         for account in self.post_editor.selected_accounts():
@@ -175,6 +274,8 @@ class PostsPage(QWidget):
                 account=account,
                 name=tag.name,
             )
+
+            self._loaded_tags_by_account.pop(account.id, None)
 
         self._refresh_available_tags()
 
@@ -289,5 +390,9 @@ class PostsPage(QWidget):
         self.post_editor.publish_button.setEnabled(True)
 
     def shutdown(self) -> None:
-        """Wait for active publishing to finish."""
+        """Stop background operations without restarting queued work."""
+        self._tag_loading_shutting_down = True
+        self._pending_tag_accounts.clear()
+
+        self._tag_loading_controller.shutdown()
         self._publishing_controller.shutdown()

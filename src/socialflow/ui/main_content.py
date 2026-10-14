@@ -28,6 +28,15 @@ from socialflow.application.publishing.unconfigured_publisher import (
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
 from socialflow.application.tags.null_tag_provider import NullTagProvider
+from socialflow.application.tags.routing_tag_provider import (
+    RoutingTagProvider,
+)
+from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
+    WordPressTagProvider,
+)
+from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
+    UrllibWordPressTagClient,
+)
 from socialflow.domain.publishing.destination import (
     PublishingDestination,
 )
@@ -113,7 +122,16 @@ class MainContent(QWidget):
         update_account = UpdateAccount(account_repository)
 
         # Tag services.
-        tag_provider = NullTagProvider()
+        tag_provider = RoutingTagProvider(
+            providers={
+                PublishingDestination.WORDPRESS: WordPressTagProvider(
+                    tag_client=UrllibWordPressTagClient(),
+                    credential_store=credential_store,
+                ),
+            },
+            fallback=NullTagProvider(),
+        )
+
         list_tags = ListTags(tag_provider)
         create_tag = CreateTag(tag_provider)
 
