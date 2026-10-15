@@ -5,16 +5,21 @@ from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
+from socialflow.application.publishing.list_remote_posts import (
+    ListRemotePosts,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
 from socialflow.domain.account.account import Account
+from socialflow.domain.post.remote_post import RemotePost
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.publish_request import PublishRequest
 from socialflow.domain.publishing.publication import Publication
 from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_status import PublishStatus
 from socialflow.ui.posts.recent_posts_panel import RecentPostsPanel
+from socialflow.ui.posts.remote_posts_panel import RemotePostsPanel
 from socialflow.ui.posts.publishing_controller import PublishingController
 from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.application.publishing.build_retry_request import (
@@ -22,6 +27,9 @@ from socialflow.application.publishing.build_retry_request import (
 )
 from socialflow.ui.workers.tag_loading_controller import (
     TagLoadingController,
+)
+from socialflow.ui.workers.remote_post_loading_controller import (
+    RemotePostLoadingController,
 )
 from socialflow.domain.publishing.destination import PublishingDestination
 
@@ -38,6 +46,7 @@ class PostsPage(QWidget):
         create_tag: CreateTag,
         list_recent_publications: ListRecentPublications,
         parent: QWidget | None = None,
+        list_remote_posts: ListRemotePosts | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -84,6 +93,29 @@ class PostsPage(QWidget):
             self._on_tag_loading_finished
         )
         self._list_recent_publications = list_recent_publications
+        self._remote_post_loading_controller = (
+            RemotePostLoadingController(
+                list_remote_posts=list_remote_posts,
+                parent=self,
+            )
+            if list_remote_posts is not None
+            else None
+        )
+        self._remote_post_loading_account: Account | None = None
+        self._pending_remote_post_account: Account | None = None
+        self._remote_post_loading_shutting_down = False
+        self._loaded_remote_posts: tuple[RemotePost, ...] = ()
+        self._remote_posts_error: str | None = None
+        if self._remote_post_loading_controller is not None:
+            self._remote_post_loading_controller.posts_ready.connect(
+                self._on_remote_posts_loaded
+            )
+            self._remote_post_loading_controller.error_occurred.connect(
+                self._on_remote_posts_error
+            )
+            self._remote_post_loading_controller.finished.connect(
+                self._on_remote_post_loading_finished
+            )
 
         self.post_editor = PostEditor(self)
         self.new_post_button = QPushButton("New Post", self)
@@ -100,6 +132,7 @@ class PostsPage(QWidget):
             list_recent_publications,
             self,
         )
+        self.remote_posts_panel = RemotePostsPanel(self)
 
         layout = QVBoxLayout()
         layout.addWidget(self.new_post_button)
@@ -107,6 +140,7 @@ class PostsPage(QWidget):
         layout.addWidget(self.retry_failed_button)
         layout.addWidget(self.publish_status)
         layout.addWidget(self.recent_posts_panel)
+        layout.addWidget(self.remote_posts_panel)
 
 
 
@@ -122,6 +156,9 @@ class PostsPage(QWidget):
 
         self.post_editor.account_selection_changed.connect(
             self._refresh_recent_posts
+        )
+        self.post_editor.account_selection_changed.connect(
+            self._refresh_remote_posts
         )
 
         self.post_editor.tag_selector.tag_created.connect(
@@ -253,6 +290,100 @@ class PostsPage(QWidget):
 
         self._display_loaded_tags()
         self._start_next_tag_loading()
+
+    def _refresh_remote_posts(self) -> None:
+        """Queue retrieval for the first selected WordPress account."""
+        if self._remote_post_loading_shutting_down:
+            return
+
+        controller = self._remote_post_loading_controller
+        if controller is None:
+            return
+
+        account = next(
+            (
+                selected
+                for selected in self.post_editor.selected_accounts()
+                if selected.destination == PublishingDestination.WORDPRESS
+            ),
+            None,
+        )
+
+        self._loaded_remote_posts = ()
+        self._remote_posts_error = None
+        self._pending_remote_post_account = account
+        if account is None:
+            self.remote_posts_panel.show_empty()
+        else:
+            self.remote_posts_panel.show_loading()
+        self._start_remote_post_loading()
+
+    def _start_remote_post_loading(self) -> None:
+        """Start the latest queued request once the controller is idle."""
+        controller = self._remote_post_loading_controller
+        if (
+            controller is None
+            or self._remote_post_loading_shutting_down
+            or controller.is_running
+        ):
+            return
+
+        account = self._pending_remote_post_account
+        self._pending_remote_post_account = None
+        if account is None:
+            return
+
+        self._remote_post_loading_account = account
+        controller.start(account)
+
+    def _is_current_remote_post_account(self) -> bool:
+        """Check whether the in-flight request still matches selection."""
+        account = self._remote_post_loading_account
+        if account is None or self._remote_post_loading_shutting_down:
+            return False
+
+        selected = next(
+            (
+                item
+                for item in self.post_editor.selected_accounts()
+                if item.destination == PublishingDestination.WORDPRESS
+            ),
+            None,
+        )
+        return account == selected and self._pending_remote_post_account is None
+
+    def _on_remote_posts_loaded(self, posts: tuple) -> None:
+        """Display remote posts for the currently selected account."""
+        account = self._remote_post_loading_account
+
+        if (
+                self._remote_post_loading_shutting_down
+                or account is None
+                or account not in self.post_editor.selected_accounts()
+        ):
+            return
+
+        self.remote_posts_panel.show_posts(posts)
+
+    def _on_remote_posts_error(self, message: str) -> None:
+        """Display remote retrieval errors."""
+        if self._remote_post_loading_shutting_down:
+            return
+
+        account = self._remote_post_loading_account
+
+        if (
+                account is None
+                or account not in self.post_editor.selected_accounts()
+        ):
+            return
+
+        self.remote_posts_panel.show_error(message)
+
+    def _on_remote_post_loading_finished(self) -> None:
+        """Process the latest request after worker thread cleanup."""
+        self._remote_post_loading_account = None
+        self._start_remote_post_loading()
 
     def _refresh_recent_posts(self) -> None:
         """Refresh history for the first selected account."""
@@ -393,6 +524,12 @@ class PostsPage(QWidget):
         """Stop background operations without restarting queued work."""
         self._tag_loading_shutting_down = True
         self._pending_tag_accounts.clear()
+        self._remote_post_loading_shutting_down = True
+        self._pending_remote_post_account = None
 
         self._tag_loading_controller.shutdown()
+
+        if self._remote_post_loading_controller is not None:
+            self._remote_post_loading_controller.shutdown()
+
         self._publishing_controller.shutdown()

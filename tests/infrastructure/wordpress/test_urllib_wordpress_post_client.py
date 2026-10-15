@@ -534,3 +534,54 @@ def test_delete_media_propagates_http_errors(status_code):
         assert exc_info.value.code == status_code
 
         build_opener.return_value.open.assert_called_once()
+
+def test_lists_recent_wordpress_posts():
+    response = make_response(status=200)
+    response.read.return_value = json.dumps(
+        [
+            {
+                "id": 42,
+                "date": "2026-10-14T10:30:00",
+                "content": {
+                    "rendered": "<p>Hello WordPress</p>"
+                },
+                "status": "publish",
+            }
+        ]
+    ).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        posts = client.list_recent_posts(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            limit=5,
+        )
+
+    assert posts == [
+        {
+            "id": 42,
+            "date": "2026-10-14T10:30:00",
+            "content": {
+                "rendered": "<p>Hello WordPress</p>"
+            },
+            "status": "publish",
+        }
+    ]
+
+    request = opener.open.call_args.args[0]
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts"
+        "?per_page=5&orderby=date&order=desc"
+    )
+    assert request.get_method() == "GET"
+    assert opener.open.call_args.kwargs["timeout"] == 10.0

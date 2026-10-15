@@ -10,6 +10,16 @@ class WordPressPostClient(ABC):
     """Transport contract for WordPress posts and media."""
 
     @abstractmethod
+    def list_recent_posts(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            limit: int = 5,
+    ) -> list[dict]:
+        """Retrieve recent WordPress posts, newest first."""
+
+    @abstractmethod
     def create_post(
         self,
         site_url: str,

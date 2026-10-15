@@ -20,6 +20,9 @@ from socialflow.application.images.image_profile_provider import (
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
+from socialflow.application.publishing.list_remote_posts import (
+    ListRemotePosts,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.publishing.unconfigured_publisher import (
@@ -69,6 +72,15 @@ from socialflow.infrastructure.wordpress.wordpress_publisher import (
 )
 from socialflow.infrastructure.wordpress.urllib_wordpress_post_client import (
     UrllibWordPressPostClient,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_parser import (
+    WordPressPostParser,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_retriever import (
+    WordPressPostRetriever,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_provider import (
+    WordPressPostProvider,
 )
 
 
@@ -140,6 +152,20 @@ class MainContent(QWidget):
 
         wordpress_post_client = UrllibWordPressPostClient()
 
+        wordpress_post_retriever = WordPressPostRetriever(
+            client=wordpress_post_client,
+            parser=WordPressPostParser(),
+        )
+
+        wordpress_post_provider = WordPressPostProvider(
+            retriever=wordpress_post_retriever,
+            credential_store=credential_store,
+        )
+
+        list_remote_posts = ListRemotePosts(
+            provider=wordpress_post_provider,
+        )
+
         publisher_router = PublisherRouter(
             publishers={
                 PublishingDestination.FACEBOOK: publisher,
@@ -183,6 +209,7 @@ class MainContent(QWidget):
             create_tag=create_tag,
             list_recent_publications=list_recent_publications,
             parent=self,
+            list_remote_posts=list_remote_posts,
         )
 
         # Accounts page with WordPress credential management.

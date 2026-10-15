@@ -37,6 +37,8 @@ from socialflow.ui.posts.publish_status import PublishStatus
 from threading import Event
 from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.domain.publishing.publish_request import PublishRequest
+from unittest.mock import Mock
+from socialflow.domain.post.remote_post import RemotePost
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -2155,3 +2157,217 @@ def test_posts_page_shutdown_prevents_queued_tag_loading(qtbot) -> None:
 
     assert not page._tag_loading_controller.is_running
     assert page._tag_loading_controller._thread is None
+
+def test_posts_page_loads_remote_wordpress_posts(qtbot):
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository = InMemoryAccountRepository()
+    repository.add(account)
+
+    remote_post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Remote WordPress test post",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+    )
+
+    list_remote_posts = Mock()
+    list_remote_posts.execute.return_value = (remote_post,)
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(AccountTagProvider({account: ()})),
+        create_tag=CreateTag(AccountTagProvider({account: ()})),
+        list_recent_publications=create_list_recent_publications(),
+        list_remote_posts=list_remote_posts,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        with qtbot.waitSignal(
+            page._remote_post_loading_controller.posts_ready,
+            timeout=5000,
+        ):
+            page.post_editor.destination_selector._checkboxes[0].setChecked(
+                True
+            )
+
+        qtbot.waitUntil(
+            lambda: page.remote_posts_panel.posts_list.count() == 1,
+            timeout=5000,
+        )
+
+        assert (
+            "Remote WordPress test post"
+            in page.remote_posts_panel.posts_list.item(0).text()
+        )
+
+        list_remote_posts.execute.assert_called_once_with(
+            account=account,
+            limit=5,
+        )
+    finally:
+        page.shutdown()
+
+def test_posts_page_ignores_outdated_remote_posts(qtbot):
+    first_account = Account(
+        name="First WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second_account = Account(
+        name="Second WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository = InMemoryAccountRepository()
+    repository.add(first_account)
+    repository.add(second_account)
+
+    first_started = Event()
+    release_first = Event()
+
+    def retrieve_posts(**kwargs):
+        selected_account = kwargs["account"]
+
+        if selected_account == first_account:
+            first_started.set()
+
+            if not release_first.wait(timeout=5):
+                raise TimeoutError("First request was not released")
+
+            return (
+                RemotePost(
+                    remote_id="101",
+                    destination=PublishingDestination.WORDPRESS,
+                    content="Outdated first account post",
+                    published_at=datetime(2026, 10, 15, 12, 0),
+                    status="publish",
+                ),
+            )
+
+        return (
+            RemotePost(
+                remote_id="202",
+                destination=PublishingDestination.WORDPRESS,
+                content="Current second account post",
+                published_at=datetime(2026, 10, 15, 13, 0),
+                status="publish",
+            ),
+        )
+
+    list_remote_posts = Mock()
+    list_remote_posts.execute.side_effect = retrieve_posts
+
+    tag_provider = AccountTagProvider({
+        first_account: (),
+        second_account: (),
+    })
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(tag_provider),
+        create_tag=CreateTag(tag_provider),
+        list_recent_publications=create_list_recent_publications(),
+        list_remote_posts=list_remote_posts,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        page.post_editor.destination_selector._checkboxes[0].setChecked(
+            True
+        )
+
+        qtbot.waitUntil(first_started.is_set, timeout=5000)
+
+        selector = page.post_editor.destination_selector
+
+        first_index = selector._accounts.index(first_account)
+        second_index = selector._accounts.index(second_account)
+
+        selector._checkboxes[first_index].setChecked(False)
+        selector._checkboxes[second_index].setChecked(True)
+
+        assert page.post_editor.selected_accounts() == (second_account,)
+
+        release_first.set()
+
+        qtbot.waitUntil(
+            lambda: (
+                page.remote_posts_panel.posts_list.count() == 1
+                and "Current second account post"
+                in page.remote_posts_panel.posts_list.item(0).text()
+            ),
+            timeout=5000,
+        )
+
+        assert "Outdated first account post" not in (
+            page.remote_posts_panel.posts_list.item(0).text()
+        )
+    finally:
+        release_first.set()
+        page.shutdown()
+
+def test_posts_page_shows_remote_post_retrieval_error(qtbot):
+    account = Account(
+        name="WordPress Error Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository = InMemoryAccountRepository()
+    repository.add(account)
+
+    list_remote_posts = Mock()
+    list_remote_posts.execute.side_effect = RuntimeError(
+        "WordPress server unavailable"
+    )
+
+    tag_provider = AccountTagProvider({
+        account: (),
+    })
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(tag_provider),
+        create_tag=CreateTag(tag_provider),
+        list_recent_publications=create_list_recent_publications(),
+        list_remote_posts=list_remote_posts,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        page.post_editor.destination_selector._checkboxes[0].setChecked(
+            True
+        )
+
+        qtbot.waitUntil(
+            lambda: (
+                "WordPress server unavailable"
+                in page.remote_posts_panel.status_label.text()
+            ),
+            timeout=5000,
+        )
+
+        assert page.remote_posts_panel.posts_list.count() == 0
+
+        list_remote_posts.execute.assert_called_once_with(
+            account=account,
+            limit=5,
+        )
+    finally:
+        page.shutdown()

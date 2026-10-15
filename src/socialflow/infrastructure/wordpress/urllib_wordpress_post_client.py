@@ -38,6 +38,69 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
         self._timeout = timeout
 
+    def list_recent_posts(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            limit: int = 5,
+    ) -> list[dict]:
+        """Retrieve the most recent WordPress posts."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+                parsed.scheme.lower() != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+        ):
+            raise ValueError("A valid HTTPS WordPress URL is required.")
+
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Post limit must be between 1 and 100.")
+
+        endpoint = (
+                site_url.rstrip("/")
+                + "/wp-json/wp/v2/posts"
+                + f"?per_page={limit}&orderby=date&order=desc"
+        )
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        request = Request(
+            endpoint,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+            },
+            method="GET",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(context=ssl.create_default_context()),
+            _NoRedirectHandler(),
+        )
+
+        with opener.open(
+                request,
+                timeout=self._timeout,
+        ) as response:
+            payload = json.load(response)
+
+        if not isinstance(payload, list):
+            raise ValueError("Invalid WordPress posts response.")
+
+        if not all(isinstance(post, dict) for post in payload):
+            raise ValueError("Invalid WordPress post entry.")
+
+        return payload
+
     def create_post(
         self,
         site_url: str,
