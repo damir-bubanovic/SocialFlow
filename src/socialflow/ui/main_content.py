@@ -82,6 +82,12 @@ from socialflow.infrastructure.wordpress.wordpress_post_retriever import (
 from socialflow.infrastructure.wordpress.wordpress_post_provider import (
     WordPressPostProvider,
 )
+from socialflow.application.publishing.update_remote_post import (
+    UpdateRemotePost,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_updater import (
+    WordPressPostUpdater,
+)
 
 
 class MainContent(QWidget):
@@ -165,6 +171,14 @@ class MainContent(QWidget):
         list_remote_posts = ListRemotePosts(
             provider=wordpress_post_provider,
         )
+        wordpress_post_updater = WordPressPostUpdater(
+            client=wordpress_post_client,
+            credential_store=credential_store,
+        )
+
+        update_remote_post = UpdateRemotePost(
+            updater=wordpress_post_updater,
+        )
 
         publisher_router = PublisherRouter(
             publishers={
@@ -210,6 +224,7 @@ class MainContent(QWidget):
             list_recent_publications=list_recent_publications,
             parent=self,
             list_remote_posts=list_remote_posts,
+            update_remote_post=update_remote_post,
         )
 
         # Accounts page with WordPress credential management.

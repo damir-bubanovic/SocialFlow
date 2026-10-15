@@ -585,3 +585,101 @@ def test_lists_recent_wordpress_posts():
     )
     assert request.get_method() == "GET"
     assert opener.open.call_args.kwargs["timeout"] == 10.0
+
+def test_updates_existing_wordpress_post():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient(timeout=5.0)
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Ažurirani sadržaj čćžšđ",
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts/123"
+    )
+    assert request.get_method() == "POST"
+
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Ažurirani sadržaj čćžšđ",
+    }
+    assert "status" not in payload
+
+    expected_auth = base64.b64encode(
+        b"admin:secret"
+    ).decode("ascii")
+
+    assert request.get_header("Authorization") == (
+        f"Basic {expected_auth}"
+    )
+    assert request.get_header("Content-type") == (
+        "application/json; charset=utf-8"
+    )
+
+    assert opener.open.call_args.kwargs["timeout"] == 5.0
+
+
+@pytest.mark.parametrize(
+    "post_id",
+    [0, -1, True, False, "123", None, 12.5],
+)
+def test_update_post_rejects_invalid_post_id(post_id):
+    client = UrllibWordPressPostClient()
+
+    with pytest.raises(ValueError, match="post ID"):
+        client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=post_id,
+            content="Updated content",
+        )
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [400, 401, 403, 404, 500],
+)
+def test_update_post_returns_http_error_status(status_code):
+    error = HTTPError(
+        url="https://example.com/wp-json/wp/v2/posts/123",
+        code=status_code,
+        msg="Update failed",
+        hdrs=Message(),
+        fp=BytesIO(b""),
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.side_effect = error
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+        )
+
+    assert status == status_code

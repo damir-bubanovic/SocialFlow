@@ -1,0 +1,297 @@
+from unittest.mock import Mock
+
+from socialflow.ui.posts.posts_page import PostsPage
+from socialflow.domain.publishing.destination import PublishingDestination
+
+
+def test_remote_post_save_starts_update_for_selected_post():
+    """Saving must target the selected WordPress account and post."""
+    page = Mock()
+
+    controller = Mock()
+    controller.is_running = False
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = False
+
+    account = Mock()
+    account.destination = PublishingDestination.WORDPRESS
+
+    page.post_editor.selected_accounts.return_value = (account,)
+    page._loaded_remote_posts = (Mock(remote_id="42"),)
+    page._loaded_remote_posts_account = account
+
+    page.remote_posts_panel = Mock()
+
+    PostsPage._handle_remote_post_save(
+        page,
+        "42",
+        "Updated WordPress content",
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated WordPress content",
+    )
+
+def test_remote_post_update_error_restores_editing():
+    """A failed update must show the error and restore editing."""
+    page = Mock()
+    account = Mock()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = account
+    page._loaded_remote_posts_account = account
+    page.post_editor.selected_accounts.return_value = (account,)
+
+    PostsPage._on_remote_post_update_error(
+        page,
+        "HTTP 403",
+    )
+
+    page.remote_posts_panel.status_label.setText.assert_called_once_with(
+        "Unable to update WordPress post: HTTP 403"
+    )
+    page.remote_posts_panel.restore_editing.assert_called_once_with()
+
+def test_remote_post_update_finished_ignores_previous_account():
+    """Finishing an update must not affect a different selected account."""
+    page = Mock()
+
+    original_account = Mock()
+    newly_selected_account = Mock()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = original_account
+    page._remote_post_update_succeeded = True
+
+    page.post_editor.selected_accounts.return_value = (
+        newly_selected_account,
+    )
+
+    PostsPage._on_remote_post_update_finished(page)
+
+    assert page._remote_post_updating_account is None
+    assert page._remote_post_update_succeeded is False
+
+    page._refresh_remote_posts.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+
+def test_remote_post_update_callbacks_ignored_during_shutdown():
+    """Update callbacks must not modify the UI during shutdown."""
+    page = Mock()
+
+    page._remote_post_updating_shutting_down = True
+    page._remote_post_updating_account = Mock()
+    page._remote_post_update_succeeded = False
+
+    PostsPage._on_remote_post_updated(page)
+    PostsPage._on_remote_post_update_error(
+        page,
+        "HTTP 500",
+    )
+    PostsPage._on_remote_post_update_finished(page)
+
+    assert page._remote_post_update_succeeded is False
+
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+    page._refresh_remote_posts.assert_not_called()
+
+def test_remote_posts_loaded_ignores_stale_account():
+    """Results from a previous account must not replace current posts."""
+    page = Mock()
+
+    original_account = Mock()
+    newly_selected_account = Mock()
+
+    page._remote_post_loading_account = original_account
+    page._remote_post_loading_shutting_down = False
+    page._pending_remote_post_account = newly_selected_account
+
+    page.post_editor.selected_accounts.return_value = (
+        newly_selected_account,
+    )
+
+    page._is_current_remote_post_account = (
+        lambda: PostsPage._is_current_remote_post_account(page)
+    )
+
+    previous_posts = (Mock(remote_id="100"),)
+    stale_posts = (Mock(remote_id="200"),)
+
+    page._loaded_remote_posts = previous_posts
+
+    PostsPage._on_remote_posts_loaded(page, stale_posts)
+
+    assert page._loaded_remote_posts == previous_posts
+    page.remote_posts_panel.show_posts.assert_not_called()
+
+def test_remote_post_save_rejects_mismatched_account():
+    """A post must not be updated through a different WordPress account."""
+    page = Mock()
+    controller = Mock()
+
+    loaded_account = Mock()
+    selected_account = Mock()
+
+    loaded_account.destination = PublishingDestination.WORDPRESS
+    selected_account.destination = PublishingDestination.WORDPRESS
+
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = False
+
+    controller.is_running = False
+
+    page._loaded_remote_posts_account = loaded_account
+    page._loaded_remote_posts = (Mock(remote_id="42"),)
+
+    page.post_editor.selected_accounts.return_value = (
+        selected_account,
+    )
+
+    PostsPage._handle_remote_post_save(
+        page,
+        "42",
+        "Updated WordPress content",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.save_button.setEnabled.assert_not_called()
+    page.remote_posts_panel.content_editor.setEnabled.assert_not_called()
+
+def test_remote_post_update_error_ignores_previous_account():
+    """An update error must not affect a newly selected account."""
+    page = Mock()
+
+    original_account = Mock()
+    newly_selected_account = Mock()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = original_account
+
+    page.post_editor.selected_accounts.return_value = (
+        newly_selected_account,
+    )
+
+    PostsPage._on_remote_post_update_error(
+        page,
+        "HTTP 403",
+    )
+
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+
+def test_remote_post_update_error_ignores_other_displayed_account():
+    """An update error must not affect another selected account."""
+    page = Mock()
+
+    account_a = Mock()
+    account_b = Mock()
+
+    account_a.destination = PublishingDestination.WORDPRESS
+    account_b.destination = PublishingDestination.WORDPRESS
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = account_a
+    page._loaded_remote_posts_account = account_b
+
+    page.post_editor.selected_accounts.return_value = (
+        account_b,
+        account_a,
+    )
+
+    PostsPage._on_remote_post_update_error(
+        page,
+        "HTTP 403",
+    )
+
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+
+def test_remote_post_update_finished_ignores_other_displayed_account():
+    """A completed update must not refresh another account's posts."""
+    page = Mock()
+
+    account_a = Mock()
+    account_b = Mock()
+
+    account_a.destination = PublishingDestination.WORDPRESS
+    account_b.destination = PublishingDestination.WORDPRESS
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = account_a
+    page._remote_post_update_succeeded = True
+    page._loaded_remote_posts_account = account_b
+
+    page.post_editor.selected_accounts.return_value = (
+        account_b,
+        account_a,
+    )
+
+    PostsPage._on_remote_post_update_finished(page)
+
+    assert page._remote_post_updating_account is None
+    assert page._remote_post_update_succeeded is False
+
+    page._refresh_remote_posts.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+
+def test_posts_page_shutdown_stops_remote_post_updating():
+    """Shutdown must stop updates and prevent further callbacks."""
+    page = Mock()
+
+    page._remote_post_updating_shutting_down = False
+
+    PostsPage.shutdown(page)
+
+    assert page._remote_post_updating_shutting_down is True
+
+    page._remote_post_updating_controller.shutdown.assert_called_once_with()
+    page._remote_post_loading_controller.shutdown.assert_called_once_with()
+    page._tag_loading_controller.shutdown.assert_called_once_with()
+    page._publishing_controller.shutdown.assert_called_once_with()
+
+def test_remote_post_save_ignored_during_shutdown():
+    """No WordPress update may start after shutdown begins."""
+    page = Mock()
+    controller = Mock()
+
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = True
+
+    controller.is_running = False
+
+    PostsPage._handle_remote_post_save(
+        page,
+        "42",
+        "Updated WordPress content",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.save_button.setEnabled.assert_not_called()
+    page.remote_posts_panel.content_editor.setEnabled.assert_not_called()
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+
+def test_remote_post_save_ignored_while_update_running():
+    """A second WordPress update must not start while one is running."""
+    page = Mock()
+    controller = Mock()
+
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = False
+
+    controller.is_running = True
+
+    PostsPage._handle_remote_post_save(
+        page,
+        "42",
+        "Another WordPress update",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.save_button.setEnabled.assert_not_called()
+    page.remote_posts_panel.content_editor.setEnabled.assert_not_called()
+    page.remote_posts_panel.status_label.setText.assert_not_called()

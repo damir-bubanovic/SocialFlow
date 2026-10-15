@@ -32,6 +32,12 @@ from socialflow.ui.workers.remote_post_loading_controller import (
     RemotePostLoadingController,
 )
 from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.application.publishing.update_remote_post import (
+    UpdateRemotePost,
+)
+from socialflow.ui.workers.remote_post_updating_controller import (
+    RemotePostUpdatingController,
+)
 
 
 class PostsPage(QWidget):
@@ -47,6 +53,7 @@ class PostsPage(QWidget):
         list_recent_publications: ListRecentPublications,
         parent: QWidget | None = None,
         list_remote_posts: ListRemotePosts | None = None,
+        update_remote_post: UpdateRemotePost | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -101,10 +108,32 @@ class PostsPage(QWidget):
             if list_remote_posts is not None
             else None
         )
+        self._remote_post_updating_controller = (
+            RemotePostUpdatingController(
+                update_remote_post=update_remote_post,
+                parent=self,
+            )
+            if update_remote_post is not None
+            else None
+        )
+        self._remote_post_updating_account: Account | None = None
+        self._remote_post_update_succeeded = False
+        self._remote_post_updating_shutting_down = False
+        if self._remote_post_updating_controller is not None:
+            self._remote_post_updating_controller.post_updated.connect(
+                self._on_remote_post_updated
+            )
+            self._remote_post_updating_controller.error_occurred.connect(
+                self._on_remote_post_update_error
+            )
+            self._remote_post_updating_controller.finished.connect(
+                self._on_remote_post_update_finished
+            )
         self._remote_post_loading_account: Account | None = None
         self._pending_remote_post_account: Account | None = None
         self._remote_post_loading_shutting_down = False
         self._loaded_remote_posts: tuple[RemotePost, ...] = ()
+        self._loaded_remote_posts_account: Account | None = None
         self._remote_posts_error: str | None = None
         if self._remote_post_loading_controller is not None:
             self._remote_post_loading_controller.posts_ready.connect(
@@ -133,6 +162,9 @@ class PostsPage(QWidget):
             self,
         )
         self.remote_posts_panel = RemotePostsPanel(self)
+        self.remote_posts_panel.save_requested.connect(
+            self._handle_remote_post_save
+        )
 
         layout = QVBoxLayout()
         layout.addWidget(self.new_post_button)
@@ -310,6 +342,7 @@ class PostsPage(QWidget):
         )
 
         self._loaded_remote_posts = ()
+        self._loaded_remote_posts_account = None
         self._remote_posts_error = None
         self._pending_remote_post_account = account
         if account is None:
@@ -354,28 +387,18 @@ class PostsPage(QWidget):
 
     def _on_remote_posts_loaded(self, posts: tuple) -> None:
         """Display remote posts for the currently selected account."""
-        account = self._remote_post_loading_account
-
-        if (
-                self._remote_post_loading_shutting_down
-                or account is None
-                or account not in self.post_editor.selected_accounts()
-        ):
+        if not self._is_current_remote_post_account():
             return
 
+        self._loaded_remote_posts = posts
+        self._loaded_remote_posts_account = (
+            self._remote_post_loading_account
+        )
         self.remote_posts_panel.show_posts(posts)
 
     def _on_remote_posts_error(self, message: str) -> None:
         """Display remote retrieval errors."""
-        if self._remote_post_loading_shutting_down:
-            return
-
-        account = self._remote_post_loading_account
-
-        if (
-                account is None
-                or account not in self.post_editor.selected_accounts()
-        ):
+        if not self._is_current_remote_post_account():
             return
 
         self.remote_posts_panel.show_error(message)
@@ -384,6 +407,121 @@ class PostsPage(QWidget):
         """Process the latest request after worker thread cleanup."""
         self._remote_post_loading_account = None
         self._start_remote_post_loading()
+
+    def _handle_remote_post_save(
+        self,
+        remote_id: str,
+        content: str,
+    ) -> None:
+        """Save an existing WordPress post asynchronously."""
+        controller = self._remote_post_updating_controller
+
+        if (
+            controller is None
+            or self._remote_post_updating_shutting_down
+            or controller.is_running
+        ):
+            return
+
+        account = next(
+            (
+                selected
+                for selected in self.post_editor.selected_accounts()
+                if selected.destination == PublishingDestination.WORDPRESS
+            ),
+            None,
+        )
+
+        if (
+                account is None
+                or account != self._loaded_remote_posts_account
+        ):
+            return
+
+        if not any(
+            post.remote_id == remote_id
+            for post in self._loaded_remote_posts
+        ):
+            return
+
+        try:
+            post_id = int(remote_id)
+        except (ValueError, TypeError):
+            self.remote_posts_panel.status_label.setText(
+                "Invalid WordPress post ID."
+            )
+            return
+
+        if post_id <= 0 or not content.strip():
+            return
+
+        self._remote_post_updating_account = account
+        self._remote_post_update_succeeded = False
+
+        self.remote_posts_panel.save_button.setEnabled(False)
+        self.remote_posts_panel.content_editor.setEnabled(False)
+        self.remote_posts_panel.status_label.setText(
+            "Saving WordPress post..."
+        )
+
+        controller.start(
+            account=account,
+            post_id=post_id,
+            content=content,
+        )
+
+    def _on_remote_post_updated(self) -> None:
+        """Record a successful update."""
+        if self._remote_post_updating_shutting_down:
+            return
+
+        self._remote_post_update_succeeded = True
+
+    def _on_remote_post_update_error(
+        self,
+        message: str,
+    ) -> None:
+        """Display update errors for the active account."""
+        if self._remote_post_updating_shutting_down:
+            return
+
+        account = self._remote_post_updating_account
+
+        if (
+                account is None
+                or account != self._loaded_remote_posts_account
+        ):
+            return
+
+        self.remote_posts_panel.status_label.setText(
+            f"Unable to update WordPress post: {message}"
+        )
+        self.remote_posts_panel.restore_editing()
+
+    def _on_remote_post_update_finished(self) -> None:
+        """Refresh posts after the update thread has stopped."""
+        if self._remote_post_updating_shutting_down:
+            return
+
+        account = self._remote_post_updating_account
+        succeeded = self._remote_post_update_succeeded
+
+        self._remote_post_updating_account = None
+        self._remote_post_update_succeeded = False
+
+        if (
+                account is None
+                or account != self._loaded_remote_posts_account
+        ):
+            return
+
+        if succeeded:
+            self.remote_posts_panel.status_label.setText(
+                "WordPress post updated successfully."
+            )
+            self._refresh_remote_posts()
+        else:
+            self.remote_posts_panel.restore_editing()
 
     def _refresh_recent_posts(self) -> None:
         """Refresh history for the first selected account."""
@@ -525,6 +663,7 @@ class PostsPage(QWidget):
         self._tag_loading_shutting_down = True
         self._pending_tag_accounts.clear()
         self._remote_post_loading_shutting_down = True
+        self._remote_post_updating_shutting_down = True
         self._pending_remote_post_account = None
 
         self._tag_loading_controller.shutdown()
@@ -532,4 +671,6 @@ class PostsPage(QWidget):
         if self._remote_post_loading_controller is not None:
             self._remote_post_loading_controller.shutdown()
 
+        if self._remote_post_updating_controller is not None:
+            self._remote_post_updating_controller.shutdown()
         self._publishing_controller.shutdown()

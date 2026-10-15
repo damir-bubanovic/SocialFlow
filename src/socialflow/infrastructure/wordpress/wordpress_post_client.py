@@ -30,6 +30,17 @@ class WordPressPostClient(ABC):
         """Return the HTTP status code from the create-post request."""
 
     @abstractmethod
+    def update_post(
+        self,
+        site_url: str,
+        username: str,
+        application_password: str,
+        post_id: int,
+        content: str,
+    ) -> int:
+        """Return the HTTP status code from updating an existing post."""
+
+    @abstractmethod
     def upload_media(
             self,
             site_url: str,

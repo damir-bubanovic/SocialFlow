@@ -161,6 +161,62 @@ class UrllibWordPressPostClient(WordPressPostClient):
             return error.code
 
 
+    def update_post(
+        self,
+        site_url: str,
+        username: str,
+        application_password: str,
+        post_id: int,
+        content: str,
+    ) -> int:
+        """Update an existing WordPress post and return its HTTP status."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("A valid HTTPS WordPress URL is required.")
+
+        if type(post_id) is not int or post_id <= 0:
+            raise ValueError("A valid WordPress post ID is required.")
+
+        endpoint = site_url.rstrip("/") + f"/wp-json/wp/v2/posts/{post_id}"
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        payload = json.dumps({"content": content}).encode("utf-8")
+
+        request = Request(
+            endpoint,
+            data=payload,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            method="POST",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(context=ssl.create_default_context()),
+            _NoRedirectHandler(),
+        )
+
+        try:
+            with opener.open(request, timeout=self._timeout) as response:
+                return response.status
+        except HTTPError as error:
+            return error.code
+
     def upload_media(
         self,
         site_url: str,
