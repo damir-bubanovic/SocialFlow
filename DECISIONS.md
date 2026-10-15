@@ -1052,8 +1052,7 @@ must be re-verified against official APIs before live integration.
 ### Decision
 
 Tag retrieval and creation use the application-facing `TagProvider` contract,
-with `ListTags` and `CreateTag` application services. The current runtime uses
-`NullTagProvider` until real platform providers are implemented.
+with `ListTags` and `CreateTag` application services. The current runtime routes WordPress tag operations to `WordPressTagProvider` and uses `NullTagProvider` for unsupported destinations (see ADR-058).
 
 ### Consequences
 
@@ -1493,3 +1492,71 @@ startup fails. Catch logging initialization `OSError` separately and continue.
 Startup failures have a predictable process-level status. Main-window
 construction failures currently cause duplicate log entries when called through
 `run()`; consolidation and resource-cleanup review remain follow-up work.
+
+## ADR-058 --- Route WordPress Tag Operations Through a Dedicated Provider
+
+### Decision
+
+Use `RoutingTagProvider` to dispatch WordPress tag listing and creation to
+`WordPressTagProvider` and retain `NullTagProvider` as a fallback for unsupported
+destinations. Keep the tag service contract separate from the WordPress REST
+transport and credential lookup.
+
+### Consequences
+
+WordPress tags can be listed and created through the existing application
+services. This does not imply tags can be attached to a new published post;
+WordPress publishing continues to reject that unsupported operation.
+
+## ADR-059 --- Keep Remote WordPress Posts Separate From Local History
+
+### Decision
+
+Model remote posts with their platform identifiers and retrieve them through
+`ListRemotePosts` and a provider/REST adapter chain. Display remote results in
+`RemotePostsPanel` instead of treating local `Publication` history as a remote
+source of truth.
+
+### Consequences
+
+Remote retrieval is explicitly account-scoped. The application can distinguish
+a remote post that may be updated from a locally recorded publishing event.
+Local publication-history persistence remains unchanged.
+
+## ADR-060 --- Run Remote Post Retrieval and Updates in Qt Workers
+
+### Decision
+
+Use dedicated QObject workers and QThread-owning controllers for WordPress
+remote-post retrieval and updating. Forward outcomes to the UI through Qt
+signals, with terminal completion and controlled shutdown.
+
+### Consequences
+
+Network operations do not execute directly in the UI thread. Thread lifetime,
+signal ordering, error paths, and shutdown require dedicated regression tests.
+Shutdown may still wait for an in-flight blocking network call to finish; a
+separate cancellation policy has not been established.
+
+## ADR-061 --- Bind Remote Editing to the Loaded WordPress Account
+
+### Decision
+
+Permit a remote text update only when the selected WordPress account matches
+the account that produced the displayed remote posts. Ignore stale retrieval
+and completion callbacks after account changes; prevent overlapping updates
+and new starts during shutdown. Preserve edited text on update failure and
+refresh remote results after success.
+
+### Consequences
+
+An update cannot silently target a different selected account or treat an
+outdated result as current. Current editing scope is text-only; remote media,
+tags, and other metadata are future work.
+
+## Phase 19 Verification Checkpoint
+
+The developer reported **905 passing tests** after remote post updating and
+Qt lifecycle tests, followed by a Git push. Documentation maintenance does not
+constitute a fresh test run, and mocked REST tests do not prove live WordPress
+server behavior.

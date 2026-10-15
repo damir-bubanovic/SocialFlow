@@ -358,8 +358,7 @@ media, so orphan media may require later cleanup.
 
 The `urllib` clients use HTTPS certificate verification and disallow redirect
 following with authorization credentials. Live publishing against a real
-WordPress server has not yet been verified. Retrieval, remote updates, and
-WordPress tag operations are not implemented.
+WordPress server has not yet been verified in live integration testing. Remote post retrieval, text updates, and WordPress tag listing/creation are implemented; assigning tags during post publishing is not.
 
 ------------------------------------------------------------------------
 
@@ -889,9 +888,7 @@ Current responsibility boundaries include:
 -   `PostsPage` reacts to account-selection changes, uses `ListTags` to merge
     unique tags across selected accounts, and uses `CreateTag` for each selected
     account. New-tag entry is disabled when no account is selected.
--   `TagProvider` is the platform-facing tag contract. `NullTagProvider` is the
-    current runtime implementation; real destination-specific providers remain
-    pending.
+-   `TagProvider` is the platform-facing tag contract. `RoutingTagProvider` uses `WordPressTagProvider` for WordPress and `NullTagProvider` for unsupported destinations; post tag assignment remains pending.
 -   `DestinationSelector` selects configured `Account` objects. `PublishRequest`
     carries those accounts and `PublishPost` resolves publishers by destination.
 -   Account CRUD remains isolated behind `AccountRepository`;
@@ -1064,10 +1061,7 @@ posts. UI indicators provide explicit labels as well as visual cues.
 
 Unconfigured Facebook and Instagram publishers fail explicitly, while WordPress
 uses an account-specific REST publisher for text and prepared-image posts.
-Successful publisher returns may be persisted to local history; remote post
-identifiers, remote editing, and publication-history image/tag serialization
-remain pending. The earlier numbered checkpoint was 662 passing tests for the
-current project snapshot. This does not replace live WordPress API verification.
+Successful publisher returns may be persisted to local history; remote post retrieval and text editing are implemented through a separate WordPress workflow; publication-history image/tag serialization remains pending. The developer-reported Phase 19 checkpoint was 905 passing tests. This does not replace live WordPress API verification.
 
 ## 32. Background Publishing and Selective Retry (Implemented)
 
@@ -1117,3 +1111,57 @@ The construction failure can currently be logged both by `create_application()`
 and by `run()`. Deduplication, startup resource cleanup, and a reliable fallback
 diagnostic when file logging is unavailable remain review items, not completed
 features.
+
+## 35. WordPress Tag Routing (Implemented, Limited Scope)
+
+`ui/main_content.py` composes `RoutingTagProvider` with a
+`WordPressTagProvider` backed by `UrllibWordPressTagClient` and the credential
+store. `ListTags` and `CreateTag` use the application `TagProvider` contract.
+WordPress tag listing and creation are authenticated operations; the fallback
+for unsupported destinations is `NullTagProvider`. WordPress publishing still
+rejects tags attached to posts, so these capabilities must not be described as
+complete post-tag synchronization.
+
+## 36. Remote WordPress Post Retrieval (Implemented)
+
+The remote-post pipeline is separate from local `Publication` history:
+
+- `domain/post/remote_post.py` models a remote post and its remote identifier.
+- `application/publishing/remote_post_provider.py` and
+  `list_remote_posts.py` define the provider boundary and use case.
+- `infrastructure/wordpress/wordpress_post_client.py`,
+  `urllib_wordpress_post_client.py`, `wordpress_post_parser.py`,
+  `wordpress_post_retriever.py`, and `wordpress_post_provider.py`
+  implement authenticated retrieval and conversion.
+- `ui/workers/remote_post_loading_worker.py` and
+  `remote_post_loading_controller.py` keep REST I/O off the UI thread.
+- `ui/posts/remote_posts_panel.py` displays the retrieved posts;
+  `posts_page.py` coordinates account selection, pending loads, stale results,
+  and UI state.
+
+The Posts page tracks which account produced the loaded results and rejects
+results from outdated account selections. This does not backfill or replace
+the locally stored `publications.json` history.
+
+## 37. Remote WordPress Text Updating (Implemented)
+
+`application/publishing/remote_post_updater.py` and
+`update_remote_post.py` define the update boundary and use case.
+`infrastructure/wordpress/wordpress_post_updater.py` uses the WordPress post
+client and OS-backed application password to update a remote post by ID.
+
+`ui/workers/remote_post_updating_worker.py` executes the operation off the UI
+thread and distinguishes `succeeded`, `failed`, and terminal `finished`
+signals. `remote_post_updating_controller.py` manages its `QThread`, forwards
+success/errors, and emits completion after cleanup. `PostsPage` coordinates
+account-scoped updates; the remote-post panel disables editing while a save is
+in progress, restores it after errors, and refreshes the remote list on success.
+
+Account identity, stale callbacks, concurrent starts, and shutdown are
+explicitly guarded. Current scope is **remote post text only**; remote image
+editing, metadata editing, tag assignment, and reconciliation with local
+publication history are not implemented.
+
+**Verification:** The developer reported 905 passing tests after Phase 19,
+including Qt worker/controller lifecycle regressions. This does not establish
+live-server interoperability or cross-platform packaging readiness.

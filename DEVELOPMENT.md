@@ -644,7 +644,7 @@ indicators, and publishing failure reporting. Only publishers that return
 successfully can produce local publication records; live adapters are absent.
 Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
-editor. Legacy history without IDs is migrated in place. The earlier explicitly numbered checkpoint was **662 passing tests** after WordPress post/media publishing and image cleanup. Later full-suite runs were reported as passing after background publishing, retry, and startup logging changes; no updated numerical total was provided. This is not a live API test.
+editor. Legacy history without IDs is migrated in place. The developer reported **905 passing tests** after Phase 19 WordPress remote-post editing and QThread lifecycle regression coverage. This is not a live API test.
 
 Useful focused test commands include:
 
@@ -668,12 +668,11 @@ Live Facebook/Instagram integrations and live WordPress verification against
 a real site remain outstanding. WordPress REST API connection verification and
 text/image publishing are implemented. The current runtime composes
 `WordPressPublisher` for WordPress accounts, `UnconfiguredPublisher` for
-Facebook/Instagram, and `NullTagProvider` for tags. Unconfigured publishing
+Facebook/Instagram, and `RoutingTagProvider` with a WordPress tag provider and null fallback. Unconfigured publishing
 must fail visibly and must not be recorded as a successful publication. Platform API work should begin by implementing
 adapters behind the existing application contracts rather than placing API
 logic in UI classes. Local publication history
-must not be described as remote synchronization: remote recent-post retrieval,
-remote identifiers, and updating an existing platform post are still pending.
+must not be described as remote synchronization: remote recent-post retrieval and text editing now exist for WordPress only, but they remain separate from local publication history.
 The current publication JSON serializer also does not yet persist images or tags.
 
 ------------------------------------------------------------------------
@@ -690,7 +689,7 @@ python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tes
 python -m pytest -q
 ```
 
-The earlier explicitly numbered baseline was 662 passing tests. Later full-suite runs were reported as passing, without a newer numerical total. This is not evidence of successful publishing against a live
+The latest developer-reported full-suite checkpoint is 905 passing tests. This is not evidence of successful publishing against a live
 WordPress server. Never substitute
 `NullPublisher` in the production composition root to simulate success.
 
@@ -731,8 +730,7 @@ The production composition root (`src/socialflow/ui/main_content.py`) routes
 WordPress accounts to `WordPressPublisher` with `UrllibWordPressPostClient` and
 the shared OS keyring store. Facebook and Instagram still use
 `UnconfiguredPublisher`. WordPress post creation supports text and prepared
-images; media uploads generate Gutenberg image blocks. WordPress tags, remote
-post retrieval, and remote post editing are not yet implemented.
+images; media uploads generate Gutenberg image blocks. WordPress tag listing/creation, remote-post retrieval, and remote text editing are implemented through separate services. Assigning tags during publishing and editing remote images/metadata remain pending.
 
 After changing WordPress publishing, media handling, image preparation, or
 publisher routing, run:
@@ -753,8 +751,7 @@ and logging media deletion failures. Post-creation failures do not trigger media
 rollback. Do not use real credentials or a live WordPress site in the normal
 pytest suite; live integration testing is a separate manual/controlled step.
 
-**Test reporting:** The last numbered baseline was 662 passing tests; later
-full-suite runs were reported as passing without a new numerical count.
+**Test reporting:** The developer reported 905 passing tests after Phase 19.
 Documentation maintenance does not itself execute the full test suite.
 
 WordPress publishing is invoked through the Posts page's Qt background
@@ -818,3 +815,54 @@ raw publishing exception messages.
 **Open review items:** avoid duplicate startup log entries, examine resource
 cleanup on startup failure, and ensure useful fallback diagnostics if file
 logging cannot initialize. Production email reporting is not implemented.
+
+## 32. Phase 19 WordPress Remote Post Regression Checks
+
+The application composes WordPress tag listing/creation, remote-post retrieval,
+and text-only remote-post updating in `src/socialflow/ui/main_content.py`.
+Remote posts appear in a dedicated panel and are not the same records as
+locally persisted publication history.
+
+Run focused tests after changing WordPress post retrieval, editing, REST
+adapters, or the Posts page:
+
+```bash
+python -m pytest tests/infrastructure/wordpress/test_urllib_wordpress_post_client.py -q
+python -m pytest tests/infrastructure/wordpress/test_wordpress_post_retriever.py tests/infrastructure/wordpress/test_wordpress_post_provider.py tests/infrastructure/wordpress/test_wordpress_post_updater.py -q
+python -m pytest tests/application/test_list_remote_posts.py tests/application/publishing/test_update_remote_post.py -q
+python -m pytest tests/ui/test_remote_post_loading_worker.py tests/ui/test_remote_post_loading_controller.py -q
+python -m pytest tests/ui/test_remote_post_updating_worker.py tests/ui/test_remote_post_updating_controller.py -q
+python -m pytest tests/ui/test_remote_posts_panel.py tests/ui/test_remote_posts_panel_editing.py tests/ui/test_posts_page_remote_post_editing.py -q
+python -m pytest -q
+```
+
+For WordPress tags, run:
+
+```bash
+python -m pytest tests/infrastructure/wordpress/test_wordpress_tag_provider.py tests/infrastructure/wordpress/test_wordpress_tag_client.py tests/infrastructure/wordpress/test_urllib_wordpress_tag_client.py -q
+python -m pytest tests/application/test_routing_tag_provider.py tests/application/test_tag_services.py -q
+```
+
+The reported full-suite checkpoint is **905 passing tests**. These documents
+were updated from the project ZIP and were not accompanied by a fresh test
+execution.
+
+### Manual smoke-test scope
+
+With a controlled WordPress test account, verify authenticated remote-post
+listing, account switching, selecting and editing text, successful save and
+refresh, and a failed save that preserves the editor text. Verify that a
+different WordPress account cannot update a post from an earlier selection.
+Do not use production credentials in automated tests.
+
+### Git documentation checkpoint
+
+Keep `AGENTS.md` local and unstaged. After replacing the five public Markdown
+files, review the diff before committing:
+
+```bash
+git diff --check
+git diff -- README.md FEATURES.md ARCHITECTURE.md DECISIONS.md DEVELOPMENT.md
+```
+
+Commit only with explicit approval.

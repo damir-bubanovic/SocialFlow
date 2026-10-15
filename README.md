@@ -67,7 +67,7 @@ uses the account's HTTPS site URL and username, retrieves its application
 password from the OS keyring, and creates published posts through the WordPress
 REST API. Prepared images are uploaded to WordPress media, and their returned
 URLs and IDs are inserted as Gutenberg image blocks in the post content.
-WordPress tags are explicitly rejected until remote tag integration exists.
+WordPress publishing currently rejects post tag assignment, although separate remote tag listing and creation are implemented.
 
 WordPress connection verification also works through an authenticated REST API
 endpoint and runs in a Qt background worker. The UI prevents overlapping
@@ -90,22 +90,37 @@ ID, account, text, language, and timestamp. Images and tags are not yet
 serialized into publication history. Selecting a history entry reloads the
 available post data into the editor; it does not update the remote post.
 
-The current tag provider is `NullTagProvider`; remote tag retrieval and creation
-are not implemented. Remote post retrieval and updates, Facebook/Instagram API
-publishing, email error reporting, and release packaging remain future work.
+The runtime uses `RoutingTagProvider`: WordPress accounts use an authenticated
+`WordPressTagProvider` for listing and creating remote tags, while other
+destinations fall back to `NullTagProvider`. WordPress publishing still rejects
+tags attached to a new post; retrieving/creating tags is not equivalent to
+assigning them during publishing.
+
+**Remote WordPress post retrieval and text editing are implemented.** The Posts
+page retrieves recent remote posts for the selected WordPress account in a
+background Qt worker and displays them separately from local publication
+history. Selecting a remote post opens its text content in a dedicated editor;
+saving invokes the authenticated REST update operation in another worker.
+Successful updates refresh the remote list. Failed updates report an error and
+restore editing without discarding the user's changes. Account-switch and
+shutdown guards prevent stale worker results from affecting another account.
+This is a remote text-editing workflow, not a general remote image/tag editor.
+
+Facebook/Instagram API publishing, email error reporting, and release packaging
+remain future work.
 Publishing now runs in a Qt background worker, with per-account progress,
 independent outcomes, guarded concurrent starts, and deferred window closing.
 After partial failure, **Retry Failed** targets only failed accounts; editing the
 draft or changing its accounts, images, language, or tags invalidates that retry.
 A failed publisher does not prevent later accounts from being attempted.
 
-**Testing checkpoint:** The earlier documented numerical baseline was **662
-passing tests**. The developer subsequently reported that all tests passed
-after the background publishing, selective retry, safe error formatting,
-persistent logging, and startup-handling changes; no newer numerical total was
-provided. Tests use mocked/fake network dependencies and do **not** establish
-successful publishing against a live WordPress site. Live API, Linux/Windows
-packaging, and platform credential-backend checks remain outstanding.
+**Testing checkpoint:** The developer reported **905 passing tests** after
+Phase 19 WordPress remote-post editing and QThread lifecycle regression tests.
+This is a reported full-suite result, not a new test run performed while
+updating these documents. Tests use mocked/fake network dependencies and do
+**not** establish successful publishing, retrieval, tag creation, or editing
+against a live WordPress site. Live API, Linux/Windows packaging, and platform
+credential-backend checks remain outstanding.
 
 ## Documentation
 
@@ -155,3 +170,20 @@ WordPress.
   entries (a known review item).
 - Production-wide exception capture, email notifications, and validation of
   real platform integrations remain pending.
+
+## Current WordPress Capability Boundaries
+
+| Capability | Status |
+| --- | --- |
+| Connection verification | Implemented; background Qt worker |
+| Create text/image posts | Implemented; live-site validation pending |
+| Retrieve and create remote tags | Implemented; live-site validation pending |
+| Assign tags to published posts | Not implemented; explicitly rejected |
+| Retrieve recent remote posts | Implemented; background Qt worker |
+| Edit existing remote post text | Implemented; background Qt worker |
+| Edit remote images, tags, or other metadata | Not implemented |
+| Facebook / Instagram API publishing | Not implemented |
+
+Local publication history and the separate remote WordPress post list must not
+be confused: loading a local history entry into the composer does not update a
+remote post.

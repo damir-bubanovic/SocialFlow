@@ -92,7 +92,7 @@ supported publishing platforms.
 
 ### WordPress
 
--   [~] Integrate WordPress through its REST API; connection verification, text publishing, and image/media upload are implemented, while remote retrieval, editing, and tags remain pending.
+-   [~] Integrate WordPress through its REST API; verification, text/image publishing, tag listing/creation, recent-post retrieval, and text-only remote editing are implemented. Tag assignment during publishing, broader editing, and live-site validation remain pending.
 -   [x] Configure and persist the WordPress HTTPS site URL and username per account.
 -   [x] Store WordPress application passwords in the OS credential store, not account JSON.
 -   [x] Use stable account UUID-based credential keys and clean up secrets when accounts are removed or converted away from WordPress.
@@ -107,9 +107,9 @@ supported publishing platforms.
 -   [x] Reject unsupported WordPress tags explicitly.
 -   [x] Attempt reverse-order media cleanup after an upload failure; log deletion errors and preserve the original upload error.
 -   [x] Preserve uploaded media if WordPress post creation subsequently fails (current deliberate behavior, not a remote rollback).
--   [ ] Retrieve existing remote WordPress posts.
--   [ ] Update existing remote WordPress posts.
--   [ ] Integrate remote WordPress tags and metadata.
+-   [x] Retrieve recent remote WordPress posts through authenticated REST API requests and a Qt background worker.
+-   [x] Update existing remote WordPress post text through authenticated REST API requests and a Qt background worker.
+-   [~] Integrate remote WordPress tags and metadata; listing and creating tags are implemented, but assigning tags to posts and other metadata operations are pending.
 -   [ ] Verify publishing against a live WordPress installation.
 
 ------------------------------------------------------------------------
@@ -185,15 +185,15 @@ supported publishing platforms.
 SocialFlow will provide a common interface for tags and similar metadata
 while respecting the capabilities of each destination platform.
 
--   [~] Retrieve existing tags through the `TagProvider`/`ListTags` boundary; live platform providers are not implemented yet.
+-   [~] Retrieve existing tags through `TagProvider`/`ListTags`; authenticated WordPress retrieval is implemented, with a null fallback for other platforms.
 -   [x] Display available tags in the post editor.
 -   [x] Allow existing tags to be selected and deselected.
 -   [x] Allow manually entered tags to become part of the composed `Post`.
--   [~] Create new tags through `CreateTag` for every selected account; the current runtime uses `NullTagProvider`, so remote persistence is pending.
+-   [~] Create tags through `CreateTag`; WordPress accounts use `WordPressTagProvider` for remote creation, while unsupported destinations use `NullTagProvider`.
 -   [x] Merge available tags from multiple selected accounts without duplicates.
 -   [x] Refresh available tags when account selection changes.
 -   [x] Disable new-tag creation when no publishing account is selected.
--   [ ] Implement destination-specific tag providers and verify each platform's actual tag/metadata semantics.
+-   [~] Implement destination-specific tag providers; WordPress tag listing/creation exists, while other platforms and tag assignment remain pending.
 -   [ ] Keep remote/local tag information synchronized where practical.
 -   [ ] Handle platform differences instead of assuming all platforms implement tags identically.
 
@@ -210,22 +210,22 @@ while respecting the capabilities of each destination platform.
 -   [x] Select a local historical publication and load its post into the editor.
 -   [x] Restore text, selected language, images, and tags from an in-memory historical `Post` when loading it into the editor.
 -   [~] Preserve publication history across restarts; ID/account/text/language/timestamp are persisted, while images and tags are not yet serialized in publication history.
--   [ ] Retrieve recent posts from connected remote destinations.
--   [ ] Refresh the recent-post list from the remote platform.
+-   [~] Retrieve recent posts from connected remote destinations; WordPress is implemented, Facebook/Instagram are pending.
+-   [~] Refresh the remote-post list; WordPress loads on account selection and refreshes after successful edits, while other platforms are pending.
 
 ------------------------------------------------------------------------
 
 ## 10. Updating Existing Posts
 
 -   [x] Load editable content from a selected locally recorded publication.
--   [ ] Edit supported text fields.
+-   [~] Edit supported text fields; WordPress remote post content editing is implemented.
 -   [ ] Edit supported images where the destination API permits it.
 -   [ ] Edit supported tags or metadata.
--   [ ] Send supported changes back to the original platform.
--   [ ] Refresh the local representation after a successful update.
+-   [~] Send supported changes back to the original platform; WordPress text updates are implemented.
+-   [~] Refresh the remote WordPress post list after a successful update; synchronization with local publication history remains pending.
 -   [ ] Clearly report fields that cannot be changed because of platform
     API restrictions.
--   [ ] Report update failures without losing the user's local changes.
+-   [x] Report WordPress remote-update failures and restore the editing controls without discarding the edited text.
 
 ------------------------------------------------------------------------
 
@@ -383,7 +383,7 @@ Before SocialFlow is considered ready for a production release:
     failure path with tests.
 -   [~] Implement authenticated live publisher adapters: WordPress post/media publishing is implemented with mocked API tests; Facebook and Instagram remain pending, and live WordPress testing is outstanding.
 
-**Test checkpoint:** 662 was the last explicitly numbered full-suite result in the earlier documentation. The developer subsequently reported that all tests passed after Steps 16–17.8.3; no updated test count was provided. Mocked HTTP tests do not prove live WordPress publishing.
+**Test checkpoint:** The developer reported **905 passing tests** after Phase 19. This documentation update does not rerun tests. Mocked HTTP tests do not prove live WordPress behavior.
 ------------------------------------------------------------------------
 
 ## 21. Scope Management
@@ -421,8 +421,26 @@ SocialFlow.
 -   [ ] Review startup resource cleanup and fallback logging behavior.
 -   [ ] Add production email error notifications and configuration.
 
-**Remaining product work:** Facebook/Instagram adapters, live WordPress validation,
-remote posts and updates, remote tags, publication-history image/tag
-serialization, production-grade credential/backend checks, and Linux/Windows
-packaging remain separate tasks. Publishing error classification does **not**
+**Remaining product work:** Facebook/Instagram adapters, live WordPress
+validation, WordPress tag assignment to posts, remote image/metadata editing,
+publication-history image/tag serialization, production-grade credential/backend
+checks, and Linux/Windows packaging remain separate tasks. Publishing error classification does **not**
 automatically limit manual retry to transient errors.
+
+## 23. WordPress Remote Posts and Editing (Phase 19)
+
+-   [x] Introduce typed remote-post models, REST retrieval/parser components, and application use cases.
+-   [x] Retrieve recent WordPress posts asynchronously and display them in a dedicated panel separate from local history.
+-   [x] Track the WordPress account associated with loaded remote posts.
+-   [x] Discard stale remote-load results after account changes.
+-   [x] Select a remote post and edit its text content in a dedicated editor.
+-   [x] Reject empty or unchanged content and prevent overlapping updates.
+-   [x] Update the selected remote post through the account's credentials and remote ID.
+-   [x] Refresh remote posts after a successful save.
+-   [x] Preserve edited text and restore controls after failed updates.
+-   [x] Guard against cross-account updates, stale completions, and new starts during shutdown.
+-   [x] Test success/error signal ordering, worker cleanup, and QThread shutdown paths.
+-   [ ] Support editing remote images, tags, or other metadata.
+-   [ ] Verify retrieval and editing against a live WordPress site.
+
+**Reported full-suite checkpoint:** 905 passing tests.
