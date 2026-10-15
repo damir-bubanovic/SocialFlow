@@ -102,11 +102,12 @@ class UrllibWordPressPostClient(WordPressPostClient):
         return payload
 
     def create_post(
-        self,
-        site_url: str,
-        username: str,
-        application_password: str,
-        content: str,
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            content: str,
+            tags: tuple[int, ...] = (),
     ) -> int:
         parsed = urlsplit(site_url)
 
@@ -130,10 +131,23 @@ class UrllibWordPressPostClient(WordPressPostClient):
             credentials.encode("utf-8")
         ).decode("ascii")
 
-        payload = json.dumps({
+        if any(
+                type(tag_id) is not int or tag_id <= 0
+                for tag_id in tags
+        ):
+            raise ValueError(
+                "WordPress tag IDs must be positive integers."
+            )
+
+        post_data = {
             "content": content,
             "status": "publish",
-        }).encode("utf-8")
+        }
+
+        if tags:
+            post_data["tags"] = list(tags)
+
+        payload = json.dumps(post_data).encode("utf-8")
 
         request = Request(
             endpoint,

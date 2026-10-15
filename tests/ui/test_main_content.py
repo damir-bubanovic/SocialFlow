@@ -20,6 +20,12 @@ from socialflow.infrastructure.wordpress.wordpress_connection_verifier import (
 )
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
+from socialflow.infrastructure.wordpress.wordpress_publisher import (
+    WordPressPublisher,
+)
+from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
+    UrllibWordPressTagClient,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -331,4 +337,24 @@ def test_main_content_initializes_wordpress_verifier(qtbot) -> None:
     assert isinstance(
         content.wordpress_connection_verifier,
         WordPressConnectionVerifier,
+    )
+
+def test_main_content_configures_wordpress_publisher_with_tag_client(
+    qtbot,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    account = Account(
+        name="WordPress Tag Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    router = content.posts_page._publishing_controller._publish_post._publisher_router
+    publisher = router.publisher_for_account(account)
+
+    assert isinstance(publisher, WordPressPublisher)
+    assert isinstance(
+        publisher._tag_client,
+        UrllibWordPressTagClient,
     )

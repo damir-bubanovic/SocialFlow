@@ -140,10 +140,12 @@ class MainContent(QWidget):
         update_account = UpdateAccount(account_repository)
 
         # Tag services.
+        wordpress_tag_client = UrllibWordPressTagClient()
+
         tag_provider = RoutingTagProvider(
             providers={
                 PublishingDestination.WORDPRESS: WordPressTagProvider(
-                    tag_client=UrllibWordPressTagClient(),
+                    tag_client=wordpress_tag_client,
                     credential_store=credential_store,
                 ),
             },
@@ -192,6 +194,7 @@ class MainContent(QWidget):
                         account=account,
                         credential_store=credential_store,
                         post_client=wordpress_post_client,
+                        tag_client=wordpress_tag_client,
                     )
                 ),
             },

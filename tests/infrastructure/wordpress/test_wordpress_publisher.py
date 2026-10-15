@@ -14,6 +14,7 @@ from socialflow.infrastructure.wordpress.wordpress_media import (
     WordPressMedia,
 )
 from socialflow.domain.post.tag import Tag
+from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 
 
 def make_account(
@@ -75,6 +76,7 @@ def test_successful_wordpress_publication():
         username="admin",
         application_password="secret",
         content="Hello WordPress",
+        tags=(),
     )
 
 
@@ -670,7 +672,7 @@ def test_does_not_upload_images_when_post_text_is_empty():
     client.create_post.assert_not_called()
     client.delete_media.assert_not_called()
 
-def test_does_not_upload_images_when_tags_are_unsupported():
+def test_does_not_upload_images_without_tag_client():
     publisher, credentials, client = make_publisher()
 
     image = Mock()
@@ -686,8 +688,8 @@ def test_does_not_upload_images_when_tags_are_unsupported():
     )
 
     with pytest.raises(
-        ValueError,
-        match="WordPress tags are not supported yet",
+            ValueError,
+            match="WordPress tag client is required when publishing tags",
     ):
         publisher.publish(post)
 
@@ -799,3 +801,184 @@ def test_logs_media_cleanup_failure_and_preserves_upload_error(caplog):
 
     client.delete_media.assert_called_once()
     client.create_post.assert_not_called()
+
+def test_publisher_resolves_and_sends_wordpress_tags():
+    publisher, credentials, client = make_publisher()
+
+    tag_client = Mock()
+    tag_client.list_tags.return_value = (
+        WordPressTag(id=12, name="Python"),
+        WordPressTag(id=34, name="SocialFlow"),
+    )
+
+    publisher._tag_client = tag_client
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            tags=(
+                Tag(name="SocialFlow"),
+                Tag(name="Python"),
+            ),
+        ),
+        images=(),
+    )
+
+    publisher.publish(post)
+
+    tag_client.list_tags.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+    )
+
+    client.create_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+        content="Hello WordPress",
+        tags=(34, 12),
+    )
+
+def test_publisher_rejects_missing_wordpress_tag():
+    publisher, credentials, client = make_publisher()
+
+    tag_client = Mock()
+    tag_client.list_tags.return_value = (
+        WordPressTag(id=12, name="Python"),
+    )
+
+    publisher._tag_client = tag_client
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            tags=(Tag(name="Missing"),),
+        ),
+        images=(),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="WordPress tag not found: Missing",
+    ):
+        publisher.publish(post)
+
+    tag_client.list_tags.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+    )
+
+    client.upload_media.assert_not_called()
+    client.create_post.assert_not_called()
+
+def test_publisher_stops_when_wordpress_tag_lookup_fails():
+    publisher, credentials, client = make_publisher()
+
+    tag_client = Mock()
+    tag_client.list_tags.side_effect = RuntimeError(
+        "WordPress tag lookup failed."
+    )
+
+    publisher._tag_client = tag_client
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            tags=(Tag(name="Python"),),
+        ),
+        images=(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="WordPress tag lookup failed",
+    ):
+        publisher.publish(post)
+
+    tag_client.list_tags.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+    )
+
+    client.upload_media.assert_not_called()
+    client.create_post.assert_not_called()
+
+def test_publisher_rejects_ambiguous_wordpress_tags():
+    publisher, credentials, client = make_publisher()
+
+    tag_client = Mock()
+    tag_client.list_tags.return_value = (
+        WordPressTag(id=12, name="Python"),
+        WordPressTag(id=34, name="python"),
+    )
+
+    publisher._tag_client = tag_client
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            tags=(Tag(name="Python"),),
+        ),
+        images=(),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Ambiguous WordPress tag: Python",
+    ):
+        publisher.publish(post)
+
+    tag_client.list_tags.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+    )
+
+    client.upload_media.assert_not_called()
+    client.create_post.assert_not_called()
+
+def test_publisher_sends_tags_with_uploaded_images():
+    publisher, credentials, client = make_publisher()
+
+    tag_client = Mock()
+    tag_client.list_tags.return_value = (
+        WordPressTag(id=12, name="Python"),
+    )
+    publisher._tag_client = tag_client
+
+    image = Mock()
+    image.path = Path("/tmp/photo.jpg")
+
+    media = Mock()
+    media.media_id = 55
+    media.source_url = "https://example.com/photo.jpg"
+    client.upload_media.return_value = media
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            tags=(Tag(name="Python"),),
+        ),
+        images=(image,),
+    )
+
+    publisher.publish(post)
+
+    client.upload_media.assert_called_once()
+
+    client.create_post.assert_called_once()
+
+    kwargs = client.create_post.call_args.kwargs
+
+    assert kwargs["tags"] == (12,)
+    assert kwargs["content"].startswith("Hello WordPress")
+    assert 'wp-image-55' in kwargs["content"]
+    assert "https://example.com/photo.jpg" in kwargs["content"]

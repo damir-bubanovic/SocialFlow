@@ -21,11 +21,12 @@ class WordPressPostClient(ABC):
 
     @abstractmethod
     def create_post(
-        self,
-        site_url: str,
-        username: str,
-        application_password: str,
-        content: str,
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            content: str,
+            tags: tuple[int, ...] = (),
     ) -> int:
         """Return the HTTP status code from the create-post request."""
 

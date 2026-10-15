@@ -9,6 +9,12 @@ from socialflow.domain.account.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import WordPressCredentialKeys
 from socialflow.infrastructure.wordpress.wordpress_post_client import WordPressPostClient
+from socialflow.infrastructure.wordpress.wordpress_tag_client import (
+    WordPressTagClient,
+)
+from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
+    WordPressTagResolver,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -20,6 +26,8 @@ class WordPressPublisher(Publisher):
         account: Account,
         credential_store: CredentialStore,
         post_client: WordPressPostClient,
+        tag_client: WordPressTagClient | None = None,
+        tag_resolver: WordPressTagResolver | None = None,
     ) -> None:
         if account.destination is not PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -27,6 +35,8 @@ class WordPressPublisher(Publisher):
         self._account = account
         self._credential_store = credential_store
         self._post_client = post_client
+        self._tag_client = tag_client
+        self._tag_resolver = tag_resolver or WordPressTagResolver()
 
     def publish(self, post: PreparedPost) -> None:
         config = self._account.wordpress_config
@@ -47,8 +57,10 @@ class WordPressPublisher(Publisher):
         ):
             raise ValueError("A valid HTTPS WordPress site URL is required.")
 
-        if post.source.tags:
-            raise ValueError("WordPress tags are not supported yet.")
+        if post.source.tags and self._tag_client is None:
+            raise ValueError(
+                "WordPress tag client is required when publishing tags."
+            )
 
         if post.source.images and not post.images:
             raise ValueError("WordPress images must be prepared before publishing.")
@@ -63,6 +75,21 @@ class WordPressPublisher(Publisher):
         if not password:
             raise ValueError("WordPress application password is missing.")
 
+        tag_ids: tuple[int, ...] = ()
+
+        if post.source.tags:
+            assert self._tag_client is not None
+
+            remote_tags = self._tag_client.list_tags(
+                site_url=config.site_url,
+                username=config.username,
+                application_password=password,
+            )
+
+            tag_ids = self._tag_resolver.resolve(
+                selected_tags=post.source.tags,
+                remote_tags=remote_tags,
+            )
         content = post.source.text
         uploaded_media_ids: list[int] = []
 
@@ -111,6 +138,7 @@ class WordPressPublisher(Publisher):
             username=config.username,
             application_password=password,
             content=content,
+            tags=tag_ids,
         )
 
         if status != 201:

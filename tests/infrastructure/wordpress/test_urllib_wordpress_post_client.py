@@ -4,6 +4,7 @@ import json
 from io import BytesIO
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
+from typing import cast
 
 import pytest
 
@@ -683,3 +684,67 @@ def test_update_post_returns_http_error_status(status_code):
         )
 
     assert status == status_code
+
+def test_create_post_includes_wordpress_tag_ids():
+    response = make_response(status=201)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.create_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            content="Hello WordPress",
+            tags=(12, 34),
+        )
+
+    assert status == 201
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Hello WordPress",
+        "status": "publish",
+        "tags": [12, 34],
+    }
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        (0,),
+        (-1,),
+        (True,),
+        ("12",),
+        (12.5,),
+        (None,),
+    ],
+)
+def test_create_post_rejects_invalid_tag_ids(tags):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress tag IDs must be positive integers",
+        ):
+            client.create_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                content="Hello WordPress",
+                tags=cast(tuple[int, ...], tags),
+            )
+
+        build_opener.assert_not_called()
