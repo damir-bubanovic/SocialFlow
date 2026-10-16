@@ -248,3 +248,171 @@ def test_resolver_returns_existing_id_for_unicode_equivalent_tag(
     )
 
     assert resolved_ids == (101,)
+
+@pytest.mark.parametrize(
+    ("selected_name", "remote_name"),
+    [
+        ("ÅNGSTRÖM", "a\u030angstro\u0308m"),
+        ("CAFÉ", "cafe\u0301"),
+        ("ČAKOVEC", "c\u030cakovec"),
+        ("ŠIBENIK", "s\u030cibenik"),
+    ],
+)
+def test_resolver_matches_combined_casefold_and_unicode_normalization(
+    selected_name: str,
+    remote_name: str,
+) -> None:
+    selected_tags = (Tag(selected_name),)
+    remote_tags = (WordPressTag(id=101, name=remote_name),)
+
+    missing_tags = WordPressTagResolver.find_missing(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    resolved_ids = WordPressTagResolver.resolve(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert missing_tags == ()
+    assert resolved_ids == (101,)
+
+@pytest.mark.parametrize(
+    ("selected_name", "remote_name"),
+    [
+        ("Straße", "STRASSE"),
+        ("STRASSE", "straße"),
+        ("Maße", "MASSE"),
+        ("WEISS", "weiß"),
+    ],
+)
+def test_resolver_handles_casefold_expansion(
+    selected_name: str,
+    remote_name: str,
+) -> None:
+    selected_tags = (Tag(selected_name),)
+    remote_tags = (WordPressTag(id=101, name=remote_name),)
+
+    missing_tags = WordPressTagResolver.find_missing(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    resolved_ids = WordPressTagResolver.resolve(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert missing_tags == ()
+    assert resolved_ids == (101,)
+
+def test_resolver_deduplicates_equivalent_missing_tags() -> None:
+    selected_tags = (
+        Tag("Čakovec"),
+        Tag("čakovec"),
+        Tag("C\u030Cakovec"),
+        Tag("Šibenik"),
+        Tag("šIBENIK"),
+    )
+
+    missing_tags = WordPressTagResolver.find_missing(
+        selected_tags=selected_tags,
+        remote_tags=(),
+    )
+
+    assert missing_tags == (
+        Tag("Čakovec"),
+        Tag("Šibenik"),
+    )
+
+
+def test_resolver_deduplicates_existing_tag_ids() -> None:
+    selected_tags = (
+        Tag("Čakovec"),
+        Tag("čakovec"),
+        Tag("C\u030Cakovec"),
+        Tag("Šibenik"),
+        Tag("šIBENIK"),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name="Čakovec"),
+        WordPressTag(id=202, name="Šibenik"),
+    )
+
+    resolved_ids = WordPressTagResolver.resolve(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert resolved_ids == (101, 202)
+
+def test_resolver_accepts_duplicate_remote_entries_with_same_id() -> None:
+    selected_tags = (
+        Tag("Čakovec"),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name="Čakovec"),
+        WordPressTag(id=101, name="čakovec"),
+        WordPressTag(id=101, name="C\u030Cakovec"),
+    )
+
+    resolved_ids = WordPressTagResolver.resolve(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert resolved_ids == (101,)
+
+
+def test_resolver_rejects_ambiguous_remote_tag_ids() -> None:
+    selected_tags = (
+        Tag("Čakovec"),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name="Čakovec"),
+        WordPressTag(id=202, name="čakovec"),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Ambiguous WordPress tag: Čakovec",
+    ):
+        WordPressTagResolver.resolve(
+            selected_tags=selected_tags,
+            remote_tags=remote_tags,
+        )
+
+@pytest.mark.parametrize(
+    ("selected_name", "remote_name"),
+    [
+        ("Čakovec", "C\u030Cakovec"),
+        ("Šibenik", "S\u030Cibenik"),
+        ("Život", "Z\u030Civot"),
+        ("café", "cafe\u0301"),
+    ],
+)
+def test_resolver_rejects_unicode_equivalent_ambiguous_remote_ids(
+    selected_name: str,
+    remote_name: str,
+) -> None:
+    selected_tags = (
+        Tag(selected_name),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name=selected_name),
+        WordPressTag(id=202, name=remote_name),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=f"Ambiguous WordPress tag: {selected_name}",
+    ):
+        WordPressTagResolver.resolve(
+            selected_tags=selected_tags,
+            remote_tags=remote_tags,
+        )
