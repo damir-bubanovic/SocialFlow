@@ -2,10 +2,56 @@ from collections.abc import Iterable
 
 from socialflow.domain.post.tag import Tag
 from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
+from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+    WordPressTagCreationPlan,
+)
 
 
 class WordPressTagResolver:
     """Resolve selected SocialFlow tags against remote WordPress tags."""
+
+    @classmethod
+    def prepare_creation_plan(
+        cls,
+        selected_tags: Iterable[Tag],
+        remote_tags: Iterable[WordPressTag],
+    ) -> WordPressTagCreationPlan:
+        """Prepare missing WordPress tags for user confirmation."""
+
+        missing = cls.find_missing(
+            selected_tags=selected_tags,
+            remote_tags=remote_tags,
+        )
+
+        return WordPressTagCreationPlan(
+            missing_tags=missing,
+        )
+
+    @staticmethod
+    def find_missing(
+        selected_tags: Iterable[Tag],
+        remote_tags: Iterable[WordPressTag],
+    ) -> tuple[Tag, ...]:
+        """Find selected tags that do not exist on WordPress."""
+
+        existing_names = {
+            remote_tag.name.casefold()
+            for remote_tag in remote_tags
+        }
+
+        missing: list[Tag] = []
+        seen: set[str] = set()
+
+        for tag in selected_tags:
+            key = tag.name.casefold()
+
+            if key in existing_names or key in seen:
+                continue
+
+            missing.append(tag)
+            seen.add(key)
+
+        return tuple(missing)
 
     @staticmethod
     def resolve(

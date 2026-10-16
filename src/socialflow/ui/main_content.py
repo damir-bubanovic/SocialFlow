@@ -88,6 +88,12 @@ from socialflow.application.publishing.update_remote_post import (
 from socialflow.infrastructure.wordpress.wordpress_post_updater import (
     WordPressPostUpdater,
 )
+from socialflow.ui.workers.wordpress_tag_preparation_controller import (
+    WordPressTagPreparationController,
+)
+from socialflow.ui.workers.wordpress_tag_creation_controller import (
+    WordPressTagCreationController,
+)
 
 
 class MainContent(QWidget):
@@ -228,6 +234,14 @@ class MainContent(QWidget):
             parent=self,
             list_remote_posts=list_remote_posts,
             update_remote_post=update_remote_post,
+            wordpress_tag_preparation_controller=WordPressTagPreparationController(
+                credential_store=credential_store,
+                tag_client=wordpress_tag_client,
+            ),
+            wordpress_tag_creation_controller=WordPressTagCreationController(
+                credential_store=credential_store,
+                tag_client=wordpress_tag_client,
+            ),
         )
 
         # Accounts page with WordPress credential management.

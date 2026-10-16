@@ -1,5 +1,6 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog
 
 from socialflow.application.accounts.list_accounts import ListAccounts
 from socialflow.application.publishing.list_recent_publications import (
@@ -38,6 +39,18 @@ from socialflow.application.publishing.update_remote_post import (
 from socialflow.ui.workers.remote_post_updating_controller import (
     RemotePostUpdatingController,
 )
+from socialflow.ui.workers.wordpress_tag_preparation_controller import (
+    WordPressTagPreparationController,
+)
+from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+    WordPressTagCreationPlan,
+)
+from socialflow.ui.dialogs.wordpress_tag_confirmation_dialog import (
+    WordPressTagConfirmationDialog,
+)
+from socialflow.ui.workers.wordpress_tag_creation_controller import (
+    WordPressTagCreationController,
+)
 
 
 class PostsPage(QWidget):
@@ -54,8 +67,58 @@ class PostsPage(QWidget):
         parent: QWidget | None = None,
         list_remote_posts: ListRemotePosts | None = None,
         update_remote_post: UpdateRemotePost | None = None,
+        wordpress_tag_preparation_controller: WordPressTagPreparationController | None = None,
+        wordpress_tag_creation_controller: WordPressTagCreationController | None = None,
     ) -> None:
         super().__init__(parent)
+
+        self._wordpress_tag_preparation_controller = (
+            wordpress_tag_preparation_controller
+        )
+        self._wordpress_tag_creation_controller = (
+            wordpress_tag_creation_controller
+        )
+
+        if self._wordpress_tag_creation_controller is not None:
+            self._wordpress_tag_creation_controller.setParent(self)
+
+        if self._wordpress_tag_creation_controller is not None:
+            self._wordpress_tag_creation_controller.tags_created.connect(
+                self._on_wordpress_tags_created
+            )
+            self._wordpress_tag_creation_controller.error_occurred.connect(
+                self._on_wordpress_tag_creation_error
+            )
+            self._wordpress_tag_creation_controller.finished.connect(
+                self._on_wordpress_tag_creation_finished
+            )
+
+        if self._wordpress_tag_preparation_controller is not None:
+            self._wordpress_tag_preparation_controller.setParent(self)
+
+        self._pending_publish_request: PublishRequest | None = None
+        self._pending_wordpress_accounts: list[Account] = []
+        self._preparing_wordpress_account: Account | None = None
+        self._wordpress_preparation_shutting_down = False
+
+        self._approved_wordpress_tag_plans: dict[
+            object,
+            WordPressTagCreationPlan,
+        ] = {}
+
+        self._wordpress_tag_creation_failed = False
+        self._wordpress_tag_creation_completed = False
+
+        if self._wordpress_tag_preparation_controller is not None:
+            self._wordpress_tag_preparation_controller.plan_ready.connect(
+                self._on_wordpress_tag_plan_ready
+            )
+            self._wordpress_tag_preparation_controller.error_occurred.connect(
+                self._on_wordpress_tag_preparation_error
+            )
+            self._wordpress_tag_preparation_controller.finished.connect(
+                self._on_wordpress_tag_preparation_finished
+            )
 
         self._publishing_controller = PublishingController(
             publish_post,
@@ -567,6 +630,234 @@ class PostsPage(QWidget):
         self._last_publish_results = ()
         self.retry_failed_button.setEnabled(False)
 
+    def _begin_wordpress_tag_preparation(
+            self,
+            request: PublishRequest,
+    ) -> None:
+        """Check selected WordPress accounts before publishing."""
+        if self._publishing_workflow_is_busy():
+            return
+
+        controller = self._wordpress_tag_preparation_controller
+
+        wordpress_accounts = [
+            account
+            for account in request.accounts
+            if account.destination == PublishingDestination.WORDPRESS
+        ]
+
+        if not wordpress_accounts or not request.post.tags:
+            self._start_publishing(request)
+            return
+
+        if controller is None:
+            self.publish_status.setText(
+                "WordPress tag preparation is unavailable."
+            )
+            return
+
+        self._pending_publish_request = request
+        self._pending_wordpress_accounts = wordpress_accounts
+
+        self.post_editor.publish_button.setEnabled(False)
+        self.retry_failed_button.setEnabled(False)
+
+        self.publish_status.setText(
+            "Checking WordPress tags before publishing..."
+        )
+
+        self._start_next_wordpress_tag_preparation()
+
+    def _start_next_wordpress_tag_preparation(self) -> None:
+        """Prepare tags for the next selected WordPress account."""
+        controller = self._wordpress_tag_preparation_controller
+
+        if (
+                controller is None
+                or self._wordpress_preparation_shutting_down
+                or controller.is_running
+                or self._pending_publish_request is None
+        ):
+            return
+
+        if not self._pending_wordpress_accounts:
+            return
+
+        account = self._pending_wordpress_accounts.pop(0)
+        self._preparing_wordpress_account = account
+
+        controller.start(
+            account=account,
+            selected_tags=self._pending_publish_request.post.tags,
+        )
+
+    def _on_wordpress_tag_plan_ready(
+            self,
+            plan: WordPressTagCreationPlan,
+    ) -> None:
+        """Request confirmation for missing WordPress tags."""
+        if (
+                self._wordpress_preparation_shutting_down
+                or self._pending_publish_request is None
+        ):
+            return
+
+        if not plan.requires_confirmation:
+            return
+
+        account = self._preparing_wordpress_account
+
+        if account is None:
+            self._cancel_wordpress_tag_preparation()
+            return
+
+        dialog = WordPressTagConfirmationDialog(
+            plan=plan,
+            parent=self,
+        )
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            self.publish_status.setText(
+                "Publishing cancelled. WordPress tags were not approved."
+            )
+            self._cancel_wordpress_tag_preparation()
+            return
+
+        if self._wordpress_tag_creation_controller is None:
+            self.publish_status.setText(
+                "WordPress tag creation is unavailable."
+            )
+            self._cancel_wordpress_tag_preparation()
+            return
+
+        self._approved_wordpress_tag_plans[account.id] = plan
+
+        self.publish_status.setText(
+            f"WordPress tag creation approved for {account.name}."
+        )
+
+    def _on_wordpress_tag_preparation_error(self, message: str) -> None:
+        """Cancel publishing when tag preparation fails."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
+        self.publish_status.setText(
+            f"Unable to prepare WordPress tags: {message}"
+        )
+        self._cancel_wordpress_tag_preparation()
+
+    def _on_wordpress_tag_preparation_finished(self) -> None:
+        """Start approved creation or continue checking accounts."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
+        account = self._preparing_wordpress_account
+        self._preparing_wordpress_account = None
+
+        if self._pending_publish_request is None:
+            return
+
+        if account is not None:
+            plan = self._approved_wordpress_tag_plans.pop(
+                account.id,
+                None,
+            )
+
+            if plan is not None:
+                controller = self._wordpress_tag_creation_controller
+
+                if controller is None:
+                    self._cancel_wordpress_tag_preparation()
+                    return
+
+                self._preparing_wordpress_account = account
+                self._wordpress_tag_creation_failed = False
+                self._wordpress_tag_creation_completed = False
+
+                self.publish_status.setText(
+                    f"Creating approved WordPress tags for {account.name}..."
+                )
+
+                controller.start(
+                    account=account,
+                    plan=plan,
+                )
+                return
+
+        self._continue_wordpress_tag_preparation()
+
+    def _continue_wordpress_tag_preparation(self) -> None:
+        """Check remaining accounts or begin publishing."""
+        if (
+                self._wordpress_preparation_shutting_down
+                or self._pending_publish_request is None
+        ):
+            return
+
+        if self._pending_wordpress_accounts:
+            self._start_next_wordpress_tag_preparation()
+            return
+
+        request = self._pending_publish_request
+
+        self._pending_publish_request = None
+        self._pending_wordpress_accounts.clear()
+        self._approved_wordpress_tag_plans.clear()
+
+        self._start_publishing(request)
+
+    def _on_wordpress_tags_created(self, _tags: object) -> None:
+        """Record successful completion of approved tag creation."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
+        self._wordpress_tag_creation_completed = True
+
+    def _on_wordpress_tag_creation_error(self, message: str) -> None:
+        """Stop publishing when approved tag creation fails."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
+        self._wordpress_tag_creation_failed = True
+
+        self.publish_status.setText(
+            f"Unable to create WordPress tags: {message}"
+        )
+
+        self._cancel_wordpress_tag_preparation()
+
+    def _on_wordpress_tag_creation_finished(self) -> None:
+        """Continue only after successful creation and thread cleanup."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
+        succeeded = (
+                self._wordpress_tag_creation_completed
+                and not self._wordpress_tag_creation_failed
+        )
+
+        self._wordpress_tag_creation_completed = False
+        self._wordpress_tag_creation_failed = False
+        self._preparing_wordpress_account = None
+
+        if not succeeded:
+            return
+
+        self._continue_wordpress_tag_preparation()
+
+    def _cancel_wordpress_tag_preparation(self) -> None:
+        """Discard the pending request and all approvals."""
+        self._pending_publish_request = None
+        self._pending_wordpress_accounts.clear()
+        self._approved_wordpress_tag_plans.clear()
+
+        self._wordpress_tag_creation_completed = False
+
+        self.post_editor.publish_button.setEnabled(True)
+        self.retry_failed_button.setEnabled(
+            self._build_failed_retry_request() is not None
+        )
+
     def _start_publishing(self, request: PublishRequest) -> None:
         """Start a publishing operation with shared UI handling."""
         self._publishing_completed = 0
@@ -581,9 +872,32 @@ class PostsPage(QWidget):
 
         self._publishing_controller.start(request)
 
+    def _publishing_workflow_is_busy(self) -> bool:
+        """Check whether publishing or WordPress tag processing is active."""
+        if self._wordpress_preparation_shutting_down:
+            return True
+
+        if self._pending_publish_request is not None:
+            return True
+
+        if self._publishing_controller.is_running:
+            return True
+
+        preparation = self._wordpress_tag_preparation_controller
+
+        if preparation is not None and preparation.is_running:
+            return True
+
+        creation = self._wordpress_tag_creation_controller
+
+        if creation is not None and creation.is_running:
+            return True
+
+        return False
+
     def _retry_failed_publications(self) -> None:
         """Retry only accounts that failed in the previous operation."""
-        if self._publishing_controller.is_running:
+        if self._publishing_workflow_is_busy():
             return
 
         retry_request = self._build_failed_retry_request()
@@ -593,20 +907,20 @@ class PostsPage(QWidget):
         self._last_publish_request = retry_request
         self._last_publish_results = ()
 
-        self._start_publishing(retry_request)
+        self._begin_wordpress_tag_preparation(retry_request)
 
     def _handle_publish_request(
             self,
             request: PublishRequest,
     ) -> None:
         """Start a new publishing operation."""
-        if self._publishing_controller.is_running:
+        if self._publishing_workflow_is_busy():
             return
 
         self._last_publish_request = request
         self._last_publish_results = ()
 
-        self._start_publishing(request)
+        self._begin_wordpress_tag_preparation(request)
 
     def _build_failed_retry_request(self) -> PublishRequest | None:
         """Build a retry request for the last failed accounts."""
@@ -673,4 +987,15 @@ class PostsPage(QWidget):
 
         if self._remote_post_updating_controller is not None:
             self._remote_post_updating_controller.shutdown()
+
+        self._wordpress_preparation_shutting_down = True
+        self._pending_publish_request = None
+        self._pending_wordpress_accounts.clear()
+
+        if self._wordpress_tag_preparation_controller is not None:
+            self._wordpress_tag_preparation_controller.shutdown()
+
         self._publishing_controller.shutdown()
+
+        if self._wordpress_tag_creation_controller is not None:
+            self._wordpress_tag_creation_controller.shutdown()

@@ -68,3 +68,95 @@ def test_duplicate_remote_id_is_not_ambiguous() -> None:
             WordPressTag(12, "python"),
         ),
     ) == (12,)
+
+def test_find_missing_wordpress_tags() -> None:
+    missing = WordPressTagResolver.find_missing(
+        selected_tags=(
+            Tag("Python"),
+            Tag("SocialFlow"),
+            Tag("Linux"),
+        ),
+        remote_tags=(
+            WordPressTag(id=12, name="Python"),
+        ),
+    )
+
+    assert missing == (
+        Tag("SocialFlow"),
+        Tag("Linux"),
+    )
+
+
+def test_find_missing_matches_case_insensitively() -> None:
+    missing = WordPressTagResolver.find_missing(
+        selected_tags=(Tag("PYTHON"),),
+        remote_tags=(WordPressTag(id=12, name="Python"),),
+    )
+
+    assert missing == ()
+
+
+def test_find_missing_removes_duplicates() -> None:
+    missing = WordPressTagResolver.find_missing(
+        selected_tags=(
+            Tag("SocialFlow"),
+            Tag("socialflow"),
+        ),
+        remote_tags=(),
+    )
+
+    assert missing == (Tag("SocialFlow"),)
+
+
+def test_find_missing_returns_empty_when_all_exist() -> None:
+    missing = WordPressTagResolver.find_missing(
+        selected_tags=(Tag("Python"),),
+        remote_tags=(WordPressTag(id=12, name="Python"),),
+    )
+
+    assert missing == ()
+
+
+def test_find_missing_handles_empty_selection() -> None:
+    missing = WordPressTagResolver.find_missing(
+        selected_tags=(),
+        remote_tags=(),
+    )
+
+    assert missing == ()
+
+def test_prepare_creation_plan_with_missing_tags():
+    plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=(
+            Tag("Python"),
+            Tag("SocialFlow"),
+        ),
+        remote_tags=(
+            WordPressTag(id=12, name="Python"),
+        ),
+    )
+
+    assert plan.requires_confirmation is True
+    assert plan.tag_names == ("SocialFlow",)
+
+
+def test_prepare_creation_plan_when_all_tags_exist():
+    plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=(Tag("Python"),),
+        remote_tags=(
+            WordPressTag(id=12, name="Python"),
+        ),
+    )
+
+    assert plan.requires_confirmation is False
+    assert plan.missing_tags == ()
+
+
+def test_prepare_creation_plan_without_selected_tags():
+    plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=(),
+        remote_tags=(),
+    )
+
+    assert plan.requires_confirmation is False
+    assert plan.tag_names == ()
