@@ -515,3 +515,34 @@ def test_repeated_cancellation_preserves_clean_workflow_state(workflow):
     assert workflow._wordpress_tag_creation_completed is False
     assert workflow._wordpress_tag_creation_failed is False
     assert workflow.post_editor.publish_button.isEnabled()
+
+def test_creation_error_followed_by_finished_preserves_error(workflow):
+    account = make_account("WordPress A")
+    request = make_request([account])
+
+    workflow._pending_publish_request = request
+    workflow._preparing_wordpress_account = account
+
+    with patch.object(
+        workflow,
+        "_start_publishing",
+    ) as start_publishing:
+        workflow._on_wordpress_tag_creation_error(
+            "WordPress API connection failed"
+        )
+
+        workflow._on_wordpress_tag_creation_finished()
+
+        start_publishing.assert_not_called()
+
+    assert workflow._pending_publish_request is None
+    assert workflow._preparing_wordpress_account is None
+    assert workflow._wordpress_tag_creation_completed is False
+    assert workflow._wordpress_tag_creation_failed is False
+
+    assert workflow.publish_status.text() == (
+        "Unable to create WordPress tags: "
+        "WordPress API connection failed"
+    )
+
+    assert workflow.post_editor.publish_button.isEnabled()

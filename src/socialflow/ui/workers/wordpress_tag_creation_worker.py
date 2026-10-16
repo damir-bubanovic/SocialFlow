@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.domain.account.account import Account
@@ -69,6 +69,13 @@ class WordPressTagCreationWorker(QObject):
         created_tags = []
 
         for name in self._plan.tag_names:
+            thread = QThread.currentThread()
+
+            if thread.isInterruptionRequested():
+                raise InterruptedError(
+                    "WordPress tag creation was interrupted."
+                )
+
             created_tag = self._tag_client.create_tag(
                 site_url=config.site_url,
                 username=config.username,
@@ -93,3 +100,4 @@ class WordPressTagCreationWorker(QObject):
             created_tags.append(created_tag)
 
         return tuple(created_tags)
+

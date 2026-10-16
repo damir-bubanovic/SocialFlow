@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal
 
 from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.domain.account.account import Account
@@ -69,8 +69,14 @@ class WordPressTagCreationController(QObject):
         worker.finished.connect(self.tags_created.emit)
         worker.failed.connect(self.error_occurred.emit)
 
-        worker.finished.connect(thread.quit)
-        worker.failed.connect(thread.quit)
+        worker.finished.connect(
+            thread.quit,
+            Qt.ConnectionType.DirectConnection,
+        )
+        worker.failed.connect(
+            thread.quit,
+            Qt.ConnectionType.DirectConnection,
+        )
 
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(self._on_thread_finished)

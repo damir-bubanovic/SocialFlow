@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+import pytest
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
@@ -385,3 +386,81 @@ def test_worker_accepts_case_insensitive_created_tag_name() -> None:
     ]
 
     client.create_tag.assert_called_once()
+
+def test_interruption_prevents_remaining_tag_creation_requests(qtbot):
+    from threading import Event
+
+    from PySide6.QtCore import QThread
+
+    worker, client = make_worker(
+        ("Python", "SocialFlow", "Linux")
+    )
+
+    first_request_started = Event()
+    allow_first_request_to_finish = Event()
+
+    errors = []
+    results = []
+
+    def create_tag(**kwargs):
+        first_request_started.set()
+
+        if not allow_first_request_to_finish.wait(timeout=3):
+            raise TimeoutError("Test synchronization timed out.")
+
+        return WordPressTag(
+            id=101,
+            name=kwargs["name"],
+        )
+
+    client.create_tag.side_effect = create_tag
+
+    worker.failed.connect(errors.append)
+    worker.finished.connect(results.append)
+
+    thread = QThread()
+    worker.moveToThread(thread)
+
+    thread.started.connect(worker.run)
+    worker.finished.connect(thread.quit)
+    worker.failed.connect(thread.quit)
+    thread.finished.connect(worker.deleteLater)
+
+    try:
+        thread.start()
+
+        qtbot.waitUntil(
+            first_request_started.is_set,
+            timeout=3000,
+        )
+
+        thread.requestInterruption()
+        allow_first_request_to_finish.set()
+
+        qtbot.waitUntil(
+            lambda: not thread.isRunning(),
+            timeout=5000,
+        )
+
+        thread.wait()
+
+        assert client.create_tag.call_count == 1
+        assert [
+            call.kwargs["name"]
+            for call in client.create_tag.call_args_list
+        ] == ["Python"]
+
+        assert errors == [
+            "WordPress tag creation was interrupted."
+        ]
+        assert results == []
+
+    finally:
+        allow_first_request_to_finish.set()
+        thread.requestInterruption()
+        thread.quit()
+
+        if not thread.wait(5000):
+            pytest.fail(
+                "WordPress tag creation test thread did not stop."
+            )
