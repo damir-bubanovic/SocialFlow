@@ -1,7 +1,7 @@
-
 import base64
 import json
 import ssl
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import (
     HTTPRedirectHandler,
@@ -182,10 +182,48 @@ class UrllibWordPressTagClient(WordPressTagClient):
             _NoRedirectHandler(),
         )
 
-        with opener.open(
-            request,
-            timeout=self._timeout,
-        ) as response:
-            response_payload = json.load(response)
+        try:
+            with opener.open(
+                    request,
+                    timeout=self._timeout,
+            ) as response:
+                response_payload = json.load(response)
+
+        except HTTPError as error:
+            if error.code != 400:
+                raise
+
+            try:
+                error_payload = json.loads(error.read())
+            except (ValueError, UnicodeDecodeError):
+                raise error
+
+            if not isinstance(error_payload, dict):
+                raise error
+
+            if error_payload.get("code") != "term_exists":
+                raise error
+
+            data = error_payload.get("data")
+
+            if not isinstance(data, dict):
+                raise error
+
+            if data.get("status") != 400:
+                raise error
+
+            term_id = data.get("term_id")
+
+            if (
+                    not isinstance(term_id, int)
+                    or isinstance(term_id, bool)
+                    or term_id <= 0
+            ):
+                raise error
+
+            return WordPressTag(
+                id=term_id,
+                name=normalized_name,
+            )
 
         return WordPressTagParser.parse_list([response_payload])[0]

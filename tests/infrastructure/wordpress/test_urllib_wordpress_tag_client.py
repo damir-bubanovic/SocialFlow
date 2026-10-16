@@ -468,3 +468,130 @@ def test_tag_client_creation_propagates_http_error() -> None:
             )
 
     assert error.value.code == 403
+
+def test_tag_client_recovers_when_tag_already_exists() -> None:
+    class DuplicateTagOpener:
+        @staticmethod
+        def open(request, timeout):
+            _ = timeout
+
+            error_payload = {
+                "code": "term_exists",
+                "message": "A term with the name provided already exists.",
+                "data": {
+                    "status": 400,
+                    "term_id": 42,
+                },
+            }
+
+            raise HTTPError(
+                url=request.full_url,
+                code=400,
+                msg="Bad Request",
+                hdrs=Message(),
+                fp=io.BytesIO(
+                    json.dumps(error_payload).encode("utf-8")
+                ),
+            )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_tag_client.build_opener",
+        return_value=DuplicateTagOpener(),
+    ):
+        tag = UrllibWordPressTagClient().create_tag(
+            "https://example.com",
+            "admin",
+            "secret",
+            "Python",
+        )
+
+    assert tag == WordPressTag(id=42, name="Python")
+
+@pytest.mark.parametrize(
+    ("http_status", "error_payload"),
+    [
+        (400, {"code": "invalid_term", "data": {"status": 400, "term_id": 42}}),
+        (400, {"code": "term_exists", "data": {"status": 400}}),
+        (400, {"code": "term_exists", "data": {"status": 400, "term_id": 0}}),
+        (400, {"code": "term_exists", "data": {"status": 400, "term_id": -1}}),
+        (400, {"code": "term_exists", "data": {"status": 400, "term_id": True}}),
+        (400, {"code": "term_exists", "data": {"status": 400, "term_id": "42"}}),
+        (400, {"code": "term_exists", "data": {"status": 403, "term_id": 42}}),
+        (403, {"code": "term_exists", "data": {"status": 400, "term_id": 42}}),
+        (500, {"code": "term_exists", "data": {"status": 400, "term_id": 42}}),
+        (400, ["term_exists"]),
+        (400, None),
+    ],
+)
+def test_create_tag_rejects_invalid_duplicate_responses(
+    http_status,
+    error_payload,
+):
+    class ErrorOpener:
+        @staticmethod
+        def open(request, timeout):
+            _ = timeout
+
+            raise HTTPError(
+                url=request.full_url,
+                code=http_status,
+                msg="WordPress API Error",
+                hdrs=Message(),
+                fp=io.BytesIO(
+                    json.dumps(error_payload).encode("utf-8")
+                ),
+            )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_tag_client.build_opener",
+        return_value=ErrorOpener(),
+    ):
+        with pytest.raises(HTTPError) as captured:
+            UrllibWordPressTagClient().create_tag(
+                "https://example.com",
+                "admin",
+                "secret",
+                "Python",
+            )
+
+    assert captured.value.code == http_status
+
+@pytest.mark.parametrize(
+    "response_body",
+    [
+        b"",
+        b"{invalid json",
+        b'{"code": "term_exists",',
+        b"\xff\xfe\xfa",
+    ],
+)
+def test_create_tag_rejects_malformed_duplicate_error_body(
+    response_body: bytes,
+) -> None:
+    class MalformedResponseOpener:
+        @staticmethod
+        def open(request, timeout):
+            raise HTTPError(
+                url=request.full_url,
+                code=400,
+                msg="Bad Request",
+                hdrs=Message(),
+                fp=io.BytesIO(response_body),
+            )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_tag_client.build_opener",
+        return_value=MalformedResponseOpener(),
+    ):
+        with pytest.raises(HTTPError) as captured:
+            UrllibWordPressTagClient().create_tag(
+                "https://example.com",
+                "admin",
+                "secret",
+                "Python",
+            )
+
+    assert captured.value.code == 400

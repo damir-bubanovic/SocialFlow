@@ -12,6 +12,7 @@ from socialflow.infrastructure.wordpress.wordpress_tag_client import (
 from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
+from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 
 
 class WordPressTagCreationWorker(QObject):
@@ -71,6 +72,18 @@ class WordPressTagCreationWorker(QObject):
                 application_password=password,
                 name=name,
             )
+
+            if not isinstance(created_tag, WordPressTag):
+                raise ValueError(
+                    f"Invalid WordPress tag creation result for '{name}'."
+                )
+
+            if created_tag.name.strip().casefold() != name.strip().casefold():
+                raise ValueError(
+                    f"Invalid WordPress tag creation result for '{name}': "
+                    f"received '{created_tag.name}'."
+                )
+
             created_tags.append(created_tag)
 
         return tuple(created_tags)

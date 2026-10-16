@@ -107,3 +107,208 @@ def test_worker_stops_after_first_failure():
 
     assert errors == ["Creation failed."]
     client.create_tag.assert_called_once()
+
+def test_retry_only_requires_tags_missing_after_partial_failure():
+    from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
+        WordPressTagResolver,
+    )
+
+    selected_tags = (
+        Tag("Python"),
+        Tag("SocialFlow"),
+        Tag("Linux"),
+    )
+
+    worker, client = make_worker(
+        ("Python", "SocialFlow", "Linux")
+    )
+
+    # WordPress successfully creates the first two tags,
+    # but the third creation fails.
+    client.create_tag.side_effect = [
+        WordPressTag(id=101, name="Python"),
+        WordPressTag(id=102, name="SocialFlow"),
+        RuntimeError("WordPress API unavailable."),
+    ]
+
+    errors = []
+    completed = []
+
+    worker.failed.connect(errors.append)
+    worker.finished.connect(completed.append)
+
+    worker.run()
+
+    assert errors == ["WordPress API unavailable."]
+    assert completed == []
+    assert client.create_tag.call_count == 3
+
+    # Simulate a fresh WordPress tag retrieval on retry.
+    remote_tags_after_failure = (
+        WordPressTag(id=101, name="Python"),
+        WordPressTag(id=102, name="SocialFlow"),
+    )
+
+    retry_plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags_after_failure,
+    )
+
+    # Only the tag that failed should require confirmation.
+    assert retry_plan.requires_confirmation is True
+    assert retry_plan.tag_names == ("Linux",)
+
+def test_network_failure_recovery_uses_fresh_remote_tag_state():
+    from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
+        WordPressTagResolver,
+    )
+
+    selected_tags = (
+        Tag("Python"),
+        Tag("SocialFlow"),
+    )
+
+    worker, client = make_worker(("Python", "SocialFlow"))
+
+    # The first tag may have been created remotely, but its
+    # HTTP response was lost before SocialFlow received it.
+    client.create_tag.side_effect = ConnectionError(
+        "Connection closed before receiving the response."
+    )
+
+    errors = []
+    results = []
+
+    worker.failed.connect(errors.append)
+    worker.finished.connect(results.append)
+
+    worker.run()
+
+    assert errors == [
+        "Connection closed before receiving the response."
+    ]
+    assert results == []
+
+    # The worker must not blindly retry the POST.
+    assert client.create_tag.call_count == 1
+
+    # A fresh WordPress GET shows that Python now exists.
+    remote_tags = (
+        WordPressTag(id=101, name="Python"),
+    )
+
+    recovery_plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    # Only SocialFlow still requires creation and approval.
+    assert recovery_plan.requires_confirmation is True
+    assert recovery_plan.tag_names == ("SocialFlow",)
+
+def test_unexpected_creation_error_stops_remaining_tags():
+    worker, client = make_worker(
+        ("Python", "SocialFlow", "Linux")
+    )
+
+    client.create_tag.side_effect = [
+        WordPressTag(id=101, name="Python"),
+        RuntimeError("Unexpected WordPress response."),
+    ]
+
+    errors = []
+    results = []
+
+    worker.failed.connect(errors.append)
+    worker.finished.connect(results.append)
+
+    worker.run()
+
+    assert errors == ["Unexpected WordPress response."]
+    assert results == []
+
+    # The first tag succeeded, the second failed,
+    # and the third must never be attempted.
+    assert client.create_tag.call_count == 2
+
+    attempted_names = [
+        call.kwargs["name"]
+        for call in client.create_tag.call_args_list
+    ]
+
+    assert attempted_names == [
+        "Python",
+        "SocialFlow",
+    ]
+
+def test_invalid_creation_result_stops_remaining_tags():
+    worker, client = make_worker(
+        ("Python", "SocialFlow", "Linux")
+    )
+
+    client.create_tag.side_effect = [
+        WordPressTag(id=101, name="Python"),
+        None,
+        WordPressTag(id=103, name="Linux"),
+    ]
+
+    errors = []
+    results = []
+
+    worker.failed.connect(errors.append)
+    worker.finished.connect(results.append)
+
+    worker.run()
+
+    assert len(errors) == 1
+    assert "invalid" in errors[0].lower()
+    assert results == []
+
+    # Python succeeds, SocialFlow returns an invalid result.
+    # Linux must not be attempted.
+    assert client.create_tag.call_count == 2
+
+    attempted_names = [
+        call.kwargs["name"]
+        for call in client.create_tag.call_args_list
+    ]
+
+    assert attempted_names == [
+        "Python",
+        "SocialFlow",
+    ]
+
+def test_mismatched_created_tag_name_stops_remaining_tags():
+    worker, client = make_worker(
+        ("Python", "SocialFlow", "Linux")
+    )
+
+    client.create_tag.side_effect = [
+        WordPressTag(id=101, name="Python"),
+        WordPressTag(id=102, name="WrongTag"),
+        WordPressTag(id=103, name="Linux"),
+    ]
+
+    errors = []
+    results = []
+
+    worker.failed.connect(errors.append)
+    worker.finished.connect(results.append)
+
+    worker.run()
+
+    assert len(errors) == 1
+    assert "SocialFlow" in errors[0]
+    assert results == []
+
+    assert client.create_tag.call_count == 2
+
+    attempted_names = [
+        call.kwargs["name"]
+        for call in client.create_tag.call_args_list
+    ]
+
+    assert attempted_names == [
+        "Python",
+        "SocialFlow",
+    ]

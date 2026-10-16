@@ -10,9 +10,24 @@ def test_wordpress_tag_preserves_id_and_normalizes_name() -> None:
     assert tag.name == "SocialFlow"
 
 
-@pytest.mark.parametrize("invalid_id", [0, -1, True, "42"])
+@pytest.mark.parametrize(
+    "invalid_id",
+    [
+        0,
+        -1,
+        -100,
+        True,
+        False,
+        "42",
+        42.0,
+        None,
+    ],
+)
 def test_wordpress_tag_rejects_invalid_ids(invalid_id) -> None:
-    with pytest.raises(ValueError, match="tag ID"):
+    with pytest.raises(
+        ValueError,
+        match="WordPress tag ID must be a positive integer.",
+    ):
         WordPressTag(id=invalid_id, name="Python")
 
 
