@@ -18,14 +18,33 @@ class WordPressTagResolver:
 
     @classmethod
     def prepare_creation_plan(
-        cls,
-        selected_tags: Iterable[Tag],
-        remote_tags: Iterable[WordPressTag],
+            cls,
+            selected_tags: Iterable[Tag],
+            remote_tags: Iterable[WordPressTag],
     ) -> WordPressTagCreationPlan:
-        """Prepare missing WordPress tags for user confirmation."""
+        """Prepare missing tags and reject ambiguous remote matches."""
+
+        selected_tags = tuple(selected_tags)
+        remote_tags = tuple(remote_tags)
 
         missing = cls.find_missing(
             selected_tags=selected_tags,
+            remote_tags=remote_tags,
+        )
+
+        missing_names = {
+            cls._normalize_name(tag.name)
+            for tag in missing
+        }
+
+        existing_selected_tags = tuple(
+            tag
+            for tag in selected_tags
+            if cls._normalize_name(tag.name) not in missing_names
+        )
+
+        cls.resolve(
+            selected_tags=existing_selected_tags,
             remote_tags=remote_tags,
         )
 

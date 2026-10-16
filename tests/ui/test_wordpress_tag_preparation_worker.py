@@ -155,3 +155,29 @@ def test_new_preparation_fetches_updated_tags_after_failure():
 
     # Preparation never creates tags automatically.
     client.create_tag.assert_not_called()
+
+def test_worker_rejects_ambiguous_existing_wordpress_tags():
+    worker, client = make_worker(
+        selected_tags=(
+            Tag("Čakovec"),
+            Tag("SocialFlow"),
+        ),
+        remote_tags=(
+            WordPressTag(id=101, name="Čakovec"),
+            WordPressTag(id=202, name="C\u030Cakovec"),
+        ),
+    )
+
+    plans = []
+    errors = []
+
+    worker.finished.connect(plans.append)
+    worker.failed.connect(errors.append)
+
+    worker.run()
+
+    assert plans == []
+    assert errors == ["Ambiguous WordPress tag: Čakovec"]
+
+    client.list_tags.assert_called_once()
+    client.create_tag.assert_not_called()

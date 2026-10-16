@@ -416,3 +416,74 @@ def test_resolver_rejects_unicode_equivalent_ambiguous_remote_ids(
             selected_tags=selected_tags,
             remote_tags=remote_tags,
         )
+
+def test_prepare_creation_plan_rejects_ambiguous_existing_tags() -> None:
+    selected_tags = (
+        Tag("Čakovec"),
+        Tag("SocialFlow"),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name="Čakovec"),
+        WordPressTag(id=202, name="C\u030Cakovec"),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Ambiguous WordPress tag: Čakovec",
+    ):
+        WordPressTagResolver.prepare_creation_plan(
+            selected_tags=selected_tags,
+            remote_tags=remote_tags,
+        )
+
+
+def test_prepare_creation_plan_accepts_existing_and_missing_tags() -> None:
+    selected_tags = (
+        Tag("Čakovec"),
+        Tag("čakovec"),
+        Tag("SocialFlow"),
+        Tag("socialflow"),
+        Tag("Šibenik"),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name="C\u030Cakovec"),
+    )
+
+    plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert plan.missing_tags == (
+        Tag("SocialFlow"),
+        Tag("Šibenik"),
+    )
+
+def test_prepare_creation_plan_accepts_generator_inputs() -> None:
+    selected_tags = (
+        Tag(name)
+        for name in (
+            "Čakovec",
+            "SocialFlow",
+            "Šibenik",
+        )
+    )
+
+    remote_tags = (
+        WordPressTag(id=tag_id, name=name)
+        for tag_id, name in (
+            (101, "C\u030Cakovec"),
+            (202, "Šibenik"),
+        )
+    )
+
+    plan = WordPressTagResolver.prepare_creation_plan(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert plan.missing_tags == (
+        Tag("SocialFlow"),
+    )
