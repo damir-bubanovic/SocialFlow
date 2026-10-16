@@ -1,10 +1,12 @@
-import unicodedata
 from collections.abc import Iterable
 
 from socialflow.domain.post.tag import Tag
 from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
+)
+from socialflow.infrastructure.wordpress.wordpress_tag_name_normalizer import (
+    WordPressTagNameNormalizer,
 )
 
 
@@ -14,7 +16,7 @@ class WordPressTagResolver:
     @staticmethod
     def _normalize_name(name: str) -> str:
         """Create a Unicode-aware key for matching tag names."""
-        return unicodedata.normalize("NFC", name).casefold()
+        return WordPressTagNameNormalizer.normalize(name)
 
     @classmethod
     def prepare_creation_plan(
