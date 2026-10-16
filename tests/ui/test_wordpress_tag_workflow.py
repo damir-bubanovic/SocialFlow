@@ -427,3 +427,49 @@ def test_remote_tag_lookup_failure_cancels_publishing(workflow):
         == "Unable to prepare WordPress tags: "
         "Connection timed out while retrieving tags."
     )
+
+def test_creation_finished_without_result_cancels_pending_publishing(
+    workflow,
+):
+    account = make_account("WordPress A")
+    request = make_request([account])
+
+    workflow._pending_publish_request = request
+    workflow._preparing_wordpress_account = account
+
+    with patch.object(
+        workflow,
+        "_start_publishing",
+    ) as start_publishing:
+        workflow._on_wordpress_tag_creation_finished()
+
+        assert workflow._pending_publish_request is None
+        assert workflow._preparing_wordpress_account is None
+        assert workflow._pending_wordpress_accounts == []
+        assert workflow._approved_wordpress_tag_plans == {}
+
+        start_publishing.assert_not_called()
+
+def test_creation_finished_after_success_continues_preparation(
+    workflow,
+):
+    account = make_account("WordPress A")
+    request = make_request([account])
+
+    workflow._pending_publish_request = request
+    workflow._preparing_wordpress_account = account
+    workflow._wordpress_tag_creation_completed = True
+    workflow._wordpress_tag_creation_failed = False
+
+    with patch.object(
+        workflow,
+        "_continue_wordpress_tag_preparation",
+    ) as continue_preparation:
+        with patch.object(
+            workflow,
+            "_cancel_wordpress_tag_preparation",
+        ) as cancel_preparation:
+            workflow._on_wordpress_tag_creation_finished()
+
+    continue_preparation.assert_called_once_with()
+    cancel_preparation.assert_not_called()

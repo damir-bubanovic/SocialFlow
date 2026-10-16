@@ -841,6 +841,7 @@ class PostsPage(QWidget):
         self._preparing_wordpress_account = None
 
         if not succeeded:
+            self._cancel_wordpress_tag_preparation()
             return
 
         self._continue_wordpress_tag_preparation()
