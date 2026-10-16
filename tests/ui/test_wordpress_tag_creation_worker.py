@@ -312,3 +312,76 @@ def test_mismatched_created_tag_name_stops_remaining_tags():
         "Python",
         "SocialFlow",
     ]
+
+def test_worker_accepts_unicode_equivalent_created_tag_name() -> None:
+    worker, client = make_worker(("Čakovec",))
+
+    client.create_tag.side_effect = None
+    client.create_tag.return_value = WordPressTag(
+        id=101,
+        name="C\u030Cakovec",
+    )
+
+    results = []
+    errors = []
+
+    worker.finished.connect(results.append)
+    worker.failed.connect(errors.append)
+
+    worker.run()
+
+    assert errors == []
+    assert results == [
+        (WordPressTag(id=101, name="C\u030Cakovec"),)
+    ]
+
+    client.create_tag.assert_called_once()
+
+def test_worker_rejects_different_unicode_created_tag_name() -> None:
+    worker, client = make_worker(("Čakovec",))
+
+    client.create_tag.side_effect = None
+    client.create_tag.return_value = WordPressTag(
+        id=101,
+        name="Ćakovec",
+    )
+
+    results = []
+    errors = []
+
+    worker.finished.connect(results.append)
+    worker.failed.connect(errors.append)
+
+    worker.run()
+
+    assert results == []
+    assert errors == [
+        "Invalid WordPress tag creation result for "
+        "'Čakovec': received 'Ćakovec'."
+    ]
+
+    client.create_tag.assert_called_once()
+
+def test_worker_accepts_case_insensitive_created_tag_name() -> None:
+    worker, client = make_worker(("SocialFlow",))
+
+    client.create_tag.side_effect = None
+    client.create_tag.return_value = WordPressTag(
+        id=101,
+        name="socialflow",
+    )
+
+    results = []
+    errors = []
+
+    worker.finished.connect(results.append)
+    worker.failed.connect(errors.append)
+
+    worker.run()
+
+    assert errors == []
+    assert results == [
+        (WordPressTag(id=101, name="socialflow"),)
+    ]
+
+    client.create_tag.assert_called_once()

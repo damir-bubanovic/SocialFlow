@@ -1,3 +1,4 @@
+import unicodedata
 from PySide6.QtCore import QObject, Signal, Slot
 
 from socialflow.application.credentials.credential_store import CredentialStore
@@ -78,7 +79,10 @@ class WordPressTagCreationWorker(QObject):
                     f"Invalid WordPress tag creation result for '{name}'."
                 )
 
-            if created_tag.name.strip().casefold() != name.strip().casefold():
+            if (
+                    unicodedata.normalize("NFC", created_tag.name).casefold()
+                    != unicodedata.normalize("NFC", name).casefold()
+            ):
                 raise ValueError(
                     f"Invalid WordPress tag creation result for '{name}': "
                     f"received '{created_tag.name}'."
