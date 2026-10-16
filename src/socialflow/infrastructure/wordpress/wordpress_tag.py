@@ -12,6 +12,11 @@ class WordPressTag:
         if type(self.id) is not int or self.id <= 0:
             raise ValueError("WordPress tag ID must be a positive integer.")
 
+        if not isinstance(self.name, str):
+            raise ValueError(
+                "WordPress tag name must be a non-empty string."
+            )
+
         normalized_name = self.name.strip()
 
         if not normalized_name:

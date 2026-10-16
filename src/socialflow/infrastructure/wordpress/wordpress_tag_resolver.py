@@ -1,3 +1,4 @@
+import unicodedata
 from collections.abc import Iterable
 
 from socialflow.domain.post.tag import Tag
@@ -9,6 +10,11 @@ from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
 
 class WordPressTagResolver:
     """Resolve selected SocialFlow tags against remote WordPress tags."""
+
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        """Create a Unicode-aware key for matching tag names."""
+        return unicodedata.normalize("NFC", name).casefold()
 
     @classmethod
     def prepare_creation_plan(
@@ -35,7 +41,7 @@ class WordPressTagResolver:
         """Find selected tags that do not exist on WordPress."""
 
         existing_names = {
-            remote_tag.name.casefold()
+            WordPressTagResolver._normalize_name(remote_tag.name)
             for remote_tag in remote_tags
         }
 
@@ -43,7 +49,7 @@ class WordPressTagResolver:
         seen: set[str] = set()
 
         for tag in selected_tags:
-            key = tag.name.casefold()
+            key = WordPressTagResolver._normalize_name(tag.name)
 
             if key in existing_names or key in seen:
                 continue
@@ -61,7 +67,7 @@ class WordPressTagResolver:
         remote_by_name: dict[str, set[int]] = {}
 
         for remote_tag in remote_tags:
-            key = remote_tag.name.casefold()
+            key = WordPressTagResolver._normalize_name(remote_tag.name)
             remote_by_name.setdefault(key, set()).add(remote_tag.id)
 
         resolved: list[int] = []
@@ -69,7 +75,7 @@ class WordPressTagResolver:
 
         for selected_tag in selected_tags:
             ids = remote_by_name.get(
-                selected_tag.name.casefold(), set()
+                WordPressTagResolver._normalize_name(selected_tag.name), set()
             )
 
             if not ids:

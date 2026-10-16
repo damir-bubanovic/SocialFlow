@@ -160,3 +160,91 @@ def test_prepare_creation_plan_without_selected_tags():
 
     assert plan.requires_confirmation is False
     assert plan.tag_names == ()
+
+@pytest.mark.parametrize(
+    ("selected_name", "remote_name"),
+    [
+        ("čakovec", "Čakovec"),
+        ("HRVATSKA", "hrvatska"),
+        ("ŽIVOT", "život"),
+        ("Šibenik", "šIBENIK"),
+        ("Đakovo", "đAKOVO"),
+        ("PYTHON", "Python"),
+    ],
+)
+def test_resolver_matches_existing_tags_case_insensitively(
+    selected_name: str,
+    remote_name: str,
+) -> None:
+    selected_tags = (
+        Tag(selected_name),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name=remote_name),
+    )
+
+    missing_tags = WordPressTagResolver.find_missing(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert missing_tags == ()
+
+@pytest.mark.parametrize(
+    ("selected_name", "remote_name"),
+    [
+        ("café", "cafe\u0301"),
+        ("Čakovec", "C\u030Cakovec"),
+        ("Šibenik", "S\u030Cibenik"),
+        ("Život", "Z\u030Civot"),
+        ("Đakovo", "ĐAKOVO"),
+    ],
+)
+def test_resolver_matches_unicode_equivalent_tags(
+    selected_name: str,
+    remote_name: str,
+) -> None:
+    selected_tags = (
+        Tag(selected_name),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name=remote_name),
+    )
+
+    missing_tags = WordPressTagResolver.find_missing(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert missing_tags == ()
+
+@pytest.mark.parametrize(
+    ("selected_name", "remote_name"),
+    [
+        ("café", "cafe\u0301"),
+        ("Čakovec", "C\u030Cakovec"),
+        ("Šibenik", "S\u030Cibenik"),
+        ("Život", "Z\u030Civot"),
+        ("Đakovo", "ĐAKOVO"),
+    ],
+)
+def test_resolver_returns_existing_id_for_unicode_equivalent_tag(
+    selected_name: str,
+    remote_name: str,
+) -> None:
+    selected_tags = (
+        Tag(selected_name),
+    )
+
+    remote_tags = (
+        WordPressTag(id=101, name=remote_name),
+    )
+
+    resolved_ids = WordPressTagResolver.resolve(
+        selected_tags=selected_tags,
+        remote_tags=remote_tags,
+    )
+
+    assert resolved_ids == (101,)
