@@ -473,3 +473,4 @@ def test_creation_finished_after_success_continues_preparation(
 
     continue_preparation.assert_called_once_with()
     cancel_preparation.assert_not_called()
+

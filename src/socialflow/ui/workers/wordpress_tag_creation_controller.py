@@ -36,6 +36,7 @@ class WordPressTagCreationController(QObject):
 
     @property
     def is_running(self) -> bool:
+        """Return whether a tag creation operation is running."""
         return self._thread is not None
 
     def start(
