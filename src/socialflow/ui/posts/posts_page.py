@@ -852,7 +852,9 @@ class PostsPage(QWidget):
         self._pending_wordpress_accounts.clear()
         self._approved_wordpress_tag_plans.clear()
 
+        self._preparing_wordpress_account = None
         self._wordpress_tag_creation_completed = False
+        self._wordpress_tag_creation_failed = False
 
         self.post_editor.publish_button.setEnabled(True)
         self.retry_failed_button.setEnabled(

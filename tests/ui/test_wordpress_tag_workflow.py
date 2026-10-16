@@ -474,3 +474,44 @@ def test_creation_finished_after_success_continues_preparation(
     continue_preparation.assert_called_once_with()
     cancel_preparation.assert_not_called()
 
+def test_cancellation_clears_all_wordpress_workflow_state(workflow):
+    account = make_account("WordPress A")
+    request = make_request([account])
+
+    workflow._pending_publish_request = request
+    workflow._pending_wordpress_accounts = [account]
+    workflow._preparing_wordpress_account = account
+    workflow._approved_wordpress_tag_plans[account.id] = make_plan()
+    workflow._wordpress_tag_creation_completed = True
+    workflow._wordpress_tag_creation_failed = True
+
+    workflow._cancel_wordpress_tag_preparation()
+
+    assert workflow._pending_publish_request is None
+    assert workflow._pending_wordpress_accounts == []
+    assert workflow._preparing_wordpress_account is None
+    assert workflow._approved_wordpress_tag_plans == {}
+    assert workflow._wordpress_tag_creation_completed is False
+    assert workflow._wordpress_tag_creation_failed is False
+    assert workflow.post_editor.publish_button.isEnabled()
+
+def test_repeated_cancellation_preserves_clean_workflow_state(workflow):
+    account = make_account("WordPress A")
+
+    workflow._pending_publish_request = make_request([account])
+    workflow._pending_wordpress_accounts = [account]
+    workflow._preparing_wordpress_account = account
+    workflow._approved_wordpress_tag_plans[account.id] = make_plan()
+    workflow._wordpress_tag_creation_completed = True
+    workflow._wordpress_tag_creation_failed = True
+
+    workflow._cancel_wordpress_tag_preparation()
+    workflow._cancel_wordpress_tag_preparation()
+
+    assert workflow._pending_publish_request is None
+    assert workflow._pending_wordpress_accounts == []
+    assert workflow._preparing_wordpress_account is None
+    assert workflow._approved_wordpress_tag_plans == {}
+    assert workflow._wordpress_tag_creation_completed is False
+    assert workflow._wordpress_tag_creation_failed is False
+    assert workflow.post_editor.publish_button.isEnabled()
