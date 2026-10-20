@@ -1,8 +1,8 @@
 from PySide6.QtWidgets import QMainWindow
-from unittest.mock import patch
 from socialflow.ui.main_content import MainContent
 
 from socialflow.ui.main_window import MainWindow
+from unittest.mock import PropertyMock, patch
 
 
 def test_main_window_is_qt_main_window(qtbot) -> None:
@@ -315,3 +315,121 @@ def test_main_window_closes_with_partially_initialized_content(
     )
 
     assert window.close()
+
+
+def test_main_window_closes_after_active_publishing_failure(
+    qtbot,
+) -> None:
+    """Close the window after an active publishing worker fails."""
+    from threading import Event
+    from unittest.mock import Mock
+
+    from socialflow.application.publishing.publish_post import PublishPost
+    from socialflow.domain.publishing.publish_request import PublishRequest
+    from socialflow.ui.posts.publishing_controller import PublishingController
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    posts_page = window.main_content.posts_page
+
+    started = Event()
+    release = Event()
+
+    publish_post = Mock(spec=PublishPost)
+
+    def execute(_request, *, on_progress=None):
+        assert callable(on_progress)
+        started.set()
+
+        if not release.wait(timeout=5):
+            raise TimeoutError("Publishing was not released.")
+
+        raise RuntimeError("Unexpected publishing failure")
+
+    publish_post.execute.side_effect = execute
+
+    controller = PublishingController(
+        publish_post,
+        parent=posts_page,
+    )
+    posts_page._publishing_controller = controller
+
+    controller.finished.connect(
+        posts_page.publishing_finished.emit
+    )
+
+    request = PublishRequest(
+        post=Mock(),
+        accounts=(),
+    )
+
+    try:
+        controller.start(request)
+
+        qtbot.waitUntil(
+            started.is_set,
+            timeout=3000,
+        )
+
+        assert posts_page.publishing_is_running
+
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        release.set()
+
+        qtbot.waitUntil(
+            lambda: not window.isVisible(),
+            timeout=5000,
+        )
+
+        assert not posts_page.publishing_is_running
+        assert not window._close_pending
+
+        publish_post.execute.assert_called_once()
+
+    finally:
+        release.set()
+        controller.shutdown()
+
+def test_main_window_repeated_close_during_publishing(qtbot) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    accounts_page = window.main_content.accounts_page
+    posts_page = window.main_content.posts_page
+
+    with (
+        patch.object(
+            type(posts_page),
+            "publishing_is_running",
+            new_callable=PropertyMock,
+        ) as publishing_running,
+        patch.object(posts_page, "shutdown") as posts_shutdown,
+        patch.object(accounts_page, "shutdown") as accounts_shutdown,
+    ):
+        publishing_running.return_value = True
+
+        window.close()
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        posts_shutdown.assert_not_called()
+        accounts_shutdown.assert_not_called()
+
+        publishing_running.return_value = False
+
+        window._finish_pending_close()
+
+        assert not window.isVisible()
+        assert not window._close_pending
+
+        posts_shutdown.assert_called_once()
+        accounts_shutdown.assert_called_once()
