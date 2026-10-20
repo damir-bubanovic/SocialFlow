@@ -471,3 +471,117 @@ def test_controller_can_start_again_after_publishing_error(qtbot) -> None:
     finally:
         controller.shutdown()
 
+
+def test_controller_shutdown_is_idempotent_after_completion(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+    service.execute.return_value = (object(),)
+
+    controller = PublishingController(service)
+
+    finished_listener = Mock()
+    controller.finished.connect(finished_listener)
+
+    with qtbot.waitSignals(
+        [controller.result_ready, controller.finished],
+        timeout=3000,
+        order="strict",
+    ):
+        controller.start(create_request())
+
+    assert finished_listener.call_count == 1
+    assert not controller.is_running
+    assert controller._thread is None
+    assert controller._worker is None
+
+    controller.shutdown()
+    controller.shutdown()
+
+    assert controller._shutting_down is True
+    assert not controller.is_running
+    assert controller._thread is None
+    assert controller._worker is None
+    assert finished_listener.call_count == 1
+
+    controller.start(create_request())
+
+    assert not controller.is_running
+    service.execute.assert_called_once()
+    assert finished_listener.call_count == 1
+
+def test_controller_shutdown_before_start() -> None:
+    service = Mock(spec=PublishPost)
+    controller = PublishingController(service)
+
+    finished_listener = Mock()
+    error_listener = Mock()
+    result_listener = Mock()
+
+    controller.finished.connect(finished_listener)
+    controller.error_occurred.connect(error_listener)
+    controller.result_ready.connect(result_listener)
+
+    controller.shutdown()
+    controller.shutdown()
+
+    assert controller._shutting_down is True
+    assert not controller.is_running
+    assert controller._thread is None
+    assert controller._worker is None
+
+    controller.start(create_request())
+
+    assert not controller.is_running
+    assert controller._thread is None
+    assert controller._worker is None
+
+    service.execute.assert_not_called()
+    finished_listener.assert_not_called()
+    error_listener.assert_not_called()
+    result_listener.assert_not_called()
+
+def test_controller_shutdown_is_idempotent_after_failure(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+    service.execute.side_effect = RuntimeError(
+        "Unexpected publishing failure"
+    )
+
+    controller = PublishingController(service)
+
+    finished_listener = Mock()
+    error_listener = Mock()
+    result_listener = Mock()
+
+    controller.finished.connect(finished_listener)
+    controller.error_occurred.connect(error_listener)
+    controller.result_ready.connect(result_listener)
+
+    with qtbot.waitSignals(
+        [controller.error_occurred, controller.finished],
+        timeout=3000,
+        order="strict",
+    ):
+        controller.start(create_request())
+
+    error_listener.assert_called_once_with(
+        "Publishing could not be completed."
+    )
+    result_listener.assert_not_called()
+
+    assert finished_listener.call_count == 1
+    assert not controller.is_running
+
+    controller.shutdown()
+    controller.shutdown()
+
+    assert controller._shutting_down is True
+    assert controller._thread is None
+    assert controller._worker is None
+
+    assert finished_listener.call_count == 1
+    assert error_listener.call_count == 1
+
+    controller.start(create_request())
+
+    service.execute.assert_called_once()
+    assert not controller.is_running
+    assert finished_listener.call_count == 1
