@@ -145,3 +145,51 @@ def test_worker_preserves_progress_before_unexpected_failure(qtbot) -> None:
 
     assert signal.args == ["Publishing could not be completed."]
     service.execute.assert_called_once()
+
+
+def test_worker_logs_unexpected_exception_traceback(
+    qtbot,
+    caplog,
+) -> None:
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    service.execute.side_effect = RuntimeError(
+        "Unexpected publishing failure"
+    )
+
+    worker = PublishingWorker(service, request)
+
+    with caplog.at_level("ERROR"):
+        with qtbot.waitSignal(worker.failed, timeout=1000):
+            worker.run()
+
+    matching_records = [
+        record
+        for record in caplog.records
+        if record.message.startswith("Background publishing failed:")
+    ]
+
+    assert len(matching_records) == 1
+
+    record = matching_records[0]
+
+    assert record.exc_info is not None
+    assert record.exc_info[0] is RuntimeError
+    assert "RuntimeError" in record.message
+
+def test_worker_does_not_expose_internal_error_details(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    sensitive_message = "Internal credential token: SECRET-12345"
+
+    service.execute.side_effect = RuntimeError(sensitive_message)
+
+    worker = PublishingWorker(service, request)
+
+    with qtbot.waitSignal(worker.failed, timeout=1000) as signal:
+        worker.run()
+
+    assert signal.args == ["Publishing could not be completed."]
+    assert sensitive_message not in signal.args[0]

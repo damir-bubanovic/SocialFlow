@@ -39,6 +39,7 @@ class PublishingWorker(QObject):
             logger.error(
                 "Background publishing failed: %s",
                 type(error).__name__,
+                exc_info=True,
             )
             self.failed.emit("Publishing could not be completed.")
         else:
