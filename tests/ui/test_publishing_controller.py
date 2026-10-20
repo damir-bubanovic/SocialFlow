@@ -131,6 +131,7 @@ def test_controller_forwards_publishing_progress(qtbot) -> None:
     assert progress_listener.call_args_list[1].args == (second_result,)
     assert not controller.is_running
 
+
 def test_shutdown_during_active_publishing(
     qtbot,
     monkeypatch,
@@ -226,6 +227,12 @@ def test_shutdown_during_active_publishing(
 
         controller.shutdown()
 
+        # Phase 21.9.16.3:
+        # Shutdown must leave the controller fully cleaned up.
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
     finally:
         release_publishing.set()
         helper.join(timeout=5)
@@ -236,14 +243,6 @@ def test_shutdown_during_active_publishing(
     assert shutdown_wait_started.is_set()
     assert publishing_completed.is_set()
     assert not active_thread.isRunning()
-
-    qtbot.waitUntil(
-        lambda: not controller.is_running,
-        timeout=3000,
-    )
-
-    assert controller._thread is None
-    assert controller._worker is None
 
     qtbot.waitUntil(
         lambda: finished_listener.call_count == 1,
@@ -263,6 +262,7 @@ def test_shutdown_during_active_publishing(
 
     assert finished_listener.call_count == 1
     service.execute.assert_called_once()
+
 
 def test_controller_can_start_again_after_completion(qtbot) -> None:
     service = Mock(spec=PublishPost)
@@ -327,3 +327,33 @@ def test_controller_rejects_start_after_shutdown() -> None:
     assert controller._worker is None
 
     service.execute.assert_not_called()
+
+def test_controller_handles_unexpected_publishing_exception(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+    service.execute.side_effect = RuntimeError(
+        "Unexpected internal publishing failure"
+    )
+
+    controller = PublishingController(service)
+    error_listener = Mock()
+
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        with qtbot.waitSignals(
+            [controller.error_occurred, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(create_request())
+
+        error_listener.assert_called_once_with(
+            "Publishing could not be completed."
+        )
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+    finally:
+        controller.shutdown()

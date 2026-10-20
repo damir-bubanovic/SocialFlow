@@ -5,7 +5,6 @@ import logging
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from socialflow.application.publishing.errors import PublishingError
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.domain.publishing.publish_request import PublishRequest
 
@@ -36,8 +35,11 @@ class PublishingWorker(QObject):
                 self._request,
                 on_progress=self.progress.emit,
             )
-        except PublishingError:
-            logger.exception("Background publishing failed")
+        except Exception as error:
+            logger.error(
+                "Background publishing failed: %s",
+                type(error).__name__,
+            )
             self.failed.emit("Publishing could not be completed.")
         else:
             self.finished.emit(results)

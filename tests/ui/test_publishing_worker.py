@@ -90,3 +90,27 @@ def test_worker_emits_progress_for_each_account(qtbot) -> None:
     assert progress_listener.call_count == 2
     assert progress_listener.call_args_list[0].args == (first_result,)
     assert progress_listener.call_args_list[1].args == (second_result,)
+
+def test_worker_handles_unexpected_exception(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    service.execute.side_effect = RuntimeError(
+        "Sensitive unexpected failure"
+    )
+
+    worker = PublishingWorker(service, request)
+
+    finished_listener = Mock()
+    worker.finished.connect(finished_listener)
+
+    with qtbot.waitSignal(worker.failed, timeout=1000) as signal:
+        worker.run()
+
+    service.execute.assert_called_once_with(
+        request,
+        on_progress=worker.progress.emit,
+    )
+
+    assert signal.args == ["Publishing could not be completed."]
+    finished_listener.assert_not_called()

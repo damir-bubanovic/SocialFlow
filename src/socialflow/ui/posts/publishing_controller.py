@@ -85,3 +85,5 @@ class PublishingController(QObject):
 
         thread.quit()
         thread.wait()
+
+        self._on_thread_finished()
