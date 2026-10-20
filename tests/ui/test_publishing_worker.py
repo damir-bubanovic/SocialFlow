@@ -114,3 +114,34 @@ def test_worker_handles_unexpected_exception(qtbot) -> None:
 
     assert signal.args == ["Publishing could not be completed."]
     finished_listener.assert_not_called()
+
+def test_worker_preserves_progress_before_unexpected_failure(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    def execute(_request, *, on_progress=None):
+        assert _request is request
+        assert callable(on_progress)
+
+        on_progress("Publishing started")
+
+        raise RuntimeError("Unexpected publishing failure")
+
+    service.execute.side_effect = execute
+
+    worker = PublishingWorker(service, request)
+
+    progress_listener = Mock()
+    finished_listener = Mock()
+
+    worker.progress.connect(progress_listener)
+    worker.finished.connect(finished_listener)
+
+    with qtbot.waitSignal(worker.failed, timeout=1000) as signal:
+        worker.run()
+
+    progress_listener.assert_called_once_with("Publishing started")
+    finished_listener.assert_not_called()
+
+    assert signal.args == ["Publishing could not be completed."]
+    service.execute.assert_called_once()

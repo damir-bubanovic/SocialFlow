@@ -357,3 +357,117 @@ def test_controller_handles_unexpected_publishing_exception(qtbot) -> None:
 
     finally:
         controller.shutdown()
+
+
+def test_controller_can_start_again_after_failure(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+
+    results = (object(),)
+    service.execute.side_effect = [
+        RuntimeError("Unexpected publishing failure"),
+        results,
+    ]
+
+    controller = PublishingController(service)
+
+    error_listener = Mock()
+    result_listener = Mock()
+    finished_listener = Mock()
+
+    controller.error_occurred.connect(error_listener)
+    controller.result_ready.connect(result_listener)
+    controller.finished.connect(finished_listener)
+
+    first_request = create_request()
+    second_request = create_request()
+
+    try:
+        with qtbot.waitSignals(
+            [controller.error_occurred, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(first_request)
+
+        error_listener.assert_called_once_with(
+            "Publishing could not be completed."
+        )
+        result_listener.assert_not_called()
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+        with qtbot.waitSignals(
+            [controller.result_ready, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(second_request)
+
+        result_listener.assert_called_once_with(results)
+        error_listener.assert_called_once()
+
+        assert finished_listener.call_count == 2
+        assert service.execute.call_count == 2
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+    finally:
+        controller.shutdown()
+
+
+def test_controller_can_start_again_after_publishing_error(qtbot) -> None:
+    service = Mock(spec=PublishPost)
+
+    results = (object(),)
+    service.execute.side_effect = [
+        PublishingError("WordPress publishing failed"),
+        results,
+    ]
+
+    controller = PublishingController(service)
+
+    error_listener = Mock()
+    result_listener = Mock()
+    finished_listener = Mock()
+
+    controller.error_occurred.connect(error_listener)
+    controller.result_ready.connect(result_listener)
+    controller.finished.connect(finished_listener)
+
+    try:
+        with qtbot.waitSignals(
+            [controller.error_occurred, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(create_request())
+
+        error_listener.assert_called_once_with(
+            "Publishing could not be completed."
+        )
+        result_listener.assert_not_called()
+
+        assert not controller.is_running
+
+        with qtbot.waitSignals(
+            [controller.result_ready, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(create_request())
+
+        result_listener.assert_called_once_with(results)
+
+        assert service.execute.call_count == 2
+        assert finished_listener.call_count == 2
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+    finally:
+        controller.shutdown()
+
