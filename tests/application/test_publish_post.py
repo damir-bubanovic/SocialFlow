@@ -1569,3 +1569,102 @@ def test_publish_post_reports_progress_for_each_account() -> None:
     assert progress[1].account == accounts[1]
     assert not progress[1].succeeded
     assert isinstance(progress[1].error, RuntimeError)
+
+def test_wordpress_tag_resolution_failure_preserves_other_publications() -> None:
+    from unittest.mock import Mock
+
+    from socialflow.domain.connections.wordpress_connection_config import (
+        WordPressConnectionConfig,
+    )
+    from socialflow.domain.post.tag import Tag
+    from socialflow.infrastructure.wordpress.wordpress_publisher import (
+        WordPressPublisher,
+    )
+
+    wordpress_account = Account(
+        name="Tagged WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    facebook_account = Account(
+        name="Working Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    credential_store = Mock()
+    credential_store.get.return_value = "secret"
+
+    post_client = Mock()
+    tag_client = Mock()
+    tag_client.list_tags.return_value = ()
+
+    facebook_publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        publishers={
+            PublishingDestination.FACEBOOK: facebook_publisher,
+        },
+        account_factories={
+            PublishingDestination.WORDPRESS: (
+                lambda account: WordPressPublisher(
+                    account=account,
+                    credential_store=credential_store,
+                    post_client=post_client,
+                    tag_client=tag_client,
+                )
+            ),
+        },
+    )
+
+    repository = InMemoryPublicationRepository()
+    progress = []
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+        publication_repository=repository,
+        clock=FixedClock(datetime(2026, 10, 16, 12, 0)),
+    )
+
+    post = Post(
+        text="Publishing with selected tags",
+        language=Language.ENGLISH,
+        tags=(Tag("MissingTag"),),
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(wordpress_account, facebook_account),
+        ),
+        on_progress=progress.append,
+    )
+
+    assert len(results) == 2
+
+    wordpress_result, facebook_result = results
+
+    assert wordpress_result.account is wordpress_account
+    assert not wordpress_result.succeeded
+    assert isinstance(wordpress_result.error, ValueError)
+    assert str(wordpress_result.error) == (
+        "WordPress tag not found: MissingTag"
+    )
+
+    assert facebook_result.account is facebook_account
+    assert facebook_result.succeeded
+    assert facebook_result.error is None
+
+    post_client.create_post.assert_not_called()
+
+    assert repository.recent_for_account(wordpress_account) == ()
+    assert len(repository.recent_for_account(facebook_account)) == 1
+
+    assert len(facebook_publisher.published_posts) == 1
+    assert facebook_publisher.published_posts[0].source is post
+
+    assert progress == list(results)

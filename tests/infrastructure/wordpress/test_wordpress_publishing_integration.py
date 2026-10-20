@@ -10,6 +10,11 @@ from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_publisher import (
     WordPressPublisher,
 )
+from socialflow.domain.post.tag import Tag
+from socialflow.domain.connections.wordpress_connection_config import (
+    WordPressConnectionConfig,
+)
+from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 
 
 def test_wordpress_account_resolves_to_wordpress_publisher() -> None:
@@ -100,3 +105,67 @@ def test_wordpress_publisher_rejects_unconfigured_account() -> None:
 
     with pytest.raises(ValueError, match="settings are incomplete"):
         publisher.publish(post)
+
+def test_account_routed_wordpress_publisher_sends_selected_tag_ids():
+    account = Account(
+        name="Tagged WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    credential_store = Mock()
+    credential_store.get.return_value = "secret"
+
+    post_client = Mock()
+    post_client.create_post.return_value = 201
+
+    tag_client = Mock()
+    tag_client.list_tags.return_value = (
+        WordPressTag(id=101, name="Python"),
+        WordPressTag(id=202, name="SocialFlow"),
+    )
+
+    router = PublisherRouter(
+        publishers={},
+        account_factories={
+            PublishingDestination.WORDPRESS: (
+                lambda selected_account: WordPressPublisher(
+                    account=selected_account,
+                    credential_store=credential_store,
+                    post_client=post_client,
+                    tag_client=tag_client,
+                )
+            ),
+        },
+    )
+
+    post = PreparedPost(
+        source=Post(
+            text="Publishing with WordPress tags",
+            language=Language.ENGLISH,
+            tags=(
+                Tag("SocialFlow"),
+                Tag("Python"),
+            ),
+        ),
+    )
+
+    publisher = router.publisher_for_account(account)
+    publisher.publish(post)
+
+    tag_client.list_tags.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+    )
+
+    post_client.create_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+        content="Publishing with WordPress tags",
+        tags=(202, 101),
+    )

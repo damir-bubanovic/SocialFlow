@@ -1,5 +1,5 @@
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal
 
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.domain.publishing.publish_request import PublishRequest
@@ -23,6 +23,7 @@ class PublishingController(QObject):
         self._publish_post = publish_post
         self._thread: QThread | None = None
         self._worker: PublishingWorker | None = None
+        self._shutting_down = False
 
     @property
     def is_running(self) -> bool:
@@ -31,7 +32,7 @@ class PublishingController(QObject):
 
     def start(self, request: PublishRequest) -> None:
         """Start publishing unless an operation is active."""
-        if self.is_running:
+        if self._shutting_down or self.is_running:
             return
 
         thread = QThread()
@@ -47,8 +48,14 @@ class PublishingController(QObject):
         worker.finished.connect(self.result_ready.emit)
         worker.failed.connect(self.error_occurred.emit)
 
-        worker.finished.connect(thread.quit)
-        worker.failed.connect(thread.quit)
+        worker.finished.connect(
+            thread.quit,
+            Qt.ConnectionType.DirectConnection,
+        )
+        worker.failed.connect(
+            thread.quit,
+            Qt.ConnectionType.DirectConnection,
+        )
 
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(self._on_thread_finished)
@@ -69,7 +76,9 @@ class PublishingController(QObject):
         self.finished.emit()
 
     def shutdown(self) -> None:
-        """Wait for active publishing before releasing resources."""
+        """Stop publishing and prevent future operations."""
+        self._shutting_down = True
+
         thread = self._thread
         if thread is None:
             return
