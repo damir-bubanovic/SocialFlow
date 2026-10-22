@@ -2371,3 +2371,136 @@ def test_posts_page_shows_remote_post_retrieval_error(qtbot):
         )
     finally:
         page.shutdown()
+
+
+def test_posts_page_clears_retry_state_after_unexpected_publishing_error(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    list_tags, create_tag = create_tag_services()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter(
+                {
+                    PublishingDestination.FACEBOOK: FailingPublisher(),
+                }
+            ),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText("Hello from SocialFlow")
+    page.post_editor.destination_selector._checkboxes[0].setChecked(True)
+
+    with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+        page.post_editor.publish_button.click()
+
+    assert page.retry_failed_button.isEnabled()
+    assert page._last_publish_request is not None
+    assert page._last_publish_results
+
+    page._on_publish_error("Publishing could not be completed.")
+
+    assert page._last_publish_request is None
+    assert page._last_publish_results == ()
+    assert not page.retry_failed_button.isEnabled()
+    assert page.publish_status.text() == "Publish request failed."
+    assert page.publish_status.property("status") == "error"
+
+    page.shutdown()
+
+
+def test_posts_page_recovers_after_unexpected_worker_failure(
+    qtbot,
+) -> None:
+    from unittest.mock import patch
+
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = RecordingPublisher()
+    list_tags, create_tag = create_tag_services()
+
+    publish_post = PublishPost(
+        publisher_router=PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: publisher,
+            }
+        ),
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    original_execute = publish_post.execute
+    attempts = 0
+
+    def execute(request, *, on_progress=None):
+        nonlocal attempts
+        attempts += 1
+
+        if attempts == 1:
+            raise RuntimeError("Unexpected internal publishing failure")
+
+        return original_execute(
+            request,
+            on_progress=on_progress,
+        )
+
+    page = PostsPage(
+        publish_post=publish_post,
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Hello from SocialFlow"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(True)
+
+    try:
+        with patch.object(publish_post, "execute", side_effect=execute):
+            with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+                page.post_editor.publish_button.click()
+
+            assert attempts == 1
+            assert page.post_editor.publish_button.isEnabled()
+            assert page._last_publish_request is None
+            assert page._last_publish_results == ()
+            assert not page.retry_failed_button.isEnabled()
+            assert page.publish_status.property("status") == "error"
+
+            with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+                page.post_editor.publish_button.click()
+
+            assert attempts == 2
+            assert len(publisher.published_posts) == 1
+            assert page.post_editor.publish_button.isEnabled()
+            assert not page._publishing_controller.is_running
+
+            assert (
+                publisher.published_posts[0].source.text
+                == "Hello from SocialFlow"
+            )
+
+    finally:
+        page.shutdown()
