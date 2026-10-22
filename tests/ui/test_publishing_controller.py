@@ -61,39 +61,79 @@ def test_controller_reports_publishing_error(qtbot) -> None:
     assert not controller.is_running
 
 
+
 def test_controller_prevents_concurrent_publishing(qtbot) -> None:
+    """Reject overlapping publishing without disrupting the active job."""
     service = Mock(spec=PublishPost)
+
     started = Event()
     release = Event()
 
+    first_request = create_request()
+    second_request = create_request()
+    results = (object(),)
+
     def execute(_request, *, on_progress=None):
+        assert _request is first_request
         assert callable(on_progress)
+
         started.set()
-        if not release.wait(timeout=2):
-            raise PublishingError("Worker was not released.")
-        return ()
+
+        if not release.wait(timeout=5):
+            raise TimeoutError("Test worker was not released.")
+
+        return results
 
     service.execute.side_effect = execute
 
     controller = PublishingController(service)
 
+    result_listener = Mock()
+    error_listener = Mock()
+    finished_listener = Mock()
+
+    controller.result_ready.connect(result_listener)
+    controller.error_occurred.connect(error_listener)
+    controller.finished.connect(finished_listener)
+
     try:
-        controller.start(create_request())
-        assert started.wait(timeout=2)
+        controller.start(first_request)
+
+        assert started.wait(timeout=3)
         assert controller.is_running
 
-        controller.start(create_request())
+        # The second request must not start another worker.
+        controller.start(second_request)
+
         assert service.execute.call_count == 1
+        assert controller.is_running
+
+        # The original operation must still complete normally.
+        with qtbot.waitSignals(
+            [controller.result_ready, controller.finished],
+            timeout=5000,
+            order="strict",
+        ):
+            release.set()
+
+        result_listener.assert_called_once_with(results)
+        error_listener.assert_not_called()
+        finished_listener.assert_called_once_with()
+
+        service.execute.assert_called_once()
+        args, kwargs = service.execute.call_args
+
+        assert args == (first_request,)
+        assert callable(kwargs["on_progress"])
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
 
     finally:
         release.set()
         controller.shutdown()
 
-    qtbot.waitUntil(
-        lambda: not controller.is_running,
-        timeout=3000,
-    )
-    assert service.execute.call_count == 1
 
 def test_controller_forwards_publishing_progress(qtbot) -> None:
     """Forward individual publishing results before completion."""
@@ -585,3 +625,154 @@ def test_controller_shutdown_is_idempotent_after_failure(qtbot) -> None:
     service.execute.assert_called_once()
     assert not controller.is_running
     assert finished_listener.call_count == 1
+
+
+def test_controller_preserves_progress_before_publishing_failure(
+    qtbot,
+) -> None:
+    """Report completed progress before a later publishing failure."""
+    service = Mock(spec=PublishPost)
+    request = create_request()
+
+    completed_result = object()
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+        assert callable(on_progress)
+
+        on_progress(completed_result)
+
+        raise PublishingError("Sensitive internal detail.")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+
+    progress_listener = Mock()
+    result_listener = Mock()
+    error_listener = Mock()
+    finished_listener = Mock()
+
+    controller.progress.connect(progress_listener)
+    controller.result_ready.connect(result_listener)
+    controller.error_occurred.connect(error_listener)
+    controller.finished.connect(finished_listener)
+
+    try:
+        with qtbot.waitSignals(
+            [
+                controller.progress,
+                controller.error_occurred,
+                controller.finished,
+            ],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(request)
+
+        progress_listener.assert_called_once_with(completed_result)
+        result_listener.assert_not_called()
+        error_listener.assert_called_once_with(
+            "Publishing could not be completed."
+        )
+        finished_listener.assert_called_once_with()
+
+        service.execute.assert_called_once()
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+    finally:
+        controller.shutdown()
+
+
+def test_controller_can_retry_after_partial_publishing_failure(
+    qtbot,
+) -> None:
+    """A partial failure must not contaminate a successful retry."""
+    service = Mock(spec=PublishPost)
+
+    first_request = create_request()
+    second_request = create_request()
+
+    first_progress = object()
+    retry_progress = object()
+    retry_results = (retry_progress,)
+
+    def execute(request, *, on_progress):
+        if request is first_request:
+            on_progress(first_progress)
+            raise PublishingError("Sensitive internal detail.")
+
+        assert request is second_request
+        on_progress(retry_progress)
+        return retry_results
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+
+    progress_listener = Mock()
+    result_listener = Mock()
+    error_listener = Mock()
+    finished_listener = Mock()
+
+    controller.progress.connect(progress_listener)
+    controller.result_ready.connect(result_listener)
+    controller.error_occurred.connect(error_listener)
+    controller.finished.connect(finished_listener)
+
+    try:
+        with qtbot.waitSignals(
+            [
+                controller.progress,
+                controller.error_occurred,
+                controller.finished,
+            ],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(first_request)
+
+        progress_listener.assert_called_once_with(first_progress)
+        error_listener.assert_called_once_with(
+            "Publishing could not be completed."
+        )
+        result_listener.assert_not_called()
+        assert finished_listener.call_count == 1
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+        with qtbot.waitSignals(
+            [
+                controller.progress,
+                controller.result_ready,
+                controller.finished,
+            ],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(second_request)
+
+        assert progress_listener.call_count == 2
+        assert progress_listener.call_args_list[0].args == (
+            first_progress,
+        )
+        assert progress_listener.call_args_list[1].args == (
+            retry_progress,
+        )
+
+        result_listener.assert_called_once_with(retry_results)
+        error_listener.assert_called_once()
+        assert finished_listener.call_count == 2
+        assert service.execute.call_count == 2
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+    finally:
+        controller.shutdown()
