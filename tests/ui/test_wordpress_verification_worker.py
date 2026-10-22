@@ -88,3 +88,45 @@ def test_worker_emits_error_on_credential_storage_failure(qtbot) -> None:
     assert signal.args == [
         "Could not access stored WordPress credentials."
     ]
+
+
+def test_worker_emits_failure_for_unexpected_exception(
+    qtbot,
+) -> None:
+    """Unexpected verification errors emit failure, not Qt exceptions."""
+    from unittest.mock import Mock
+
+    from socialflow.application.connections.connection_verifier import (
+        ConnectionVerifier,
+    )
+    from socialflow.domain.account.account import Account
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+    from socialflow.ui.accounts.wordpress_verification_worker import (
+        WordPressVerificationWorker,
+    )
+
+    verifier = Mock(spec=ConnectionVerifier)
+    verifier.verify.side_effect = RuntimeError(
+        "Sensitive internal verification details"
+    )
+
+    account = Account(
+        name="Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    worker = WordPressVerificationWorker(verifier, account)
+
+    with (
+        qtbot.waitSignal(worker.failed, timeout=1000) as failure,
+        qtbot.assertNotEmitted(worker.finished),
+    ):
+        worker.run()
+
+    assert failure.args == [
+        "WordPress connection verification failed unexpectedly."
+    ]
+
+    verifier.verify.assert_called_once_with(account)

@@ -1,4 +1,6 @@
 
+import logging
+
 from PySide6.QtCore import QObject, Signal, Slot
 
 from socialflow.application.connections.connection_verifier import (
@@ -11,6 +13,9 @@ from socialflow.domain.account.account import Account
 from socialflow.domain.connections.connection_result import (
     ConnectionResult,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class WordPressVerificationWorker(QObject):
@@ -39,6 +44,16 @@ class WordPressVerificationWorker(QObject):
         except CredentialStorageError:
             self.failed.emit(
                 "Could not access stored WordPress credentials."
+            )
+            return
+        # noinspection PyBroadException
+        except Exception as error:
+            logger.error(
+                "Unexpected WordPress verification failure: %s",
+                type(error).__name__,
+            )
+            self.failed.emit(
+                "WordPress connection verification failed unexpectedly."
             )
             return
 

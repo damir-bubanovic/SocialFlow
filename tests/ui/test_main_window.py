@@ -1,8 +1,131 @@
-from PySide6.QtWidgets import QMainWindow
-from socialflow.ui.main_content import MainContent
-
-from socialflow.ui.main_window import MainWindow
 from unittest.mock import PropertyMock, patch
+
+import pytest
+from PySide6.QtWidgets import QMainWindow
+
+from socialflow.ui.main_content import MainContent
+from socialflow.ui.main_window import MainWindow
+
+
+
+
+@pytest.fixture
+def real_background_workers(qtbot):
+    """Create controlled verification and publishing Qt workers."""
+    from threading import Event
+    from unittest.mock import Mock
+
+    from socialflow.application.connections.connection_verifier import (
+        ConnectionVerifier,
+    )
+    from socialflow.application.publishing.publish_post import PublishPost
+    from socialflow.domain.account.account import Account
+    from socialflow.domain.connections.connection_result import (
+        ConnectionResult,
+    )
+    from socialflow.domain.connections.connection_status import (
+        ConnectionStatus,
+    )
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+    from socialflow.domain.publishing.publish_request import PublishRequest
+    from socialflow.ui.accounts.wordpress_verification_controller import (
+        WordPressVerificationController,
+    )
+    from socialflow.ui.posts.publishing_controller import (
+        PublishingController,
+    )
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    accounts_page = window.main_content.accounts_page
+    posts_page = window.main_content.posts_page
+
+    verification_started = Event()
+    publishing_started = Event()
+    release_verification = Event()
+    release_publishing = Event()
+
+    verifier = Mock(spec=ConnectionVerifier)
+    publisher = Mock(spec=PublishPost)
+
+    def verify(_account):
+        verification_started.set()
+
+        if not release_verification.wait(timeout=5):
+            raise TimeoutError("Verification worker timed out.")
+
+        return ConnectionResult(
+            status=ConnectionStatus.CONNECTED,
+            message="Verified.",
+        )
+
+    def publish(_request, *, on_progress=None):
+        assert on_progress is None or callable(on_progress)
+        publishing_started.set()
+
+        if not release_publishing.wait(timeout=5):
+            raise TimeoutError("Publishing worker timed out.")
+
+        return ()
+
+    verifier.verify.side_effect = verify
+    publisher.execute.side_effect = publish
+
+    verification_controller = WordPressVerificationController(
+        verifier,
+        parent=accounts_page,
+    )
+    publishing_controller = PublishingController(
+        publisher,
+        parent=posts_page,
+    )
+
+    accounts_page._verification_controller = verification_controller
+    posts_page._publishing_controller = publishing_controller
+
+    verification_controller.finished.connect(
+        accounts_page.verification_finished.emit
+    )
+    publishing_controller.finished.connect(
+        posts_page.publishing_finished.emit
+    )
+
+    account = Account(
+        name="Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    request = PublishRequest(
+        post=Mock(),
+        accounts=(),
+    )
+
+    context = {
+        "window": window,
+        "accounts_page": accounts_page,
+        "posts_page": posts_page,
+        "verification_controller": verification_controller,
+        "publishing_controller": publishing_controller,
+        "verification_started": verification_started,
+        "publishing_started": publishing_started,
+        "release_verification": release_verification,
+        "release_publishing": release_publishing,
+        "verifier": verifier,
+        "publisher": publisher,
+        "account": account,
+        "request": request,
+    }
+
+    try:
+        yield context
+    finally:
+        release_verification.set()
+        release_publishing.set()
+        verification_controller.shutdown()
+        publishing_controller.shutdown()
 
 
 def test_main_window_is_qt_main_window(qtbot) -> None:
@@ -62,7 +185,6 @@ def test_main_window_defers_close_until_verification_finishes(
     qtbot,
 ) -> None:
     """The main window closes only after verification finishes."""
-    from unittest.mock import PropertyMock, patch
 
     window = MainWindow()
     qtbot.addWidget(window)
@@ -187,7 +309,6 @@ def test_main_window_defers_close_until_publishing_finishes(
     qtbot,
 ) -> None:
     """Keep the window open until publishing finishes."""
-    from unittest.mock import PropertyMock, patch
 
     window = MainWindow()
     qtbot.addWidget(window)
@@ -632,3 +753,407 @@ def test_main_window_waits_when_publishing_finishes_first(
 
         accounts_shutdown.assert_called_once_with()
         posts_shutdown.assert_called_once_with()
+
+
+
+def test_main_window_waits_for_two_real_workers(
+    qtbot,
+    real_background_workers,
+) -> None:
+    """Wait for both actual Qt workers before closing."""
+    workers = real_background_workers
+
+    window = workers["window"]
+    accounts_page = workers["accounts_page"]
+    posts_page = workers["posts_page"]
+
+    verification_controller = workers["verification_controller"]
+    publishing_controller = workers["publishing_controller"]
+
+    verification_started = workers["verification_started"]
+    publishing_started = workers["publishing_started"]
+    release_verification = workers["release_verification"]
+    release_publishing = workers["release_publishing"]
+
+    verifier = workers["verifier"]
+    publisher = workers["publisher"]
+    account = workers["account"]
+    request = workers["request"]
+
+    verification_controller.start(account)
+    publishing_controller.start(request)
+
+    qtbot.waitUntil(
+        lambda: (
+            verification_started.is_set()
+            and publishing_started.is_set()
+        ),
+        timeout=3000,
+    )
+
+    assert accounts_page.verification_is_running
+    assert posts_page.publishing_is_running
+
+    window.close()
+
+    assert window.isVisible()
+    assert window._close_pending
+
+    # Publishing completes first; verification remains active.
+    release_publishing.set()
+
+    qtbot.waitUntil(
+        lambda: not posts_page.publishing_is_running,
+        timeout=5000,
+    )
+
+    assert window.isVisible()
+    assert window._close_pending
+    assert accounts_page.verification_is_running
+
+    # Verification completes; the window may now close.
+    release_verification.set()
+
+    qtbot.waitUntil(
+        lambda: not window.isVisible(),
+        timeout=5000,
+    )
+
+    assert not window._close_pending
+    assert not accounts_page.verification_is_running
+    assert not posts_page.publishing_is_running
+
+    verifier.verify.assert_called_once_with(account)
+    publisher.execute.assert_called_once()
+
+
+
+
+
+def test_main_window_waits_for_two_real_workers_verification_first(
+    qtbot,
+    real_background_workers,
+) -> None:
+    """Wait for both real Qt workers when verification finishes first."""
+    workers = real_background_workers
+
+    window = workers["window"]
+    accounts_page = workers["accounts_page"]
+    posts_page = workers["posts_page"]
+
+    verification_controller = workers["verification_controller"]
+    publishing_controller = workers["publishing_controller"]
+
+    verification_started = workers["verification_started"]
+    publishing_started = workers["publishing_started"]
+    release_verification = workers["release_verification"]
+    release_publishing = workers["release_publishing"]
+
+    verifier = workers["verifier"]
+    publisher = workers["publisher"]
+    account = workers["account"]
+    request = workers["request"]
+
+    verification_controller.start(account)
+    publishing_controller.start(request)
+
+    qtbot.waitUntil(
+        lambda: (
+            verification_started.is_set()
+            and publishing_started.is_set()
+        ),
+        timeout=3000,
+    )
+
+    assert accounts_page.verification_is_running
+    assert posts_page.publishing_is_running
+
+    window.close()
+
+    assert window.isVisible()
+    assert window._close_pending
+
+    # Verification finishes first.
+    release_verification.set()
+
+    qtbot.waitUntil(
+        lambda: not accounts_page.verification_is_running,
+        timeout=5000,
+    )
+
+    assert window.isVisible()
+    assert window._close_pending
+    assert posts_page.publishing_is_running
+
+    # Publishing finishes last.
+    release_publishing.set()
+
+    qtbot.waitUntil(
+        lambda: not window.isVisible(),
+        timeout=5000,
+    )
+
+    assert not window._close_pending
+    assert not accounts_page.verification_is_running
+    assert not posts_page.publishing_is_running
+
+    verifier.verify.assert_called_once_with(account)
+    publisher.execute.assert_called_once()
+
+
+
+
+def test_main_window_repeated_close_with_two_real_workers(
+    qtbot,
+    real_background_workers,
+) -> None:
+    """Repeated close requests wait for both real Qt workers."""
+    workers = real_background_workers
+
+    window = workers["window"]
+    accounts_page = workers["accounts_page"]
+    posts_page = workers["posts_page"]
+
+    verification_controller = workers["verification_controller"]
+    publishing_controller = workers["publishing_controller"]
+
+    verification_started = workers["verification_started"]
+    publishing_started = workers["publishing_started"]
+    release_verification = workers["release_verification"]
+    release_publishing = workers["release_publishing"]
+
+    verifier = workers["verifier"]
+    publisher = workers["publisher"]
+    account = workers["account"]
+    request = workers["request"]
+
+    verification_controller.start(account)
+    publishing_controller.start(request)
+
+    qtbot.waitUntil(
+        lambda: (
+            verification_started.is_set()
+            and publishing_started.is_set()
+        ),
+        timeout=3000,
+    )
+
+    assert accounts_page.verification_is_running
+    assert posts_page.publishing_is_running
+
+    # Repeated close requests while both workers are active.
+    for _ in range(3):
+        window.close()
+
+    assert window.isVisible()
+    assert window._close_pending
+
+    # Verification finishes first.
+    release_verification.set()
+
+    qtbot.waitUntil(
+        lambda: not accounts_page.verification_is_running,
+        timeout=5000,
+    )
+
+    # Another close request while publishing is still active.
+    window.close()
+
+    assert window.isVisible()
+    assert window._close_pending
+    assert posts_page.publishing_is_running
+
+    # Publishing finishes last.
+    release_publishing.set()
+
+    qtbot.waitUntil(
+        lambda: not window.isVisible(),
+        timeout=5000,
+    )
+
+    assert not window._close_pending
+    assert not accounts_page.verification_is_running
+    assert not posts_page.publishing_is_running
+
+    verifier.verify.assert_called_once_with(account)
+    publisher.execute.assert_called_once()
+
+
+
+
+def test_main_window_waits_for_publishing_after_real_verification_failure(
+    qtbot,
+    real_background_workers,
+) -> None:
+    """Verification failure must not close an active publishing worker."""
+    workers = real_background_workers
+
+    window = workers["window"]
+    accounts_page = workers["accounts_page"]
+    posts_page = workers["posts_page"]
+
+    verification_controller = workers["verification_controller"]
+    publishing_controller = workers["publishing_controller"]
+
+    verification_started = workers["verification_started"]
+    publishing_started = workers["publishing_started"]
+    release_verification = workers["release_verification"]
+    release_publishing = workers["release_publishing"]
+
+    verifier = workers["verifier"]
+    publisher = workers["publisher"]
+    account = workers["account"]
+    request = workers["request"]
+
+    def fail_verification(_account):
+        verification_started.set()
+
+        if not release_verification.wait(timeout=5):
+            raise TimeoutError("Verification worker timed out.")
+
+        raise RuntimeError("Simulated verification failure.")
+
+    verifier.verify.side_effect = fail_verification
+
+    errors = []
+    verification_controller.error_occurred.connect(errors.append)
+
+    verification_controller.start(account)
+    publishing_controller.start(request)
+
+    qtbot.waitUntil(
+        lambda: (
+            verification_started.is_set()
+            and publishing_started.is_set()
+        ),
+        timeout=3000,
+    )
+
+    assert accounts_page.verification_is_running
+    assert posts_page.publishing_is_running
+
+    window.close()
+
+    assert window.isVisible()
+    assert window._close_pending
+
+    # Verification fails while publishing remains active.
+    release_verification.set()
+
+    qtbot.waitUntil(
+        lambda: not accounts_page.verification_is_running,
+        timeout=5000,
+    )
+
+    assert errors == [
+        "WordPress connection verification failed unexpectedly."
+    ]
+
+    assert window.isVisible()
+    assert window._close_pending
+    assert posts_page.publishing_is_running
+
+    # Publishing completes successfully.
+    release_publishing.set()
+
+    qtbot.waitUntil(
+        lambda: not window.isVisible(),
+        timeout=5000,
+    )
+
+    assert not window._close_pending
+    assert not accounts_page.verification_is_running
+    assert not posts_page.publishing_is_running
+
+    verifier.verify.assert_called_once_with(account)
+    publisher.execute.assert_called_once()
+
+
+
+
+
+def test_main_window_waits_for_verification_after_real_publishing_failure(
+    qtbot,
+    real_background_workers,
+) -> None:
+    """Publishing failure must not close an active verification worker."""
+    workers = real_background_workers
+
+    window = workers["window"]
+    accounts_page = workers["accounts_page"]
+    posts_page = workers["posts_page"]
+
+    verification_controller = workers["verification_controller"]
+    publishing_controller = workers["publishing_controller"]
+
+    verification_started = workers["verification_started"]
+    publishing_started = workers["publishing_started"]
+    release_verification = workers["release_verification"]
+    release_publishing = workers["release_publishing"]
+
+    verifier = workers["verifier"]
+    publisher = workers["publisher"]
+    account = workers["account"]
+    request = workers["request"]
+
+    def fail_publishing(_request, *, on_progress=None):
+        assert on_progress is None or callable(on_progress)
+        publishing_started.set()
+
+        if not release_publishing.wait(timeout=5):
+            raise TimeoutError("Publishing worker timed out.")
+
+        raise RuntimeError("Simulated publishing failure.")
+
+    publisher.execute.side_effect = fail_publishing
+
+    errors = []
+    publishing_controller.error_occurred.connect(errors.append)
+
+    verification_controller.start(account)
+    publishing_controller.start(request)
+
+    qtbot.waitUntil(
+        lambda: (
+            verification_started.is_set()
+            and publishing_started.is_set()
+        ),
+        timeout=3000,
+    )
+
+    assert accounts_page.verification_is_running
+    assert posts_page.publishing_is_running
+
+    window.close()
+
+    assert window.isVisible()
+    assert window._close_pending
+
+    # Publishing fails while verification remains active.
+    release_publishing.set()
+
+    qtbot.waitUntil(
+        lambda: not posts_page.publishing_is_running,
+        timeout=5000,
+    )
+
+    assert errors
+    assert window.isVisible()
+    assert window._close_pending
+    assert accounts_page.verification_is_running
+
+    # Verification completes successfully.
+    release_verification.set()
+
+    qtbot.waitUntil(
+        lambda: not window.isVisible(),
+        timeout=5000,
+    )
+
+    assert not window._close_pending
+    assert not accounts_page.verification_is_running
+    assert not posts_page.publishing_is_running
+
+    verifier.verify.assert_called_once_with(account)
+    publisher.execute.assert_called_once()
+
