@@ -433,3 +433,202 @@ def test_main_window_repeated_close_during_publishing(qtbot) -> None:
 
         posts_shutdown.assert_called_once()
         accounts_shutdown.assert_called_once()
+
+
+def test_main_window_waits_for_both_background_operations(
+    qtbot,
+) -> None:
+    """Close only after verification and publishing both finish."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    accounts_page = window.main_content.accounts_page
+    posts_page = window.main_content.posts_page
+
+    with (
+        patch.object(
+            type(accounts_page),
+            "verification_is_running",
+            new_callable=PropertyMock,
+        ) as verification_running,
+        patch.object(
+            type(posts_page),
+            "publishing_is_running",
+            new_callable=PropertyMock,
+        ) as publishing_running,
+        patch.object(
+            accounts_page,
+            "shutdown",
+        ) as accounts_shutdown,
+        patch.object(
+            posts_page,
+            "shutdown",
+        ) as posts_shutdown,
+    ):
+        verification_running.return_value = True
+        publishing_running.return_value = True
+
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        verification_running.return_value = False
+        accounts_page.verification_finished.emit()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        accounts_shutdown.assert_not_called()
+        posts_shutdown.assert_not_called()
+
+        publishing_running.return_value = False
+        posts_page.publishing_finished.emit()
+
+        qtbot.waitUntil(
+            lambda: not window.isVisible(),
+            timeout=3000,
+        )
+
+        assert not window._close_pending
+
+        accounts_shutdown.assert_called_once_with()
+        posts_shutdown.assert_called_once_with()
+
+
+def test_main_window_repeated_close_with_both_operations(
+    qtbot,
+) -> None:
+    """Repeated close requests wait for both workers."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    accounts_page = window.main_content.accounts_page
+    posts_page = window.main_content.posts_page
+
+    with (
+        patch.object(
+            type(accounts_page),
+            "verification_is_running",
+            new_callable=PropertyMock,
+        ) as verification_running,
+        patch.object(
+            type(posts_page),
+            "publishing_is_running",
+            new_callable=PropertyMock,
+        ) as publishing_running,
+        patch.object(
+            accounts_page,
+            "shutdown",
+        ) as accounts_shutdown,
+        patch.object(
+            posts_page,
+            "shutdown",
+        ) as posts_shutdown,
+    ):
+        verification_running.return_value = True
+        publishing_running.return_value = True
+
+        # Multiple close requests while both are active.
+        for _ in range(3):
+            window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        accounts_shutdown.assert_not_called()
+        posts_shutdown.assert_not_called()
+
+        # Verification finishes first.
+        verification_running.return_value = False
+        accounts_page.verification_finished.emit()
+
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        accounts_shutdown.assert_not_called()
+        posts_shutdown.assert_not_called()
+
+        # Publishing finishes last.
+        publishing_running.return_value = False
+        posts_page.publishing_finished.emit()
+
+        qtbot.waitUntil(
+            lambda: not window.isVisible(),
+            timeout=3000,
+        )
+
+        assert not window._close_pending
+
+        # Shutdown must happen exactly once per page.
+        accounts_shutdown.assert_called_once_with()
+        posts_shutdown.assert_called_once_with()
+
+
+def test_main_window_waits_when_publishing_finishes_first(
+    qtbot,
+) -> None:
+    """Closing waits for verification when publishing finishes first."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    accounts_page = window.main_content.accounts_page
+    posts_page = window.main_content.posts_page
+
+    with (
+        patch.object(
+            type(accounts_page),
+            "verification_is_running",
+            new_callable=PropertyMock,
+        ) as verification_running,
+        patch.object(
+            type(posts_page),
+            "publishing_is_running",
+            new_callable=PropertyMock,
+        ) as publishing_running,
+        patch.object(
+            accounts_page,
+            "shutdown",
+        ) as accounts_shutdown,
+        patch.object(
+            posts_page,
+            "shutdown",
+        ) as posts_shutdown,
+    ):
+        verification_running.return_value = True
+        publishing_running.return_value = True
+
+        # User requests shutdown while both workers are active.
+        window.close()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        # Publishing finishes before verification.
+        publishing_running.return_value = False
+        posts_page.publishing_finished.emit()
+
+        assert window.isVisible()
+        assert window._close_pending
+
+        accounts_shutdown.assert_not_called()
+        posts_shutdown.assert_not_called()
+
+        # Verification is the final active operation.
+        verification_running.return_value = False
+        accounts_page.verification_finished.emit()
+
+        qtbot.waitUntil(
+            lambda: not window.isVisible(),
+            timeout=3000,
+        )
+
+        assert not window._close_pending
+
+        accounts_shutdown.assert_called_once_with()
+        posts_shutdown.assert_called_once_with()
