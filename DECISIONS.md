@@ -1560,3 +1560,70 @@ The developer reported **905 passing tests** after remote post updating and
 Qt lifecycle tests, followed by a Git push. Documentation maintenance does not
 constitute a fresh test run, and mocked REST tests do not prove live WordPress
 server behavior.
+
+## ADR-062 --- Confirm Missing WordPress Tags Before Creation
+
+### Decision
+
+Before publishing to WordPress, resolve selected tags against the account's
+remote tags. Prepare a plan for missing tags and require explicit user approval
+before creating them. Reject ambiguous matches; cancel publishing on rejection
+or preparation/creation failure. Use shared Unicode-aware name normalization.
+
+### Consequences
+
+Publishing is gated by an additional asynchronous workflow when selected tags
+are missing. Existing remote tags can be reused without creating duplicates.
+Creation is never silently authorized by merely selecting a tag.
+
+## ADR-063 --- Resolve WordPress Tag IDs at Publishing Time
+
+### Decision
+
+Keep generic `Tag` values in composed posts. `WordPressPublisher` uses the
+account's `WordPressTagClient` and `WordPressTagResolver` to map selected names
+to remote numeric IDs and passes the IDs to the WordPress post-creation API.
+Do not assume tag names are interchangeable with remote IDs.
+
+### Consequences
+
+Publisher behavior remains account-specific and rejects missing or ambiguous
+remote tag matches. WordPress tag assignment on newly created posts is
+implemented; editing tags on existing remote posts is not.
+
+## ADR-064 --- Treat Unexpected Publishing Worker Errors as Recoverable
+
+### Decision
+
+Catch unexpected exceptions at the publishing worker boundary, log their
+tracebacks, and emit a safe error message. Clean up the controller thread,
+restore the Posts-page publish controls, and discard stale retry state when
+there is no valid per-account result set. Permit a later publish operation.
+
+### Consequences
+
+Internal exception details are not exposed in the UI. A failed worker does
+not leave the page permanently disabled or permit a retry of stale results.
+Regression tests exercise a failed first operation followed by a successful
+second operation.
+
+## ADR-065 --- Defer Window Closing Until Publishing Completes
+
+### Decision
+
+When publishing or account verification is active, `MainWindow.closeEvent()`
+records a pending close and ignores the immediate close event. Complete the
+close after the background operation finishes and clean up page controllers
+once. Publishing-controller shutdown is idempotent.
+
+### Consequences
+
+The application does not destroy UI-owned workers during active operations.
+Repeated close requests are safe; closing after both success and failure is
+covered by regression tests.
+
+## Phase 21.9.21 Verification Checkpoint
+
+The developer reported **1081 passing tests** after publishing recovery tests
+and a Git push (October 22, 2026). This documentation update does not run
+pytest or validate a live WordPress server.

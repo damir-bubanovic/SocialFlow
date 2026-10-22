@@ -888,7 +888,7 @@ Current responsibility boundaries include:
 -   `PostsPage` reacts to account-selection changes, uses `ListTags` to merge
     unique tags across selected accounts, and uses `CreateTag` for each selected
     account. New-tag entry is disabled when no account is selected.
--   `TagProvider` is the platform-facing tag contract. `RoutingTagProvider` uses `WordPressTagProvider` for WordPress and `NullTagProvider` for unsupported destinations; post tag assignment remains pending.
+-   `TagProvider` is the platform-facing tag contract. `RoutingTagProvider` uses `WordPressTagProvider` for WordPress and `NullTagProvider` for unsupported destinations; post tag assignment is supported for new WordPress posts after remote ID resolution.
 -   `DestinationSelector` selects configured `Account` objects. `PublishRequest`
     carries those accounts and `PublishPost` resolves publishers by destination.
 -   Account CRUD remains isolated behind `AccountRepository`;
@@ -1061,7 +1061,7 @@ posts. UI indicators provide explicit labels as well as visual cues.
 
 Unconfigured Facebook and Instagram publishers fail explicitly, while WordPress
 uses an account-specific REST publisher for text and prepared-image posts.
-Successful publisher returns may be persisted to local history; remote post retrieval and text editing are implemented through a separate WordPress workflow; publication-history image/tag serialization remains pending. The developer-reported Phase 19 checkpoint was 905 passing tests. This does not replace live WordPress API verification.
+Successful publisher returns may be persisted to local history; remote post retrieval and text editing are implemented through a separate WordPress workflow; publication-history image/tag serialization remains pending. The developer-reported Phase 21.9.21 checkpoint was 1081 passing tests. This does not replace live WordPress API verification.
 
 ## 32. Background Publishing and Selective Retry (Implemented)
 
@@ -1118,9 +1118,10 @@ features.
 `WordPressTagProvider` backed by `UrllibWordPressTagClient` and the credential
 store. `ListTags` and `CreateTag` use the application `TagProvider` contract.
 WordPress tag listing and creation are authenticated operations; the fallback
-for unsupported destinations is `NullTagProvider`. WordPress publishing still
-rejects tags attached to posts, so these capabilities must not be described as
-complete post-tag synchronization.
+for unsupported destinations is `NullTagProvider`. For new WordPress posts,
+selected tags are resolved to remote IDs and passed to the post client. Missing
+tags are created only after confirmation; this is not remote-post metadata
+synchronization or remote-tag editing.
 
 ## 36. Remote WordPress Post Retrieval (Implemented)
 
@@ -1162,6 +1163,47 @@ explicitly guarded. Current scope is **remote post text only**; remote image
 editing, metadata editing, tag assignment, and reconciliation with local
 publication history are not implemented.
 
-**Verification:** The developer reported 905 passing tests after Phase 19,
+**Verification:** The developer reported 1081 passing tests after Phase 21.9.21,
 including Qt worker/controller lifecycle regressions. This does not establish
 live-server interoperability or cross-platform packaging readiness.
+
+## 38. WordPress Tag Preparation, Confirmation, and Creation (Implemented)
+
+`PostsPage` orchestrates tag preparation before invoking publishing.
+`WordPressTagPreparationController` and its worker retrieve remote tags and
+construct a `WordPressTagCreationPlan` through `WordPressTagResolver`.
+`WordPressTagNameNormalizer` provides shared Unicode-aware comparison keys.
+Existing selected tags must resolve unambiguously; missing tags are presented
+through `WordPressTagConfirmationDialog`. Declining confirmation or encountering
+a preparation error cancels the pending publish.
+
+On approval, `WordPressTagCreationController` and
+`WordPressTagCreationWorker` create missing tags through `WordPressTagClient`,
+validating returned identities. `PostsPage` then resumes publishing.
+`WordPressPublisher` re-fetches remote tags, resolves selected tags to numeric
+IDs, and passes those IDs to `WordPressPostClient.create_post()`. It fails
+explicitly if selected tags require an unavailable client or cannot be
+resolved. Qt guards prevent overlapping preparation/creation/publishing and
+prevent stale queued work during shutdown. The flow is covered by tests with
+fake clients; live-site behavior remains unverified.
+
+## 39. Publishing Worker, Controller, and UI Recovery (Implemented)
+
+`PublishingWorker` invokes the publishing use case in a background Qt thread,
+emits per-account progress and final results, and catches unexpected exceptions.
+Unexpected failures are logged with tracebacks, while UI-facing messages avoid
+exposing internal exception details. `PublishingController` manages thread
+lifecycle, refuses overlapping starts, and supports synchronous, idempotent
+shutdown. `PostsPage` clears stale retry state on an unexpected error and
+restores publish controls after the controller finishes; selective retry
+remains available only for known failed account results.
+
+`MainWindow.closeEvent()` defers closing while verification or publishing is
+active. A pending close is completed only when those operations finish;
+repeated close requests do not cause premature or duplicate page shutdown.
+Tests cover successful publishing, ordinary errors, unexpected worker
+exceptions, restarting after failures, and close/shutdown ordering.
+
+**Verification:** 1081 tests passing, as reported by the developer after
+Phase 21.9.21. This documentation update did not execute pytest or test live
+platform integrations.

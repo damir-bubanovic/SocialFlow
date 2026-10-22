@@ -67,7 +67,7 @@ uses the account's HTTPS site URL and username, retrieves its application
 password from the OS keyring, and creates published posts through the WordPress
 REST API. Prepared images are uploaded to WordPress media, and their returned
 URLs and IDs are inserted as Gutenberg image blocks in the post content.
-WordPress publishing currently rejects post tag assignment, although separate remote tag listing and creation are implemented.
+WordPress publishing resolves selected tags to remote WordPress tag IDs and assigns them during post creation. Missing tags require explicit user confirmation before creation; ambiguous matches and failures prevent publishing.
 
 WordPress connection verification also works through an authenticated REST API
 endpoint and runs in a Qt background worker. The UI prevents overlapping
@@ -92,9 +92,10 @@ available post data into the editor; it does not update the remote post.
 
 The runtime uses `RoutingTagProvider`: WordPress accounts use an authenticated
 `WordPressTagProvider` for listing and creating remote tags, while other
-destinations fall back to `NullTagProvider`. WordPress publishing still rejects
-tags attached to a new post; retrieving/creating tags is not equivalent to
-assigning them during publishing.
+destinations fall back to `NullTagProvider`. Selected WordPress tags are resolved and assigned during publishing. The Posts
+page checks for missing tags before publishing, asks for confirmation, and
+creates approved missing tags through background Qt workers. Unsupported
+destinations still use the null provider.
 
 **Remote WordPress post retrieval and text editing are implemented.** The Posts
 page retrieves recent remote posts for the selected WordPress account in a
@@ -114,8 +115,8 @@ After partial failure, **Retry Failed** targets only failed accounts; editing th
 draft or changing its accounts, images, language, or tags invalidates that retry.
 A failed publisher does not prevent later accounts from being attempted.
 
-**Testing checkpoint:** The developer reported **905 passing tests** after
-Phase 19 WordPress remote-post editing and QThread lifecycle regression tests.
+**Testing checkpoint:** The developer reported **1081 passing tests** after
+Phase 21.9.21 publishing-recovery regression coverage (October 22, 2026).
 This is a reported full-suite result, not a new test run performed while
 updating these documents. Tests use mocked/fake network dependencies and do
 **not** establish successful publishing, retrieval, tag creation, or editing
@@ -178,7 +179,7 @@ WordPress.
 | Connection verification | Implemented; background Qt worker |
 | Create text/image posts | Implemented; live-site validation pending |
 | Retrieve and create remote tags | Implemented; live-site validation pending |
-| Assign tags to published posts | Not implemented; explicitly rejected |
+| Assign tags to published posts | Implemented through remote tag ID resolution; live-site validation pending |
 | Retrieve recent remote posts | Implemented; background Qt worker |
 | Edit existing remote post text | Implemented; background Qt worker |
 | Edit remote images, tags, or other metadata | Not implemented |
@@ -187,3 +188,20 @@ WordPress.
 Local publication history and the separate remote WordPress post list must not
 be confused: loading a local history entry into the composer does not update a
 remote post.
+## WordPress Tag Confirmation and Publishing Reliability (Phases 21.2–21.9.21)
+
+For selected WordPress accounts, the Posts page prepares a tag-creation plan
+before publishing. Existing tags are resolved using shared Unicode-aware name
+normalization. Missing tags require an explicit confirmation dialog; declined
+creation or lookup/creation errors cancel the pending publish. Approved missing
+tags are created by Qt workers, and the publisher resolves remote IDs for the
+post-creation request. Duplicate and ambiguous matches are guarded. These
+operations have automated tests but have not been verified against a live site.
+
+Publishing runs in a Qt worker/controller with safe user-facing error messages,
+traceback logging for unexpected worker exceptions, progress reporting,
+selective retry for failed accounts, and lifecycle cleanup. Regression tests
+cover restarting after failures, clearing stale retry state, successful
+subsequent publishing, and main-window closing after successful or failed
+publishing (including repeated close requests). The **1081-test checkpoint**
+is developer-reported; this documentation update did not run pytest.

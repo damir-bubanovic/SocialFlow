@@ -92,7 +92,7 @@ supported publishing platforms.
 
 ### WordPress
 
--   [~] Integrate WordPress through its REST API; verification, text/image publishing, tag listing/creation, recent-post retrieval, and text-only remote editing are implemented. Tag assignment during publishing, broader editing, and live-site validation remain pending.
+-   [~] Integrate WordPress through its REST API; verification, text/image/tag publishing, tag listing/creation with confirmation for missing tags, recent-post retrieval, and text-only remote editing are implemented. Broader remote editing and live-site validation remain pending.
 -   [x] Configure and persist the WordPress HTTPS site URL and username per account.
 -   [x] Store WordPress application passwords in the OS credential store, not account JSON.
 -   [x] Use stable account UUID-based credential keys and clean up secrets when accounts are removed or converted away from WordPress.
@@ -104,12 +104,12 @@ supported publishing platforms.
 -   [x] Create WordPress posts with text through the authenticated HTTPS REST API.
 -   [x] Upload prepared images to WordPress media and append Gutenberg image blocks.
 -   [x] Validate HTTPS site URL, required text, prepared images, and available credentials before publishing.
--   [x] Reject unsupported WordPress tags explicitly.
+-   [x] Resolve selected WordPress tags to remote IDs and assign them to new posts; reject missing or ambiguous matches at publishing time.
 -   [x] Attempt reverse-order media cleanup after an upload failure; log deletion errors and preserve the original upload error.
 -   [x] Preserve uploaded media if WordPress post creation subsequently fails (current deliberate behavior, not a remote rollback).
 -   [x] Retrieve recent remote WordPress posts through authenticated REST API requests and a Qt background worker.
 -   [x] Update existing remote WordPress post text through authenticated REST API requests and a Qt background worker.
--   [~] Integrate remote WordPress tags and metadata; listing and creating tags are implemented, but assigning tags to posts and other metadata operations are pending.
+-   [~] Integrate remote WordPress tags and metadata; listing, confirmed creation of missing tags, and assignment on new posts are implemented; editing existing remote metadata remains pending.
 -   [ ] Verify publishing against a live WordPress installation.
 
 ------------------------------------------------------------------------
@@ -193,7 +193,7 @@ while respecting the capabilities of each destination platform.
 -   [x] Merge available tags from multiple selected accounts without duplicates.
 -   [x] Refresh available tags when account selection changes.
 -   [x] Disable new-tag creation when no publishing account is selected.
--   [~] Implement destination-specific tag providers; WordPress tag listing/creation exists, while other platforms and tag assignment remain pending.
+-   [~] Implement destination-specific tag providers; WordPress listing/creation and new-post tag assignment exist, while other platforms and remote-post tag editing remain pending.
 -   [ ] Keep remote/local tag information synchronized where practical.
 -   [ ] Handle platform differences instead of assuming all platforms implement tags identically.
 
@@ -383,7 +383,7 @@ Before SocialFlow is considered ready for a production release:
     failure path with tests.
 -   [~] Implement authenticated live publisher adapters: WordPress post/media publishing is implemented with mocked API tests; Facebook and Instagram remain pending, and live WordPress testing is outstanding.
 
-**Test checkpoint:** The developer reported **905 passing tests** after Phase 19. This documentation update does not rerun tests. Mocked HTTP tests do not prove live WordPress behavior.
+**Test checkpoint:** The developer reported **1081 passing tests** after Phase 21.9.21. This documentation update does not rerun tests. Mocked HTTP tests do not prove live WordPress behavior.
 ------------------------------------------------------------------------
 
 ## 21. Scope Management
@@ -422,7 +422,7 @@ SocialFlow.
 -   [ ] Add production email error notifications and configuration.
 
 **Remaining product work:** Facebook/Instagram adapters, live WordPress
-validation, WordPress tag assignment to posts, remote image/metadata editing,
+validation, remote image/metadata editing,
 publication-history image/tag serialization, production-grade credential/backend
 checks, and Linux/Windows packaging remain separate tasks. Publishing error classification does **not**
 automatically limit manual retry to transient errors.
@@ -443,4 +443,34 @@ automatically limit manual retry to transient errors.
 -   [ ] Support editing remote images, tags, or other metadata.
 -   [ ] Verify retrieval and editing against a live WordPress site.
 
-**Reported full-suite checkpoint:** 905 passing tests.
+**Historical Phase 19 full-suite checkpoint:** 905 passing tests. **Latest developer-reported checkpoint:** 1081 passing tests after Phase 21.9.21.
+
+## 24. WordPress Tag Confirmation and Assignment (Phases 21.2–21.9.14)
+
+-   [x] Resolve selected WordPress tags to remote numeric IDs when creating posts.
+-   [x] Normalize Unicode tag names consistently for lookup, duplicate detection, and creation.
+-   [x] Detect missing tags and prepare a creation plan before publishing.
+-   [x] Require explicit user confirmation before creating missing WordPress tags.
+-   [x] Cancel publishing when missing-tag creation is declined or preparation fails.
+-   [x] Create approved tags through a Qt worker/controller before publishing.
+-   [x] Validate returned tag IDs and names and reject ambiguous remote matches.
+-   [x] Prevent duplicate publish requests during tag preparation or creation.
+-   [x] Cover successful, rejected, duplicate, and error workflows with automated tests.
+-   [ ] Verify tag lookup, creation, and post assignment against a live WordPress site.
+-   [ ] Support editing tags on existing remote WordPress posts.
+
+## 25. Publishing Lifecycle and Recovery (Phases 21.9.15–21.9.21)
+
+-   [x] Log unexpected worker exceptions with traceback while displaying safe UI errors.
+-   [x] Forward publishing progress and completion through the Qt controller.
+-   [x] Clean up worker threads on success, failure, and shutdown.
+-   [x] Reject starts after shutdown and prevent overlapping operations.
+-   [x] Allow publishing again after ordinary and unexpected failures.
+-   [x] Make controller shutdown idempotent and test repeated shutdown paths.
+-   [x] Defer main-window closing during active publishing and complete closing after success or failure.
+-   [x] Ignore repeated close requests until publishing finishes, without duplicate page shutdown.
+-   [x] Clear stale Posts-page retry state after unexpected worker errors.
+-   [x] Verify that a subsequent publish can succeed after an unexpected worker error.
+
+**Latest developer-reported full-suite checkpoint:** **1081 passing tests**
+(October 22, 2026). This is not a fresh test run or live integration result.

@@ -644,7 +644,7 @@ indicators, and publishing failure reporting. Only publishers that return
 successfully can produce local publication records; live adapters are absent.
 Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
-editor. Legacy history without IDs is migrated in place. The developer reported **905 passing tests** after Phase 19 WordPress remote-post editing and QThread lifecycle regression coverage. This is not a live API test.
+editor. Legacy history without IDs is migrated in place. The developer reported **1081 passing tests** after Phase 21.9.21 publishing-recovery regression coverage. This is not a live API test.
 
 Useful focused test commands include:
 
@@ -689,7 +689,7 @@ python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tes
 python -m pytest -q
 ```
 
-The latest developer-reported full-suite checkpoint is 905 passing tests. This is not evidence of successful publishing against a live
+The latest developer-reported full-suite checkpoint is 1081 passing tests. This is not evidence of successful publishing against a live
 WordPress server. Never substitute
 `NullPublisher` in the production composition root to simulate success.
 
@@ -730,7 +730,7 @@ The production composition root (`src/socialflow/ui/main_content.py`) routes
 WordPress accounts to `WordPressPublisher` with `UrllibWordPressPostClient` and
 the shared OS keyring store. Facebook and Instagram still use
 `UnconfiguredPublisher`. WordPress post creation supports text and prepared
-images; media uploads generate Gutenberg image blocks. WordPress tag listing/creation, remote-post retrieval, and remote text editing are implemented through separate services. Assigning tags during publishing and editing remote images/metadata remain pending.
+images; media uploads generate Gutenberg image blocks. WordPress tag listing, confirmed creation of missing tags, and new-post tag assignment are implemented; remote-post retrieval and text editing use separate services. Editing remote images/tags/metadata remains pending.
 
 After changing WordPress publishing, media handling, image preparation, or
 publisher routing, run:
@@ -751,7 +751,7 @@ and logging media deletion failures. Post-creation failures do not trigger media
 rollback. Do not use real credentials or a live WordPress site in the normal
 pytest suite; live integration testing is a separate manual/controlled step.
 
-**Test reporting:** The developer reported 905 passing tests after Phase 19.
+**Test reporting:** The developer reported 1081 passing tests after Phase 21.9.21.
 Documentation maintenance does not itself execute the full test suite.
 
 WordPress publishing is invoked through the Posts page's Qt background
@@ -816,7 +816,7 @@ raw publishing exception messages.
 cleanup on startup failure, and ensure useful fallback diagnostics if file
 logging cannot initialize. Production email reporting is not implemented.
 
-## 32. Phase 19 WordPress Remote Post Regression Checks
+## 33A. Phase 19 WordPress Remote Post Regression Checks
 
 The application composes WordPress tag listing/creation, remote-post retrieval,
 and text-only remote-post updating in `src/socialflow/ui/main_content.py`.
@@ -843,7 +843,7 @@ python -m pytest tests/infrastructure/wordpress/test_wordpress_tag_provider.py t
 python -m pytest tests/application/test_routing_tag_provider.py tests/application/test_tag_services.py -q
 ```
 
-The reported full-suite checkpoint is **905 passing tests**. These documents
+The latest developer-reported full-suite checkpoint is **1081 passing tests**. These documents
 were updated from the project ZIP and were not accompanied by a fresh test
 execution.
 
@@ -866,3 +866,44 @@ git diff -- README.md FEATURES.md ARCHITECTURE.md DECISIONS.md DEVELOPMENT.md
 ```
 
 Commit only with explicit approval.
+
+## 34. WordPress Tag Workflow Regression Checks (Phases 21.2–21.9.14)
+
+WordPress publishing now resolves selected tags to remote IDs. Missing tags
+are prepared and explicitly confirmed before creation. The UI coordinates
+preparation, confirmation, creation, and publishing with separate Qt workers.
+Run focused checks after changing the workflow:
+
+```bash
+python -m pytest tests/infrastructure/wordpress/test_wordpress_tag_resolver.py -v
+python -m pytest tests/infrastructure/wordpress/test_wordpress_tag_name_normalizer.py -v
+python -m pytest tests/ui/test_wordpress_tag_workflow.py -v
+python -m pytest tests/ui/test_wordpress_tag_preparation_controller.py -v
+python -m pytest tests/ui/test_wordpress_tag_creation_controller.py -v
+python -m pytest tests/infrastructure/wordpress/test_wordpress_publisher.py -v
+python -m pytest -q
+```
+
+These tests use controlled fakes/mocks; they do not prove live WordPress tag
+creation or assignment.
+
+## 35. Publishing Recovery and Window Lifecycle Checks (Phases 21.9.15–21.9.21)
+
+Publishing worker/controller tests cover safe unexpected-error handling,
+traceback logging, thread cleanup, idempotent shutdown, and restart after
+failure. Posts-page tests cover stale retry-state clearing and a successful
+second attempt after a worker exception. Main-window tests cover closing
+after publishing success or failure and repeated close requests.
+
+```bash
+python -m pytest tests/ui/test_publishing_worker.py -v
+python -m pytest tests/ui/test_publishing_controller.py -v
+python -m pytest tests/ui/test_posts_page.py -v
+python -m pytest tests/ui/test_main_window.py -v
+python -m pytest -q
+git diff --check
+```
+
+**Latest checkpoint:** The developer reported **1081 passing tests** after
+Phase 21.9.21 and pushed the changes. Documentation editing does not count as
+a test run. Keep `AGENTS.md` local-only; never stage or push it.
