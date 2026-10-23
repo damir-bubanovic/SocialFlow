@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-import pytest
 from PySide6.QtCore import Qt
 from unittest.mock import Mock
 
@@ -10,6 +9,7 @@ from socialflow.domain.publishing.destination import (
     PublishingDestination,
 )
 from socialflow.ui.posts.remote_posts_panel import RemotePostsPanel
+from socialflow.domain.post.remote_tag import RemoteTag
 
 
 def make_post(
@@ -136,8 +136,10 @@ def test_switching_posts_displays_correct_content(qtbot):
 
 
 
+
+
 def test_selecting_post_displays_existing_tag_ids(qtbot):
-    """Selecting a post displays its existing editable tag IDs."""
+    """Selecting a post displays its selected WordPress tags."""
     panel = RemotePostsPanel()
     qtbot.addWidget(panel)
 
@@ -155,14 +157,14 @@ def test_selecting_post_displays_existing_tag_ids(qtbot):
     panel.show_posts((post,))
     panel.posts_list.setCurrentRow(0)
 
-    assert panel.tags_editor.isEnabled()
-    assert not panel.tags_editor.isReadOnly()
-    assert panel.tags_editor.text() == "12, 34"
+    assert panel.remote_tag_selector.tags_list.isEnabled()
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
     assert not panel.save_button.isEnabled()
 
 
 
 def test_loading_clears_displayed_tag_ids(qtbot):
+    """Loading new posts clears the previous tag selection."""
     panel = RemotePostsPanel()
     qtbot.addWidget(panel)
 
@@ -180,49 +182,13 @@ def test_loading_clears_displayed_tag_ids(qtbot):
     panel.show_posts((post,))
     panel.posts_list.setCurrentRow(0)
 
-    assert panel.tags_editor.text() == "12, 34"
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
 
     panel.show_loading()
 
-    assert panel.tags_editor.text() == ""
-    assert not panel.tags_editor.isEnabled()
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("12, 34", (12, 34)),
-        ("12", (12,)),
-        (" 12 , 34 ", (12, 34)),
-        ("", ()),
-        ("   ", ()),
-    ],
-)
-def test_parses_wordpress_tag_ids(text, expected):
-    assert RemotePostsPanel._parse_tag_ids(text) == expected
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "0",
-        "-1",
-        "12, 0",
-        "12, -3",
-        "12, abc",
-        "12.5",
-        "12,",
-        ",12",
-        "12,,34",
-        "True",
-    ],
-)
-def test_rejects_invalid_wordpress_tag_ids(text):
-    with pytest.raises(
-        ValueError,
-        match="WordPress tag IDs must be positive integers",
-    ):
-        RemotePostsPanel._parse_tag_ids(text)
+    assert panel.remote_tag_selector.selected_ids() == ()
+    assert not panel.remote_tag_selector.tags_list.isEnabled()
+    assert not panel.save_button.isEnabled()
 
 
 def test_tag_only_change_emits_tag_aware_save(qtbot):
@@ -245,7 +211,8 @@ def test_tag_only_change_emits_tag_aware_save(qtbot):
 
     assert not panel.save_button.isEnabled()
 
-    panel.tags_editor.setText("12, 56")
+    panel.remote_tag_selector.set_selected_ids((12, 56))
+    panel._update_save_button()
 
     assert panel.save_button.isEnabled()
 
@@ -280,7 +247,8 @@ def test_clearing_all_tags_emits_empty_tuple(qtbot):
     panel.show_posts((post,))
     panel.posts_list.setCurrentRow(0)
 
-    panel.tags_editor.clear()
+    panel.remote_tag_selector.set_selected_ids(())
+    panel._update_save_button()
 
     assert panel.save_button.isEnabled()
 
@@ -297,7 +265,9 @@ def test_clearing_all_tags_emits_empty_tuple(qtbot):
     ]
 
 
+
 def test_invalid_tags_disable_save(qtbot):
+    """An unchanged tag selection cannot trigger a save."""
     panel = RemotePostsPanel()
     qtbot.addWidget(panel)
 
@@ -315,9 +285,12 @@ def test_invalid_tags_disable_save(qtbot):
     panel.show_posts((post,))
     panel.posts_list.setCurrentRow(0)
 
-    panel.tags_editor.setText("12, invalid")
+    panel.remote_tag_selector.set_selected_ids((34, 12))
+    panel._update_save_button()
 
+    assert panel.remote_tag_selector.selected_ids() == (34, 12)
     assert not panel.save_button.isEnabled()
+
 
 
 def test_content_only_change_preserves_existing_tags(qtbot):
@@ -353,7 +326,9 @@ def test_content_only_change_preserves_existing_tags(qtbot):
         "Updated content",
     ]
 
+
 def test_failed_tag_aware_save_restores_both_editors(qtbot):
+    """A failed save restores content and tag-selection controls."""
     panel = RemotePostsPanel()
     qtbot.addWidget(panel)
 
@@ -370,19 +345,25 @@ def test_failed_tag_aware_save_restores_both_editors(qtbot):
 
     panel.show_posts((post,))
     panel.posts_list.setCurrentRow(0)
-    panel.tags_editor.setText("12, 56")
+
+    panel.remote_tag_selector.set_selected_ids((12, 56))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
 
     panel.save_button.click()
 
     assert not panel.content_editor.isEnabled()
-    assert not panel.tags_editor.isEnabled()
+    assert not panel.remote_tag_selector.tags_list.isEnabled()
+    assert not panel.save_button.isEnabled()
 
     panel.restore_editing()
 
     assert panel.content_editor.isEnabled()
-    assert panel.tags_editor.isEnabled()
-    assert panel.tags_editor.text() == "12, 56"
+    assert panel.remote_tag_selector.tags_list.isEnabled()
+    assert panel.remote_tag_selector.selected_ids() == (12, 56)
     assert panel.save_button.isEnabled()
+
 
 
 def test_successful_remote_post_update_refreshes_posts():
@@ -424,3 +405,321 @@ def test_failed_remote_post_update_restores_editing():
 
     page._refresh_remote_posts.assert_not_called()
     page.remote_posts_panel.restore_editing.assert_called_once_with()
+
+
+def test_checking_remote_tag_enables_save(qtbot):
+    """Checking a tag enables saving and preserves WordPress IDs."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12,),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.save_button.isEnabled()
+
+    item = panel.remote_tag_selector.tags_list.item(1)
+    item.setCheckState(Qt.CheckState.Checked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12, 34),
+    ]
+
+
+def test_unchecking_remote_tag_enables_save(qtbot):
+    """Unchecking a tag removes its WordPress ID from the save."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    item = panel.remote_tag_selector.tags_list.item(1)
+    item.setCheckState(Qt.CheckState.Unchecked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12,)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12,),
+    ]
+
+
+def test_unchecking_all_remote_tags_emits_empty_tuple(qtbot):
+    """Removing every selected tag submits an empty tuple."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    for index in range(panel.remote_tag_selector.tags_list.count()):
+        panel.remote_tag_selector.tags_list.item(index).setCheckState(
+            Qt.CheckState.Unchecked
+        )
+
+    assert panel.remote_tag_selector.selected_ids() == ()
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (),
+    ]
+
+
+def test_restoring_original_tag_selection_disables_save(qtbot):
+    """Reversing a tag change disables Save when content is unchanged."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12,),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    item = panel.remote_tag_selector.tags_list.item(1)
+
+    item.setCheckState(Qt.CheckState.Checked)
+    assert panel.save_button.isEnabled()
+
+    item.setCheckState(Qt.CheckState.Unchecked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12,)
+    assert not panel.save_button.isEnabled()
+
+
+def test_unknown_existing_tag_can_be_removed(qtbot):
+    """A tag missing from the WordPress catalog can still be removed."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 99),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    unknown_item = panel.remote_tag_selector.tags_list.item(1)
+
+    assert unknown_item.text() == (
+        "Unknown WordPress tag (ID 99)"
+    )
+
+    unknown_item.setCheckState(Qt.CheckState.Unchecked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12,)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12,),
+    ]
+
+
+def test_late_remote_tag_loading_preserves_selected_ids(qtbot):
+    """Loading tag names later preserves the post's assigned IDs."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
+    assert not panel.save_button.isEnabled()
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="Tutorials"),
+        RemoteTag(remote_id=56, name="News"),
+    ))
+
+    selector = panel.remote_tag_selector
+
+    assert selector.selected_ids() == (12, 34)
+    assert selector.tags_list.count() == 3
+
+    assert selector.tags_list.item(0).text() == "Python"
+    assert selector.tags_list.item(1).text() == "Tutorials"
+    assert selector.tags_list.item(2).text() == "News"
+
+    assert selector.tags_list.item(0).checkState() == (
+        Qt.CheckState.Checked
+    )
+    assert selector.tags_list.item(1).checkState() == (
+        Qt.CheckState.Checked
+    )
+    assert selector.tags_list.item(2).checkState() == (
+        Qt.CheckState.Unchecked
+    )
+
+    assert not panel.save_button.isEnabled()
+
+
+def test_missing_tag_catalog_preserves_editable_existing_tags(qtbot):
+    """Unavailable tag names do not prevent editing existing IDs."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.set_available_remote_tags(())
+
+    selector = panel.remote_tag_selector
+
+    assert selector.selected_ids() == (12, 34)
+    assert selector.tags_list.isEnabled()
+    assert selector.tags_list.count() == 2
+    assert selector.tags_list.item(0).text() == (
+        "Unknown WordPress tag (ID 12)"
+    )
+    assert selector.tags_list.item(1).text() == (
+        "Unknown WordPress tag (ID 34)"
+    )
+
+    selector.tags_list.item(1).setCheckState(
+        Qt.CheckState.Unchecked
+    )
+
+    assert selector.selected_ids() == (12,)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12,),
+    ]

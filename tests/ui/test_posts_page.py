@@ -39,6 +39,9 @@ from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.domain.publishing.publish_request import PublishRequest
 from unittest.mock import Mock
 from socialflow.domain.post.remote_post import RemotePost
+from socialflow.application.tags.list_remote_tags import ListRemoteTags
+from socialflow.domain.post.remote_tag import RemoteTag
+
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -2503,4 +2506,331 @@ def test_posts_page_recovers_after_unexpected_worker_failure(
             )
 
     finally:
+        page.shutdown()
+
+
+def create_remote_tag_posts_page(
+    accounts: tuple[Account, ...],
+    list_remote_tags: Mock,
+) -> PostsPage:
+    """Create a PostsPage with remote-tag loading enabled."""
+    repository = InMemoryAccountRepository()
+
+    for account in accounts:
+        repository.add(account)
+
+    tag_provider = AccountTagProvider({
+        account: ()
+        for account in accounts
+    })
+
+    return PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(tag_provider),
+        create_tag=CreateTag(tag_provider),
+        list_recent_publications=create_list_recent_publications(),
+        list_remote_tags=list_remote_tags,
+    )
+
+
+
+def test_posts_page_loads_remote_tags_for_selected_wordpress_account(
+    qtbot,
+) -> None:
+    """Retrieve remote tag IDs and names in the background."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    expected_tags = (
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="SocialFlow"),
+    )
+
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    list_remote_tags.execute.return_value = expected_tags
+
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        page.post_editor.destination_selector._checkboxes[0].setChecked(
+            True
+        )
+
+        qtbot.waitUntil(
+            lambda: (
+                page._loaded_remote_tags_account == account
+                and page._loaded_remote_tags == expected_tags
+            ),
+            timeout=5000,
+        )
+
+        qtbot.waitUntil(
+            lambda: not page._remote_tag_loading_controller.is_running,
+            timeout=5000,
+        )
+
+        assert page._remote_tags_error is None
+        list_remote_tags.execute.assert_called_once_with(account)
+    finally:
+        page.shutdown()
+
+
+def test_posts_page_ignores_outdated_remote_tag_results(
+    qtbot,
+) -> None:
+    """A previous account's tags must not replace current tags."""
+    first_account = Account(
+        name="First WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second_account = Account(
+        name="Second WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    first_started = Event()
+    release_first = Event()
+
+    first_tags = (
+        RemoteTag(remote_id=11, name="Outdated"),
+    )
+    second_tags = (
+        RemoteTag(remote_id=22, name="Current"),
+    )
+
+    def retrieve_tags(account: Account) -> tuple[RemoteTag, ...]:
+        if account == first_account:
+            first_started.set()
+
+            if not release_first.wait(timeout=5):
+                raise TimeoutError("First tag request was not released")
+
+            return first_tags
+
+        return second_tags
+
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    list_remote_tags.execute.side_effect = retrieve_tags
+
+    page = create_remote_tag_posts_page(
+        (first_account, second_account),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        selector = page.post_editor.destination_selector
+        first_checkbox = selector._checkboxes[0]
+        second_checkbox = selector._checkboxes[1]
+
+        first_checkbox.setChecked(True)
+        qtbot.waitUntil(first_started.is_set, timeout=5000)
+
+        first_checkbox.setChecked(False)
+        second_checkbox.setChecked(True)
+
+        assert page.post_editor.selected_accounts() == (
+            second_account,
+        )
+
+        release_first.set()
+
+        qtbot.waitUntil(
+            lambda: (
+                page._loaded_remote_tags_account == second_account
+                and page._loaded_remote_tags == second_tags
+            ),
+            timeout=5000,
+        )
+
+        qtbot.waitUntil(
+            lambda: not page._remote_tag_loading_controller.is_running,
+            timeout=5000,
+        )
+
+        assert page._loaded_remote_tags != first_tags
+        assert list_remote_tags.execute.call_count == 2
+    finally:
+        release_first.set()
+        page.shutdown()
+
+
+def test_posts_page_stores_remote_tag_loading_error(
+    qtbot,
+) -> None:
+    """Store retrieval errors without modifying publishing tags."""
+    account = Account(
+        name="WordPress Error Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    list_remote_tags.execute.side_effect = RuntimeError(
+        "WordPress tags unavailable"
+    )
+
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        page.post_editor.destination_selector._checkboxes[0].setChecked(
+            True
+        )
+
+        qtbot.waitUntil(
+            lambda: (
+                page._remote_tags_error
+                == "WordPress tags unavailable"
+            ),
+            timeout=5000,
+        )
+
+        assert page._loaded_remote_tags == ()
+        assert page._loaded_remote_tags_account is None
+        assert page.post_editor.tag_selector.available_tags() == ()
+
+        list_remote_tags.execute.assert_called_once_with(account)
+    finally:
+        page.shutdown()
+
+
+def test_posts_page_shutdown_prevents_remote_tag_loading(
+    qtbot,
+) -> None:
+    """Shutdown clears queued requests and prevents new workers."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    list_remote_tags = Mock(spec=ListRemoteTags)
+
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    controller = page._remote_tag_loading_controller
+    assert controller is not None
+
+    page._pending_remote_tag_account = account
+
+    page.shutdown()
+
+    assert page._remote_tag_loading_shutting_down
+    assert page._pending_remote_tag_account is None
+    assert page._loaded_remote_tags == ()
+    assert page._loaded_remote_tags_account is None
+
+    page._refresh_remote_tags()
+    page._start_remote_tag_loading()
+
+    assert not controller.is_running
+    list_remote_tags.execute.assert_not_called()
+
+
+def test_switching_wordpress_accounts_clears_visible_remote_tag_names(
+    qtbot,
+) -> None:
+    """Old account tag names disappear before new tags finish loading."""
+    first_account = Account(
+        name="First WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second_account = Account(
+        name="Second WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    first_tags = (
+        RemoteTag(remote_id=11, name="First Account Tag"),
+    )
+    second_tags = (
+        RemoteTag(remote_id=22, name="Second Account Tag"),
+    )
+
+    second_started = Event()
+    release_second = Event()
+
+    def retrieve_tags(account: Account) -> tuple[RemoteTag, ...]:
+        if account == first_account:
+            return first_tags
+
+        second_started.set()
+
+        if not release_second.wait(timeout=5):
+            raise TimeoutError("Second tag request was not released")
+
+        return second_tags
+
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    list_remote_tags.execute.side_effect = retrieve_tags
+
+    page = create_remote_tag_posts_page(
+        (first_account, second_account),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        account_selector = page.post_editor.destination_selector
+        first_checkbox = account_selector._checkboxes[0]
+        second_checkbox = account_selector._checkboxes[1]
+
+        first_checkbox.setChecked(True)
+
+        qtbot.waitUntil(
+            lambda: page._loaded_remote_tags_account == first_account,
+            timeout=5000,
+        )
+
+        tag_selector = page.remote_posts_panel.remote_tag_selector
+
+        assert tag_selector.available_tags() == first_tags
+        assert tag_selector.tags_list.item(0).text() == (
+            "First Account Tag"
+        )
+
+        first_checkbox.setChecked(False)
+        second_checkbox.setChecked(True)
+
+        # The previous account's names must disappear immediately,
+        # before the second request finishes.
+        assert tag_selector.available_tags() == ()
+        assert page._loaded_remote_tags_account is None
+
+        qtbot.waitUntil(second_started.is_set, timeout=5000)
+
+        assert tag_selector.available_tags() == ()
+
+        release_second.set()
+
+        qtbot.waitUntil(
+            lambda: (
+                page._loaded_remote_tags_account == second_account
+                and tag_selector.available_tags() == second_tags
+            ),
+            timeout=5000,
+        )
+
+        assert tag_selector.tags_list.count() == 1
+        assert tag_selector.tags_list.item(0).text() == (
+            "Second Account Tag"
+        )
+
+    finally:
+        release_second.set()
         page.shutdown()

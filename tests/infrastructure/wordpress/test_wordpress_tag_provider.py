@@ -15,6 +15,7 @@ from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
     WordPressTagProvider,
 )
+from socialflow.domain.post.remote_tag import RemoteTag
 
 
 def make_account(
@@ -267,3 +268,55 @@ def test_provider_rejects_tag_creation_for_non_wordpress_account() -> None:
 
     credential_store.get.assert_not_called()
     tag_client.create_tag.assert_not_called()
+
+
+def test_provider_lists_remote_tags_with_ids_and_names() -> None:
+    account = make_account()
+
+    tag_client = Mock()
+    tag_client.list_tags.return_value = (
+        WordPressTag(id=12, name="Python"),
+        WordPressTag(id=34, name="SocialFlow"),
+    )
+
+    credential_store = Mock()
+    credential_store.get.return_value = "secret"
+
+    provider = WordPressTagProvider(
+        tag_client=tag_client,
+        credential_store=credential_store,
+    )
+
+    result = provider.list_remote_tags(account)
+
+    assert result == (
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="SocialFlow"),
+    )
+
+    tag_client.list_tags.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+    )
+
+
+def test_provider_rejects_missing_remote_tag_credentials() -> None:
+    account = make_account()
+
+    tag_client = Mock()
+    credential_store = Mock()
+    credential_store.get.return_value = None
+
+    provider = WordPressTagProvider(
+        tag_client=tag_client,
+        credential_store=credential_store,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="WordPress application password is missing",
+    ):
+        provider.list_remote_tags(account)
+
+    tag_client.list_tags.assert_not_called()

@@ -51,6 +51,15 @@ from socialflow.ui.dialogs.wordpress_tag_confirmation_dialog import (
 from socialflow.ui.workers.wordpress_tag_creation_controller import (
     WordPressTagCreationController,
 )
+from socialflow.application.tags.list_remote_tags import (
+    ListRemoteTags,
+)
+from socialflow.domain.post.remote_tag import RemoteTag
+
+from socialflow.ui.workers.remote_tag_loading_controller import (
+    RemoteTagLoadingController,
+)
+
 
 
 class PostsPage(QWidget):
@@ -67,11 +76,39 @@ class PostsPage(QWidget):
         parent: QWidget | None = None,
         list_remote_posts: ListRemotePosts | None = None,
         update_remote_post: UpdateRemotePost | None = None,
+        list_remote_tags: ListRemoteTags | None = None,
         wordpress_tag_preparation_controller: WordPressTagPreparationController | None = None,
         wordpress_tag_creation_controller: WordPressTagCreationController | None = None,
     ) -> None:
         super().__init__(parent)
 
+        self._list_remote_tags = list_remote_tags
+        self._remote_tag_loading_controller = (
+            RemoteTagLoadingController(
+                list_remote_tags=list_remote_tags,
+                parent=self,
+            )
+            if list_remote_tags is not None
+            else None
+        )
+
+        self._remote_tag_loading_account: Account | None = None
+        self._pending_remote_tag_account: Account | None = None
+        self._loaded_remote_tags_account: Account | None = None
+        self._loaded_remote_tags: tuple[RemoteTag, ...] = ()
+        self._remote_tags_error: str | None = None
+        self._remote_tag_loading_shutting_down = False
+
+        if self._remote_tag_loading_controller is not None:
+            self._remote_tag_loading_controller.tags_ready.connect(
+                self._on_remote_tags_loaded
+            )
+            self._remote_tag_loading_controller.error_occurred.connect(
+                self._on_remote_tags_error
+            )
+            self._remote_tag_loading_controller.finished.connect(
+                self._on_remote_tag_loading_finished
+            )
         self._wordpress_tag_preparation_controller = (
             wordpress_tag_preparation_controller
         )
@@ -258,6 +295,9 @@ class PostsPage(QWidget):
         self.post_editor.account_selection_changed.connect(
             self._refresh_remote_posts
         )
+        self.post_editor.account_selection_changed.connect(
+            self._refresh_remote_tags
+        )
 
         self.post_editor.tag_selector.tag_created.connect(
             self._create_tag_for_selected_accounts
@@ -388,6 +428,105 @@ class PostsPage(QWidget):
 
         self._display_loaded_tags()
         self._start_next_tag_loading()
+
+
+    def _selected_wordpress_account(self) -> Account | None:
+        """Return the first selected WordPress account."""
+        return next(
+            (
+                account
+                for account in self.post_editor.selected_accounts()
+                if account.destination == PublishingDestination.WORDPRESS
+            ),
+            None,
+        )
+
+
+    def _refresh_remote_tags(self) -> None:
+        """Queue tag retrieval for the selected WordPress account."""
+        if self._remote_tag_loading_shutting_down:
+            return
+
+        account = self._selected_wordpress_account()
+
+        self._loaded_remote_tags = ()
+        self._loaded_remote_tags_account = None
+        self._remote_tags_error = None
+        self._pending_remote_tag_account = account
+
+        self.remote_posts_panel.set_available_remote_tags(())
+
+        self._start_remote_tag_loading()
+
+
+    def _start_remote_tag_loading(self) -> None:
+        """Start the latest queued tag request when the worker is idle."""
+        controller = self._remote_tag_loading_controller
+
+        if (
+            controller is None
+            or self._remote_tag_loading_shutting_down
+            or controller.is_running
+        ):
+            return
+
+        account = self._pending_remote_tag_account
+        self._pending_remote_tag_account = None
+
+        if account is None:
+            return
+
+        self._remote_tag_loading_account = account
+        controller.start(account)
+
+    def _is_current_remote_tag_account(self) -> bool:
+        """Reject results from an outdated account selection."""
+        account = self._remote_tag_loading_account
+
+        if account is None or self._remote_tag_loading_shutting_down:
+            return False
+
+        return (
+            account == self._selected_wordpress_account()
+            and self._pending_remote_tag_account is None
+        )
+
+
+    def _on_remote_tags_loaded(
+        self,
+        tags: tuple[RemoteTag, ...],
+    ) -> None:
+        """Display remote tags only for the current WordPress account."""
+        if not self._is_current_remote_tag_account():
+            return
+
+        self._loaded_remote_tags = tags
+        self._loaded_remote_tags_account = (
+            self._remote_tag_loading_account
+        )
+        self._remote_tags_error = None
+
+        self.remote_posts_panel.set_available_remote_tags(tags)
+
+
+
+    def _on_remote_tags_error(self, message: str) -> None:
+        """Keep existing tag IDs available when name retrieval fails."""
+        if not self._is_current_remote_tag_account():
+            return
+
+        self._loaded_remote_tags = ()
+        self._loaded_remote_tags_account = None
+        self._remote_tags_error = message
+
+        self.remote_posts_panel.set_available_remote_tags(())
+
+
+    def _on_remote_tag_loading_finished(self) -> None:
+        """Start the latest queued request after thread cleanup."""
+        self._remote_tag_loading_account = None
+        self._start_remote_tag_loading()
+
 
     def _refresh_remote_posts(self) -> None:
         """Queue retrieval for the first selected WordPress account."""
@@ -1018,15 +1157,25 @@ class PostsPage(QWidget):
         """Restore publishing controls after thread cleanup."""
         self.post_editor.publish_button.setEnabled(True)
 
+
     def shutdown(self) -> None:
         """Stop background operations without restarting queued work."""
         self._tag_loading_shutting_down = True
         self._pending_tag_accounts.clear()
+
         self._remote_post_loading_shutting_down = True
         self._remote_post_updating_shutting_down = True
         self._pending_remote_post_account = None
 
+        self._remote_tag_loading_shutting_down = True
+        self._pending_remote_tag_account = None
+        self._loaded_remote_tags = ()
+        self._loaded_remote_tags_account = None
+
         self._tag_loading_controller.shutdown()
+
+        if self._remote_tag_loading_controller is not None:
+            self._remote_tag_loading_controller.shutdown()
 
         if self._remote_post_loading_controller is not None:
             self._remote_post_loading_controller.shutdown()

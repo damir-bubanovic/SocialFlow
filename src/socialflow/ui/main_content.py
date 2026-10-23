@@ -94,6 +94,9 @@ from socialflow.ui.workers.wordpress_tag_preparation_controller import (
 from socialflow.ui.workers.wordpress_tag_creation_controller import (
     WordPressTagCreationController,
 )
+from socialflow.application.tags.list_remote_tags import (
+    ListRemoteTags,
+)
 
 
 class MainContent(QWidget):
@@ -145,21 +148,26 @@ class MainContent(QWidget):
         remove_account = RemoveAccount(account_repository)
         update_account = UpdateAccount(account_repository)
 
+
         # Tag services.
         wordpress_tag_client = UrllibWordPressTagClient()
 
+        wordpress_tag_provider = WordPressTagProvider(
+            tag_client=wordpress_tag_client,
+            credential_store=credential_store,
+        )
+
         tag_provider = RoutingTagProvider(
             providers={
-                PublishingDestination.WORDPRESS: WordPressTagProvider(
-                    tag_client=wordpress_tag_client,
-                    credential_store=credential_store,
-                ),
+                PublishingDestination.WORDPRESS: wordpress_tag_provider,
             },
             fallback=NullTagProvider(),
         )
 
         list_tags = ListTags(tag_provider)
         create_tag = CreateTag(tag_provider)
+        list_remote_tags = ListRemoteTags(wordpress_tag_provider)
+
 
         # Publishing services.
         publisher = UnconfiguredPublisher()
@@ -225,6 +233,8 @@ class MainContent(QWidget):
         )
 
         # Posts page.
+
+        # Posts page.
         self.posts_page = PostsPage(
             publish_post=publish_post,
             list_accounts=list_accounts,
@@ -242,7 +252,9 @@ class MainContent(QWidget):
                 credential_store=credential_store,
                 tag_client=wordpress_tag_client,
             ),
+            list_remote_tags=list_remote_tags,
         )
+
 
         # Accounts page with WordPress credential management.
         self.accounts_page = AccountsPage(

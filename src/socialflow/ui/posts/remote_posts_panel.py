@@ -2,7 +2,6 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QLabel,
-    QLineEdit,
     QListWidget,
     QPlainTextEdit,
     QPushButton,
@@ -11,6 +10,8 @@ from PySide6.QtWidgets import (
 )
 
 from socialflow.domain.post.remote_post import RemotePost
+from socialflow.domain.post.remote_tag import RemoteTag
+from socialflow.ui.posts.remote_tag_selector import RemoteTagSelector
 
 
 class RemotePostsPanel(QWidget):
@@ -31,11 +32,9 @@ class RemotePostsPanel(QWidget):
         self.edit_label = QLabel("Edit selected post", self)
         self.content_editor = QPlainTextEdit(self)
 
-        self.tags_label = QLabel("WordPress tag IDs", self)
-        self.tags_editor = QLineEdit(self)
-        self.tags_editor.setPlaceholderText("No tags assigned")
-        self.tags_editor.setReadOnly(False)
-        self.tags_editor.setEnabled(False)
+        self.tags_label = QLabel("WordPress tags", self)
+        self.remote_tag_selector = RemoteTagSelector(self)
+        self.remote_tag_selector.tags_list.setEnabled(False)
 
         self.save_button = QPushButton("Save changes", self)
 
@@ -52,7 +51,7 @@ class RemotePostsPanel(QWidget):
         layout.addWidget(self.edit_label)
         layout.addWidget(self.content_editor)
         layout.addWidget(self.tags_label)
-        layout.addWidget(self.tags_editor)
+        layout.addWidget(self.remote_tag_selector)
         layout.addWidget(self.save_button)
 
         self.posts_list.currentRowChanged.connect(
@@ -61,7 +60,7 @@ class RemotePostsPanel(QWidget):
         self.content_editor.textChanged.connect(
             self._update_save_button
         )
-        self.tags_editor.textChanged.connect(
+        self.remote_tag_selector.selection_changed.connect(
             self._update_save_button
         )
         self.save_button.clicked.connect(
@@ -74,10 +73,13 @@ class RemotePostsPanel(QWidget):
         """Clear the editor and its associated remote post."""
         self._posts = ()
         self.posts_list.clear()
+
         self.content_editor.clear()
-        self.tags_editor.clear()
-        self.tags_editor.setEnabled(False)
         self.content_editor.setEnabled(False)
+
+        self.remote_tag_selector.set_selected_ids(())
+        self.remote_tag_selector.tags_list.setEnabled(False)
+
         self.save_button.setEnabled(False)
 
     def show_loading(self) -> None:
@@ -123,8 +125,10 @@ class RemotePostsPanel(QWidget):
         if not 0 <= row < len(self._posts):
             self.content_editor.clear()
             self.content_editor.setEnabled(False)
-            self.tags_editor.clear()
-            self.tags_editor.setEnabled(False)
+
+            self.remote_tag_selector.set_selected_ids(())
+            self.remote_tag_selector.tags_list.setEnabled(False)
+
             self.save_button.setEnabled(False)
             return
 
@@ -133,13 +137,10 @@ class RemotePostsPanel(QWidget):
         self.content_editor.setEnabled(True)
         self.content_editor.setPlainText(post.content)
 
-        self.tags_editor.setText(
-            ", ".join(str(tag_id) for tag_id in post.tag_ids)
-        )
-        self.tags_editor.setEnabled(True)
+        self.remote_tag_selector.set_selected_ids(post.tag_ids)
+        self.remote_tag_selector.tags_list.setEnabled(True)
 
         self._update_save_button()
-
 
     def restore_editing(self) -> None:
         """Restore editing controls after a failed save."""
@@ -148,13 +149,12 @@ class RemotePostsPanel(QWidget):
         )
 
         self.content_editor.setEnabled(has_selection)
-        self.tags_editor.setEnabled(has_selection)
+        self.remote_tag_selector.tags_list.setEnabled(has_selection)
+
         self._update_save_button()
 
-
-
     def _update_save_button(self) -> None:
-        """Enable saving when valid content or tags have changed."""
+        """Enable saving when content or selected tags have changed."""
         row = self.posts_list.currentRow()
 
         if not 0 <= row < len(self._posts):
@@ -172,51 +172,14 @@ class RemotePostsPanel(QWidget):
             self.save_button.setEnabled(False)
             return
 
-        try:
-            updated_tags = self._parse_tag_ids(
-                self.tags_editor.text()
-            )
-        except ValueError:
-            self.save_button.setEnabled(False)
-            return
+        updated_tags = self.remote_tag_selector.selected_ids()
 
         content_changed = updated_content != post.content
-        tags_changed = updated_tags != post.tag_ids
+        tags_changed = set(updated_tags) != set(post.tag_ids)
 
         self.save_button.setEnabled(
             content_changed or tags_changed
         )
-
-
-
-    @staticmethod
-    def _parse_tag_ids(text: str) -> tuple[int, ...]:
-        """Parse comma-separated WordPress tag IDs."""
-        if not text.strip():
-            return ()
-
-        tag_ids = []
-
-        for item in text.split(","):
-            value = item.strip()
-
-            if not value or not value.isascii() or not value.isdecimal():
-                raise ValueError(
-                    "WordPress tag IDs must be positive integers."
-                )
-
-            tag_id = int(value)
-
-            if tag_id <= 0:
-                raise ValueError(
-                    "WordPress tag IDs must be positive integers."
-                )
-
-            tag_ids.append(tag_id)
-
-        return tuple(tag_ids)
-
-
 
     def _request_save(self) -> None:
         """Request saving changed content and/or WordPress tags."""
@@ -234,27 +197,17 @@ class RemotePostsPanel(QWidget):
         if not updated_content.strip():
             return
 
-        try:
-            updated_tags = self._parse_tag_ids(
-                self.tags_editor.text()
-            )
-        except ValueError:
-            self.status_label.setText(
-                "WordPress tag IDs must be positive integers."
-            )
-            return
+        updated_tags = self.remote_tag_selector.selected_ids()
+        tags_changed = set(updated_tags) != set(post.tag_ids)
 
-        if (
-            updated_content == post.content
-            and updated_tags == post.tag_ids
-        ):
+        if not tags_changed and updated_content == post.content:
             return
 
         self.save_button.setEnabled(False)
         self.content_editor.setEnabled(False)
-        self.tags_editor.setEnabled(False)
+        self.remote_tag_selector.tags_list.setEnabled(False)
 
-        if updated_tags != post.tag_ids:
+        if tags_changed:
             self.save_with_tags_requested.emit(
                 post.remote_id,
                 updated_content,
@@ -266,3 +219,9 @@ class RemotePostsPanel(QWidget):
                 updated_content,
             )
 
+    def set_available_remote_tags(
+        self,
+        tags: tuple[RemoteTag, ...],
+    ) -> None:
+        """Display WordPress tag names for the active account."""
+        self.remote_tag_selector.set_available_tags(tags)

@@ -11,9 +11,13 @@ from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
 from socialflow.infrastructure.wordpress.wordpress_tag_client import (
     WordPressTagClient,
 )
+from socialflow.domain.post.remote_tag import RemoteTag
+from socialflow.application.tags.remote_tag_provider import (
+    RemoteTagProvider,
+)
 
 
-class WordPressTagProvider(TagProvider):
+class WordPressTagProvider(TagProvider, RemoteTagProvider):
     """Provide WordPress tags through SocialFlow's tag interface."""
 
     def __init__(
@@ -54,6 +58,50 @@ class WordPressTagProvider(TagProvider):
 
         return tuple(
             Tag(name=wordpress_tag.name)
+            for wordpress_tag in wordpress_tags
+        )
+
+
+    def list_remote_tags(
+        self,
+        account: Account,
+    ) -> tuple[RemoteTag, ...]:
+        """Retrieve WordPress tags with their remote IDs and names."""
+        if account.destination != PublishingDestination.WORDPRESS:
+            raise ValueError("A WordPress account is required.")
+
+        config = account.wordpress_config
+
+        if config is None or not config.is_complete():
+            raise ValueError(
+                "WordPress connection settings are incomplete."
+            )
+
+        config = config.normalized()
+
+        credential_key = WordPressCredentialKeys.application_password(
+            account
+        )
+        application_password = self._credential_store.get(
+            credential_key
+        )
+
+        if not application_password:
+            raise ValueError(
+                "WordPress application password is missing."
+            )
+
+        wordpress_tags = self._tag_client.list_tags(
+            site_url=config.site_url,
+            username=config.username,
+            application_password=application_password,
+        )
+
+        return tuple(
+            RemoteTag(
+                remote_id=wordpress_tag.id,
+                name=wordpress_tag.name,
+            )
             for wordpress_tag in wordpress_tags
         )
 
