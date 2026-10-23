@@ -611,7 +611,7 @@ without blocking the UI and retries after verification completes and the thread
 is cleaned up. Direct `AccountsPage.shutdown()` waits for an active worker when
 the page itself is closed. The underlying `urllib` socket timeout defaults to
 10 seconds, but is not a guaranteed total-request deadline; active requests
-are not forcibly cancelled. Other background work remains to be designed.
+are not forcibly cancelled. Publishing, remote-post retrieval/updating, WordPress tag preparation/creation, and remote-tag catalog loading also use dedicated Qt worker/controller paths.
 
 ------------------------------------------------------------------------
 
@@ -1061,7 +1061,7 @@ posts. UI indicators provide explicit labels as well as visual cues.
 
 Unconfigured Facebook and Instagram publishers fail explicitly, while WordPress
 uses an account-specific REST publisher for text and prepared-image posts.
-Successful publisher returns may be persisted to local history; remote post retrieval and text editing are implemented through a separate WordPress workflow; publication-history image/tag serialization remains pending. The developer-reported Phase 21.9.21 checkpoint was 1081 passing tests. This does not replace live WordPress API verification.
+Successful publisher returns may be persisted to local history; remote post retrieval and text/tag editing are implemented through a separate WordPress workflow; publication-history image/tag serialization remains pending. The historical developer-reported Phase 21.9.21 checkpoint was 1081 passing tests; the latest Phase 21.9.30 checkpoint is 1188. This does not replace live WordPress API verification.
 
 ## 32. Background Publishing and Selective Retry (Implemented)
 
@@ -1159,8 +1159,8 @@ account-scoped updates; the remote-post panel disables editing while a save is
 in progress, restores it after errors, and refreshes the remote list on success.
 
 Account identity, stale callbacks, concurrent starts, and shutdown are
-explicitly guarded. Current scope is **remote post text only**; remote image
-editing, metadata editing, tag assignment, and reconciliation with local
+explicitly guarded. Current scope is **remote post text and tag assignments**; remote image
+editing, other metadata editing, and reconciliation with local
 publication history are not implemented.
 
 **Verification:** The developer reported 1081 passing tests after Phase 21.9.21,
@@ -1207,3 +1207,42 @@ exceptions, restarting after failures, and close/shutdown ordering.
 **Verification:** 1081 tests passing, as reported by the developer after
 Phase 21.9.21. This documentation update did not execute pytest or test live
 platform integrations.
+
+## 40. WordPress Remote Tag Identity and Editing (Implemented — Phase 21.9.30)
+
+**Domain and application.** `RemotePost.tag_ids` holds the WordPress numeric
+IDs parsed from remote post responses. `RemoteTag` is an immutable value with
+`remote_id` and display `name`. `RemoteTagProvider` and `ListRemoteTags` expose
+the account-specific remote catalog independently from the generic `Tag` /
+`TagProvider` path used to publish new posts.
+
+**Infrastructure.** `WordPressTagProvider` implements both the generic
+`TagProvider` and the remote-tag-specific `RemoteTagProvider`. The existing
+WordPress post client, `WordPressPostUpdater`, and `UpdateRemotePost` accept an
+optional tuple of numeric tag IDs. `tags=None` means **do not include the tags
+field** in the REST update, whereas `tags=()` means **replace assignments with
+none**. Positive integer validation protects the update boundary. Remote
+media and arbitrary metadata updates are not implemented.
+
+**Presentation.** `RemotePostsPanel` uses `RemoteTagSelector` (`QListWidget`
+checkable items) for name-based selection, retaining IDs in Qt user data.
+Unresolved assigned IDs appear as checked **Unknown WordPress tag (ID N)**
+entries; loading or failing to load the catalog does not silently discard
+them. Content-only saves emit `save_requested`; membership changes emit
+`save_with_tags_requested`. The former omits tags, and the latter passes the
+selected ID tuple. A failed save restores content and tag controls.
+
+**Concurrency and account safety.** `RemoteTagLoadingWorker` and
+`RemoteTagLoadingController` perform catalog retrieval off the GUI thread.
+`PostsPage` clears catalog names when the WordPress account changes, queues
+the latest request while an existing worker finishes, and discards stale
+responses using account identity and pending-request checks. The remote-post
+update remains bound to the account that loaded the selected post.
+
+**Separation.** The remote editing selector is distinct from the existing
+new-post `TagSelector`, whose tag preparation, confirmation, creation, and
+name-to-ID resolution workflows are unchanged.
+
+**Verification.** Developer-reported full suite: **1,188 passing tests** after
+Phase 21.9.30. This documentation update does not rerun tests or validate a
+live WordPress site.

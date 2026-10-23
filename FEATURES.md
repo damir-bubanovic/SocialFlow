@@ -92,7 +92,7 @@ supported publishing platforms.
 
 ### WordPress
 
--   [~] Integrate WordPress through its REST API; verification, text/image/tag publishing, tag listing/creation with confirmation for missing tags, recent-post retrieval, and text-only remote editing are implemented. Broader remote editing and live-site validation remain pending.
+-   [~] Integrate WordPress through its REST API; verification, text/image/tag publishing, tag listing/creation with confirmation for missing tags, recent-post retrieval, and remote text/tag editing are implemented. Broader remote editing and live-site validation remain pending.
 -   [x] Configure and persist the WordPress HTTPS site URL and username per account.
 -   [x] Store WordPress application passwords in the OS credential store, not account JSON.
 -   [x] Use stable account UUID-based credential keys and clean up secrets when accounts are removed or converted away from WordPress.
@@ -109,7 +109,7 @@ supported publishing platforms.
 -   [x] Preserve uploaded media if WordPress post creation subsequently fails (current deliberate behavior, not a remote rollback).
 -   [x] Retrieve recent remote WordPress posts through authenticated REST API requests and a Qt background worker.
 -   [x] Update existing remote WordPress post text through authenticated REST API requests and a Qt background worker.
--   [~] Integrate remote WordPress tags and metadata; listing, confirmed creation of missing tags, and assignment on new posts are implemented; editing existing remote metadata remains pending.
+-   [~] Integrate remote WordPress tags and metadata; listing, confirmed creation of missing tags, assignment on new posts, and editing existing remote tag assignments are implemented; remote media and other metadata editing remain pending.
 -   [ ] Verify publishing against a live WordPress installation.
 
 ------------------------------------------------------------------------
@@ -383,7 +383,7 @@ Before SocialFlow is considered ready for a production release:
     failure path with tests.
 -   [~] Implement authenticated live publisher adapters: WordPress post/media publishing is implemented with mocked API tests; Facebook and Instagram remain pending, and live WordPress testing is outstanding.
 
-**Test checkpoint:** The developer reported **1081 passing tests** after Phase 21.9.21. This documentation update does not rerun tests. Mocked HTTP tests do not prove live WordPress behavior.
+**Historical test checkpoint:** The developer reported **1081 passing tests** after Phase 21.9.21. This documentation update does not rerun tests. Mocked HTTP tests do not prove live WordPress behavior.
 ------------------------------------------------------------------------
 
 ## 21. Scope Management
@@ -440,10 +440,11 @@ automatically limit manual retry to transient errors.
 -   [x] Preserve edited text and restore controls after failed updates.
 -   [x] Guard against cross-account updates, stale completions, and new starts during shutdown.
 -   [x] Test success/error signal ordering, worker cleanup, and QThread shutdown paths.
--   [ ] Support editing remote images, tags, or other metadata.
+-   [x] Support editing existing remote WordPress tag assignments by name, retaining numeric IDs in the API payload.
+-   [ ] Support editing remote images or other metadata.
 -   [ ] Verify retrieval and editing against a live WordPress site.
 
-**Historical Phase 19 full-suite checkpoint:** 905 passing tests. **Latest developer-reported checkpoint:** 1081 passing tests after Phase 21.9.21.
+**Historical Phase 19 full-suite checkpoint:** 905 passing tests. **Latest developer-reported checkpoint:** 1188 passing tests after Phase 21.9.30.
 
 ## 24. WordPress Tag Confirmation and Assignment (Phases 21.2–21.9.14)
 
@@ -457,7 +458,7 @@ automatically limit manual retry to transient errors.
 -   [x] Prevent duplicate publish requests during tag preparation or creation.
 -   [x] Cover successful, rejected, duplicate, and error workflows with automated tests.
 -   [ ] Verify tag lookup, creation, and post assignment against a live WordPress site.
--   [ ] Support editing tags on existing remote WordPress posts.
+-   [x] Support editing tags on existing remote WordPress posts.
 
 ## 25. Publishing Lifecycle and Recovery (Phases 21.9.15–21.9.21)
 
@@ -472,5 +473,26 @@ automatically limit manual retry to transient errors.
 -   [x] Clear stale Posts-page retry state after unexpected worker errors.
 -   [x] Verify that a subsequent publish can succeed after an unexpected worker error.
 
-**Latest developer-reported full-suite checkpoint:** **1081 passing tests**
+**Historical Phase 21.9.21 checkpoint:** **1081 passing tests**
 (October 22, 2026). This is not a fresh test run or live integration result.
+
+## 26. WordPress Remote Post Tag Editing (Phases 21.9.22–21.9.30)
+
+-   [x] Parse and retain existing WordPress post tag IDs in the remote post models.
+-   [x] Allow text-only updates without sending a `tags` field; allow tag-only and combined text/tag updates.
+-   [x] Validate positive integer tag IDs in the update use case's WordPress adapter and REST client.
+-   [x] Add an immutable `RemoteTag` carrying WordPress numeric ID and display name.
+-   [x] Retrieve account-scoped remote tag catalogs through `RemoteTagProvider` and `ListRemoteTags`.
+-   [x] Load remote tag catalogs asynchronously with dedicated Qt worker/controller lifecycle handling.
+-   [x] Replace the legacy numeric tag input with `RemoteTagSelector` checkboxes displaying names.
+-   [x] Preserve assigned IDs not present in the catalog as selectable **Unknown WordPress tag (ID N)** entries.
+-   [x] Detect tag changes by ID membership rather than order; allow clearing all assigned tags.
+-   [x] Keep the new-post publishing `TagSelector` independent of remote-post editing.
+-   [x] Clear the previous account's tag names immediately on account switch; reject stale asynchronous responses.
+-   [x] Preserve assigned tag IDs when catalog loading is delayed or fails.
+-   [x] Disable editing during a remote update; restore controls and unsaved changes after failure.
+-   [x] Cover checkbox interactions, save signals, late loading, unavailable catalogs, and account switching with automated tests.
+-   [ ] Verify remote tag editing against a live WordPress installation.
+-   [ ] Support remote image and other metadata editing.
+
+**Latest developer-reported full-suite result:** **1,188 tests passing** after Phase 21.9.30, followed by a Git commit/push. This documentation synchronization did not rerun pytest. Network tests with fakes/mocks do not constitute live WordPress verification.

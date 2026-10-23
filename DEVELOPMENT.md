@@ -644,7 +644,7 @@ indicators, and publishing failure reporting. Only publishers that return
 successfully can produce local publication records; live adapters are absent.
 Successful publications can be persisted to `publications.json`,
 listed by account, selected from the recent-post UI, and loaded back into the
-editor. Legacy history without IDs is migrated in place. The developer reported **1081 passing tests** after Phase 21.9.21 publishing-recovery regression coverage. This is not a live API test.
+editor. Legacy history without IDs is migrated in place. The developer reported **1081 passing tests** at the historical Phase 21.9.21 publishing-recovery checkpoint; the latest Phase 21.9.30 result is **1188 passing**. This is not a live API test.
 
 Useful focused test commands include:
 
@@ -689,7 +689,7 @@ python -m pytest tests/ui/test_publish_status.py tests/ui/test_posts_page.py tes
 python -m pytest -q
 ```
 
-The latest developer-reported full-suite checkpoint is 1081 passing tests. This is not evidence of successful publishing against a live
+The latest developer-reported full-suite checkpoint is 1188 passing tests after Phase 21.9.30. This is not evidence of successful publishing against a live
 WordPress server. Never substitute
 `NullPublisher` in the production composition root to simulate success.
 
@@ -730,7 +730,7 @@ The production composition root (`src/socialflow/ui/main_content.py`) routes
 WordPress accounts to `WordPressPublisher` with `UrllibWordPressPostClient` and
 the shared OS keyring store. Facebook and Instagram still use
 `UnconfiguredPublisher`. WordPress post creation supports text and prepared
-images; media uploads generate Gutenberg image blocks. WordPress tag listing, confirmed creation of missing tags, and new-post tag assignment are implemented; remote-post retrieval and text editing use separate services. Editing remote images/tags/metadata remains pending.
+images; media uploads generate Gutenberg image blocks. WordPress tag listing, confirmed creation of missing tags, and new-post tag assignment are implemented; remote-post retrieval and text editing use separate services. Editing existing remote tag assignments is implemented; remote images and other metadata remain pending.
 
 After changing WordPress publishing, media handling, image preparation, or
 publisher routing, run:
@@ -751,7 +751,7 @@ and logging media deletion failures. Post-creation failures do not trigger media
 rollback. Do not use real credentials or a live WordPress site in the normal
 pytest suite; live integration testing is a separate manual/controlled step.
 
-**Test reporting:** The developer reported 1081 passing tests after Phase 21.9.21.
+**Historical test reporting:** The developer reported 1081 passing tests after Phase 21.9.21.
 Documentation maintenance does not itself execute the full test suite.
 
 WordPress publishing is invoked through the Posts page's Qt background
@@ -819,7 +819,7 @@ logging cannot initialize. Production email reporting is not implemented.
 ## 33A. Phase 19 WordPress Remote Post Regression Checks
 
 The application composes WordPress tag listing/creation, remote-post retrieval,
-and text-only remote-post updating in `src/socialflow/ui/main_content.py`.
+and remote-post text/tag updating in `src/socialflow/ui/main_content.py`.
 Remote posts appear in a dedicated panel and are not the same records as
 locally persisted publication history.
 
@@ -843,7 +843,7 @@ python -m pytest tests/infrastructure/wordpress/test_wordpress_tag_provider.py t
 python -m pytest tests/application/test_routing_tag_provider.py tests/application/test_tag_services.py -q
 ```
 
-The latest developer-reported full-suite checkpoint is **1081 passing tests**. These documents
+The latest developer-reported full-suite checkpoint is **1188 passing tests** after Phase 21.9.30. These documents
 were updated from the project ZIP and were not accompanied by a fresh test
 execution.
 
@@ -904,6 +904,61 @@ python -m pytest -q
 git diff --check
 ```
 
-**Latest checkpoint:** The developer reported **1081 passing tests** after
-Phase 21.9.21 and pushed the changes. Documentation editing does not count as
+**Historical checkpoint:** The developer reported **1081 passing tests** after
+Phase 21.9.21 and pushed those changes; the latest result is **1188 passing** after Phase 21.9.30. Documentation editing does not count as
 a test run. Keep `AGENTS.md` local-only; never stage or push it.
+
+## 36. Remote WordPress Tag Editing Regression Checks (Phases 21.9.22–21.9.30)
+
+The current WordPress remote-post editor supports changing content and tag
+assignments. `RemoteTagSelector` displays names; REST updates use numeric IDs.
+Do not conflate this selector with the new-post publishing `TagSelector`.
+
+Relevant code:
+
+- `src/socialflow/domain/post/remote_tag.py`
+- `src/socialflow/domain/post/remote_post.py`
+- `src/socialflow/application/tags/remote_tag_provider.py`
+- `src/socialflow/application/tags/list_remote_tags.py`
+- `src/socialflow/infrastructure/wordpress/wordpress_tag_provider.py`
+- `src/socialflow/infrastructure/wordpress/wordpress_post_updater.py`
+- `src/socialflow/infrastructure/wordpress/urllib_wordpress_post_client.py`
+- `src/socialflow/ui/posts/remote_tag_selector.py`
+- `src/socialflow/ui/posts/remote_posts_panel.py`
+- `src/socialflow/ui/posts/posts_page.py`
+- `src/socialflow/ui/workers/remote_tag_loading_worker.py`
+- `src/socialflow/ui/workers/remote_tag_loading_controller.py`
+
+Relevant tests include:
+
+- `tests/domain/test_remote_tag.py`
+- `tests/application/tags/test_list_remote_tags.py`
+- `tests/infrastructure/wordpress/test_wordpress_post_parser.py`
+- `tests/infrastructure/wordpress/test_wordpress_post_updater.py`
+- `tests/infrastructure/wordpress/test_wordpress_tag_provider.py`
+- `tests/ui/test_remote_tag_selector.py`
+- `tests/ui/test_remote_posts_panel_editing.py`
+- `tests/ui/test_remote_tag_loading_controller.py`
+- `tests/ui/test_posts_page.py`
+- `tests/ui/test_posts_page_remote_post_editing.py`
+
+Run targeted UI checks:
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m pytest tests/ui/test_remote_tag_selector.py tests/ui/test_remote_posts_panel_editing.py tests/ui/test_remote_tag_loading_controller.py tests/ui/test_posts_page.py -q
+```
+
+Run the complete suite:
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+```
+
+Regression scope: text-only saves omit tags; tag-only/combined saves send IDs;
+empty tuples clear tags; checkbox changes update Save state; unknown IDs
+remain selectable; delayed/failed catalog loads preserve assigned IDs;
+account switching clears stale names; failed updates restore editing.
+
+**Latest developer-reported full-suite checkpoint:** **1,188 passing tests**
+after Phase 21.9.30, followed by a Git commit/push. The documentation update
+did not rerun tests. Live WordPress integration remains unverified.

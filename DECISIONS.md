@@ -1551,8 +1551,7 @@ refresh remote results after success.
 ### Consequences
 
 An update cannot silently target a different selected account or treat an
-outdated result as current. Current editing scope is text-only; remote media,
-tags, and other metadata are future work.
+outdated result as current. Remote text and tag editing are now implemented (Phase 21.9.30); remote media and other metadata remain future work.
 
 ## Phase 19 Verification Checkpoint
 
@@ -1588,8 +1587,7 @@ Do not assume tag names are interchangeable with remote IDs.
 ### Consequences
 
 Publisher behavior remains account-specific and rejects missing or ambiguous
-remote tag matches. WordPress tag assignment on newly created posts is
-implemented; editing tags on existing remote posts is not.
+remote tag matches. WordPress tag assignment on newly created posts and editing tag assignments on existing remote posts are implemented.
 
 ## ADR-064 --- Treat Unexpected Publishing Worker Errors as Recoverable
 
@@ -1627,3 +1625,71 @@ covered by regression tests.
 The developer reported **1081 passing tests** after publishing recovery tests
 and a Git push (October 22, 2026). This documentation update does not run
 pytest or validate a live WordPress server.
+
+## ADR-066 --- Keep Remote WordPress Tag IDs Separate From Generic Tags
+
+### Decision
+
+Represent the tags assigned to an existing WordPress post as numeric IDs in
+`RemotePost.tag_ids`. Use immutable `RemoteTag(remote_id, name)` values from
+`RemoteTagProvider` / `ListRemoteTags` to show human-readable names. Keep the
+generic `Tag` and new-post publishing selector separate.
+
+### Consequences
+
+Remote updates retain the IDs required by WordPress without changing the
+existing publishing-time name-resolution and missing-tag confirmation workflow.
+Unresolved IDs can be preserved and displayed as unknown-tag placeholders.
+
+## ADR-067 --- Make WordPress Tag Updates Optional and Explicit
+
+### Decision
+
+Allow `UpdateRemotePost`, `RemotePostUpdater`, and the WordPress REST client to
+accept `tags: tuple[int, ...] | None`. Omit the REST `tags` field when the value
+is `None`; send an empty list when the tuple is empty. Validate positive
+integer IDs. The remote editor compares tag membership as sets, so reordering
+alone is not treated as an update.
+
+### Consequences
+
+Text-only saves preserve remote tag assignments, while tag-only and combined
+changes can replace them, including clearing every tag. Remote images and
+other metadata are outside this update contract.
+
+## ADR-068 --- Load Remote Tag Names Asynchronously and Scope Them to Account
+
+### Decision
+
+Retrieve remote tag catalogs in a Qt worker/controller. Immediately clear
+the displayed catalog when the selected WordPress account changes; reject
+outdated responses and queue the latest account request. Keep selected
+numeric IDs when a catalog arrives late or fails.
+
+### Consequences
+
+Tag names from one WordPress account cannot silently be displayed for another.
+The user can still remove an assigned tag whose name is unavailable. Network
+work stays off the UI thread, subject to the existing worker shutdown policy.
+
+## ADR-069 --- Use a Dedicated Checkbox Selector for Remote Tag Editing
+
+### Decision
+
+Use `RemoteTagSelector` in `RemotePostsPanel` instead of a numeric-ID text
+field. Keep the new-post publishing `TagSelector` unchanged. Disable the
+remote selector during saves and restore its state if an update fails.
+
+### Consequences
+
+The UI exposes readable names without losing stable WordPress IDs. Checkbox
+changes enable saving only when content or tag membership differs from the
+loaded post. Regression tests cover add/remove/clear/revert, missing catalog
+entries, late catalog loading, and account switching.
+
+## Phase 21.9.30 Verification Checkpoint
+
+The developer reported **1,188 passing tests** after completing the
+WordPress remote-post tag-editing workflow and committing/pushing the changes.
+This documentation update did not execute pytest or perform live WordPress
+integration testing.

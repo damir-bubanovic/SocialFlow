@@ -97,15 +97,14 @@ page checks for missing tags before publishing, asks for confirmation, and
 creates approved missing tags through background Qt workers. Unsupported
 destinations still use the null provider.
 
-**Remote WordPress post retrieval and text editing are implemented.** The Posts
+**Remote WordPress post retrieval, text editing, and tag editing are implemented.** The Posts
 page retrieves recent remote posts for the selected WordPress account in a
 background Qt worker and displays them separately from local publication
-history. Selecting a remote post opens its text content in a dedicated editor;
-saving invokes the authenticated REST update operation in another worker.
+history. Selecting a remote post opens its text content and assigned WordPress tags in a dedicated editor; tag names are shown as checkboxes while numeric IDs remain internal. Saving invokes the authenticated REST update operation in another worker.
 Successful updates refresh the remote list. Failed updates report an error and
 restore editing without discarding the user's changes. Account-switch and
 shutdown guards prevent stale worker results from affecting another account.
-This is a remote text-editing workflow, not a general remote image/tag editor.
+Remote tag-only, text-only, and combined text/tag updates are supported; remote image and other metadata editing are not.
 
 Facebook/Instagram API publishing, email error reporting, and release packaging
 remain future work.
@@ -115,8 +114,8 @@ After partial failure, **Retry Failed** targets only failed accounts; editing th
 draft or changing its accounts, images, language, or tags invalidates that retry.
 A failed publisher does not prevent later accounts from being attempted.
 
-**Testing checkpoint:** The developer reported **1081 passing tests** after
-Phase 21.9.21 publishing-recovery regression coverage (October 22, 2026).
+**Testing checkpoint:** The developer reported **1,188 passing tests** after
+Phase 21.9.30 remote-tag-editing regression coverage (October 2026).
 This is a reported full-suite result, not a new test run performed while
 updating these documents. Tests use mocked/fake network dependencies and do
 **not** establish successful publishing, retrieval, tag creation, or editing
@@ -181,13 +180,14 @@ WordPress.
 | Retrieve and create remote tags | Implemented; live-site validation pending |
 | Assign tags to published posts | Implemented through remote tag ID resolution; live-site validation pending |
 | Retrieve recent remote posts | Implemented; background Qt worker |
-| Edit existing remote post text | Implemented; background Qt worker |
-| Edit remote images, tags, or other metadata | Not implemented |
+| Edit existing remote post text and tag assignments | Implemented; background Qt workers |
+| Edit remote images or other metadata | Not implemented |
 | Facebook / Instagram API publishing | Not implemented |
 
 Local publication history and the separate remote WordPress post list must not
 be confused: loading a local history entry into the composer does not update a
 remote post.
+
 ## WordPress Tag Confirmation and Publishing Reliability (Phases 21.2–21.9.21)
 
 For selected WordPress accounts, the Posts page prepares a tag-creation plan
@@ -203,5 +203,27 @@ traceback logging for unexpected worker exceptions, progress reporting,
 selective retry for failed accounts, and lifecycle cleanup. Regression tests
 cover restarting after failures, clearing stale retry state, successful
 subsequent publishing, and main-window closing after successful or failed
-publishing (including repeated close requests). The **1081-test checkpoint**
+publishing (including repeated close requests). The **historical 1081-test checkpoint**
 is developer-reported; this documentation update did not run pytest.
+
+## WordPress Remote Tag Editing (Phase 21.9.30)
+
+Remote WordPress posts now retain assigned tag IDs from the REST response.
+The editor loads the active WordPress account's tag catalog asynchronously and
+displays tag **names** in a checkbox list. IDs remain the source of truth when
+saving. Assigned tags missing from the catalog are shown as **Unknown WordPress
+tag (ID N)** and remain removable.
+
+Text-only saves omit the optional `tags` update field; changing tag membership
+sends the selected numeric IDs (including an empty list to clear all tags).
+The remote-post update uses the selected account's credentials and post ID.
+The page clears stale tag names on account changes and ignores outdated
+background results. Failed saves restore the editing controls without
+discarding the unsaved selection.
+
+This selector is separate from the tag selector used when publishing new
+posts. Live WordPress validation, remote media/other metadata editing, and
+Facebook/Instagram integrations are still pending.
+
+**Latest developer-reported test result:** 1,188 passing tests after Phase
+21.9.30. This is not a fresh test run performed during documentation editing.
