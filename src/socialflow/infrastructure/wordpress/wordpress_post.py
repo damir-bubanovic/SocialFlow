@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -12,3 +11,4 @@ class WordPressPost:
     published_at: datetime
     status: str
     tag_ids: tuple[int, ...] = ()
+    featured_media_id: int = 0

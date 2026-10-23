@@ -75,6 +75,7 @@ class WordPressPostProvider(RemotePostProvider):
                 published_at=post.published_at,
                 status=post.status,
                 tag_ids=post.tag_ids,
+                featured_media_id=post.featured_media_id,
             )
             for post in wordpress_posts
         )

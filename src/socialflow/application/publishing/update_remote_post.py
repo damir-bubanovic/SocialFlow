@@ -15,13 +15,14 @@ class UpdateRemotePost:
         self._updater = updater
 
     def execute(
-        self,
-        account: Account,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            account: Account,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> None:
-        """Update remote post content and optionally its tags."""
+        """Update a remote post without changing omitted metadata."""
         update_kwargs = {
             "account": account,
             "post_id": post_id,
@@ -30,5 +31,8 @@ class UpdateRemotePost:
 
         if tags is not None:
             update_kwargs["tags"] = tags
+
+        if featured_media_id is not None:
+            update_kwargs["featured_media_id"] = featured_media_id
 
         self._updater.update_post(**update_kwargs)

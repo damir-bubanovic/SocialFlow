@@ -174,47 +174,59 @@ class UrllibWordPressPostClient(WordPressPostClient):
         except HTTPError as error:
             return error.code
 
-
     def update_post(
-        self,
-        site_url: str,
-        username: str,
-        application_password: str,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> int:
         """Update an existing WordPress post and return its HTTP status."""
 
         parsed = urlsplit(site_url)
 
         if (
-            parsed.scheme.lower() != "https"
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
+                parsed.scheme.lower() != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
         ):
             raise ValueError("A valid HTTPS WordPress URL is required.")
 
         if type(post_id) is not int or post_id <= 0:
             raise ValueError("A valid WordPress post ID is required.")
 
-        endpoint = site_url.rstrip("/") + f"/wp-json/wp/v2/posts/{post_id}"
+        if featured_media_id is not None:
+            if (
+                    type(featured_media_id) is not int
+                    or featured_media_id < 0
+            ):
+                raise ValueError(
+                    "WordPress featured media ID must be "
+                    "a non-negative integer."
+                )
+
+        endpoint = (
+                site_url.rstrip("/")
+                + f"/wp-json/wp/v2/posts/{post_id}"
+        )
 
         credentials = f"{username}:{application_password}"
         encoded = base64.b64encode(
             credentials.encode("utf-8")
         ).decode("ascii")
 
-
         body = {"content": content}
 
         if tags is not None:
             if not isinstance(tags, tuple) or any(
-                type(tag_id) is not int or tag_id <= 0
-                for tag_id in tags
+                    type(tag_id) is not int or tag_id <= 0
+                    for tag_id in tags
             ):
                 raise ValueError(
                     "WordPress tag IDs must be positive integers."
@@ -222,8 +234,10 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
             body["tags"] = list(tags)
 
-        payload = json.dumps(body).encode("utf-8")
+        if featured_media_id is not None:
+            body["featured_media"] = featured_media_id
 
+        payload = json.dumps(body).encode("utf-8")
 
         request = Request(
             endpoint,
@@ -242,7 +256,10 @@ class UrllibWordPressPostClient(WordPressPostClient):
         )
 
         try:
-            with opener.open(request, timeout=self._timeout) as response:
+            with opener.open(
+                    request,
+                    timeout=self._timeout,
+            ) as response:
                 return response.status
         except HTTPError as error:
             return error.code

@@ -8,10 +8,11 @@ class RemotePostUpdater(ABC):
 
     @abstractmethod
     def update_post(
-        self,
-        account: Account,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            account: Account,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> None:
-        """Update remote post content and optionally replace its tags."""
+        """Update post content, tags, and optionally featured media."""

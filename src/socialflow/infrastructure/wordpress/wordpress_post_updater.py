@@ -27,13 +27,13 @@ class WordPressPostUpdater(RemotePostUpdater):
         self._client = client
         self._credential_store = credential_store
 
-
     def update_post(
-        self,
-        account: Account,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            account: Account,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> None:
         if account.destination != PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -53,11 +53,21 @@ class WordPressPostUpdater(RemotePostUpdater):
 
         if tags is not None:
             if not isinstance(tags, tuple) or any(
-                type(tag_id) is not int or tag_id <= 0
-                for tag_id in tags
+                    type(tag_id) is not int or tag_id <= 0
+                    for tag_id in tags
             ):
                 raise ValueError(
                     "WordPress tag IDs must be positive integers."
+                )
+
+        if featured_media_id is not None:
+            if (
+                    type(featured_media_id) is not int
+                    or featured_media_id < 0
+            ):
+                raise ValueError(
+                    "WordPress featured media ID must be "
+                    "a non-negative integer."
                 )
 
         config = config.normalized()
@@ -85,6 +95,9 @@ class WordPressPostUpdater(RemotePostUpdater):
 
         if tags is not None:
             update_kwargs["tags"] = tags
+
+        if featured_media_id is not None:
+            update_kwargs["featured_media_id"] = featured_media_id
 
         status = self._client.update_post(**update_kwargs)
 

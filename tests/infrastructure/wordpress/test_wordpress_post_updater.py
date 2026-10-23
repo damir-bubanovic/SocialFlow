@@ -252,3 +252,101 @@ def test_rejects_invalid_existing_post_tags(tags):
 
     client.update_post.assert_not_called()
     store.get.assert_not_called()
+
+def test_updates_existing_post_featured_image():
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=456,
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        featured_media_id=456,
+    )
+
+    store.get.assert_called_once()
+
+
+def test_removes_existing_post_featured_image():
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=0,
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        featured_media_id=0,
+    )
+
+    store.get.assert_called_once()
+
+
+def test_updates_post_tags_and_featured_image_together():
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=456,
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=456,
+    )
+
+    store.get.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "featured_media_id",
+    [
+        -1,
+        True,
+        False,
+        "123",
+        12.5,
+    ],
+)
+def test_rejects_invalid_featured_media_id(featured_media_id):
+    updater, client, store = make_updater()
+
+    with pytest.raises(
+        ValueError,
+        match="WordPress featured media ID",
+    ):
+        updater.update_post(
+            account=make_account(),
+            post_id=123,
+            content="Updated content",
+            featured_media_id=featured_media_id,
+        )
+
+    client.update_post.assert_not_called()
+    store.get.assert_not_called()

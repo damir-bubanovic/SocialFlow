@@ -104,3 +104,46 @@ def test_rejects_invalid_wordpress_post_tags(tags):
                 "tags": tags,
             }
         )
+
+def test_parses_wordpress_post_with_featured_media():
+    post = WordPressPostParser.parse(
+        {
+            "id": 42,
+            "date": "2026-10-14T10:30:00",
+            "content": {
+                "rendered": "<p>Hello WordPress</p>",
+            },
+            "status": "publish",
+            "featured_media": 123,
+        }
+    )
+
+    assert post.featured_media_id == 123
+
+
+@pytest.mark.parametrize(
+    "featured_media",
+    [
+        None,
+        True,
+        -1,
+        "123",
+        12.5,
+    ],
+)
+def test_rejects_invalid_featured_media(featured_media):
+    with pytest.raises(
+        ValueError,
+        match="WordPress featured media ID",
+    ):
+        WordPressPostParser.parse(
+            {
+                "id": 42,
+                "date": "2026-10-14T10:30:00",
+                "content": {
+                    "rendered": "<p>Hello WordPress</p>",
+                },
+                "status": "publish",
+                "featured_media": featured_media,
+            }
+        )

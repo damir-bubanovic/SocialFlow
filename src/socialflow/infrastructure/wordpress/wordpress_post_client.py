@@ -30,18 +30,18 @@ class WordPressPostClient(ABC):
     ) -> int:
         """Return the HTTP status code from the create-post request."""
 
-
     @abstractmethod
     def update_post(
-        self,
-        site_url: str,
-        username: str,
-        application_password: str,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> int:
-        """Update a post; optionally replace its assigned tag IDs."""
+        """Update post content and optionally replace tags or featured media."""
 
 
     @abstractmethod

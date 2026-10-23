@@ -84,3 +84,65 @@ def test_update_remote_post_forwards_empty_tags():
         content="Updated content",
         tags=(),
     )
+
+
+def test_update_remote_post_forwards_featured_media_id():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=456,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=456,
+    )
+
+
+def test_update_remote_post_forwards_featured_media_removal():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=0,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=0,
+    )
+
+
+def test_update_remote_post_forwards_tags_and_featured_media():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=456,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=456,
+    )

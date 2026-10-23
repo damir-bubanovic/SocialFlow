@@ -853,3 +853,171 @@ def test_update_post_rejects_invalid_tag_ids(tags):
             )
 
         build_opener.assert_not_called()
+
+def test_update_post_assigns_featured_image():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            featured_media_id=456,
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts/123"
+    )
+    assert request.get_method() == "POST"
+
+    assert payload == {
+        "content": "Updated content",
+        "featured_media": 456,
+    }
+
+
+def test_update_post_removes_featured_image():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            featured_media_id=0,
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "featured_media": 0,
+    }
+
+
+def test_update_post_preserves_featured_image_when_omitted():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+    }
+    assert "featured_media" not in payload
+
+
+def test_update_post_combines_tags_and_featured_image():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            tags=(12, 34),
+            featured_media_id=456,
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "tags": [12, 34],
+        "featured_media": 456,
+    }
+
+
+@pytest.mark.parametrize(
+    "featured_media_id",
+    [
+        -1,
+        True,
+        False,
+        "123",
+        12.5,
+    ],
+)
+def test_update_post_rejects_invalid_featured_media_id(
+    featured_media_id,
+):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress featured media ID",
+        ):
+            client.update_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=123,
+                content="Updated content",
+                featured_media_id=featured_media_id,
+            )
+
+        build_opener.assert_not_called()
