@@ -353,3 +353,66 @@ def test_remote_post_save_with_tags_rejects_invalid_ids():
     page.remote_posts_panel.status_label.setText.assert_called_once_with(
         "WordPress tag IDs must be positive integers."
     )
+    page.remote_posts_panel.restore_editing.assert_called_once_with()
+
+
+def test_tag_aware_save_rejection_restores_editing():
+    """A rejected tag-aware save must restore the editors."""
+    page = Mock()
+    controller = Mock()
+
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = False
+    controller.is_running = True
+
+    page._handle_remote_post_save = (
+        lambda remote_id, content, tags=None:
+        PostsPage._handle_remote_post_save(
+            page, remote_id, content, tags
+        )
+    )
+
+    PostsPage._handle_remote_post_save_with_tags(
+        page,
+        "42",
+        "Updated WordPress content",
+        (12, 34),
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once_with()
+
+
+import pytest
+
+
+@pytest.mark.parametrize(
+    ("controller_available", "shutting_down", "is_running"),
+    [
+        (False, False, False),
+        (True, True, False),
+        (True, False, True),
+    ],
+)
+def test_rejected_remote_post_save_restores_editing(
+    controller_available,
+    shutting_down,
+    is_running,
+):
+    page = Mock()
+    controller = Mock()
+    controller.is_running = is_running
+
+    page._remote_post_updating_controller = (
+        controller if controller_available else None
+    )
+    page._remote_post_updating_shutting_down = shutting_down
+
+    PostsPage._handle_remote_post_save(
+        page,
+        "42",
+        "Updated content",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once_with()

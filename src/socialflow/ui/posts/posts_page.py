@@ -474,11 +474,12 @@ class PostsPage(QWidget):
         self._remote_post_loading_account = None
         self._start_remote_post_loading()
 
+
     def _handle_remote_post_save(
-            self,
-            remote_id: str,
-            content: str,
-            tags: tuple[int, ...] | None = None,
+        self,
+        remote_id: str,
+        content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> None:
         """Save an existing WordPress post asynchronously."""
         controller = self._remote_post_updating_controller
@@ -488,6 +489,7 @@ class PostsPage(QWidget):
             or self._remote_post_updating_shutting_down
             or controller.is_running
         ):
+            self.remote_posts_panel.restore_editing()
             return
 
         account = next(
@@ -500,15 +502,17 @@ class PostsPage(QWidget):
         )
 
         if (
-                account is None
-                or account != self._loaded_remote_posts_account
+            account is None
+            or account != self._loaded_remote_posts_account
         ):
+            self.remote_posts_panel.restore_editing()
             return
 
         if not any(
             post.remote_id == remote_id
             for post in self._loaded_remote_posts
         ):
+            self.remote_posts_panel.restore_editing()
             return
 
         try:
@@ -517,9 +521,11 @@ class PostsPage(QWidget):
             self.remote_posts_panel.status_label.setText(
                 "Invalid WordPress post ID."
             )
+            self.remote_posts_panel.restore_editing()
             return
 
         if post_id <= 0 or not content.strip():
+            self.remote_posts_panel.restore_editing()
             return
 
         self._remote_post_updating_account = account
@@ -527,6 +533,7 @@ class PostsPage(QWidget):
 
         self.remote_posts_panel.save_button.setEnabled(False)
         self.remote_posts_panel.content_editor.setEnabled(False)
+        self.remote_posts_panel.tags_editor.setEnabled(False)
         self.remote_posts_panel.status_label.setText(
             "Saving WordPress post..."
         )
@@ -543,6 +550,8 @@ class PostsPage(QWidget):
         controller.start(**update_kwargs)
 
 
+
+
     def _handle_remote_post_save_with_tags(
         self,
         remote_id: str,
@@ -557,6 +566,7 @@ class PostsPage(QWidget):
             self.remote_posts_panel.status_label.setText(
                 "WordPress tag IDs must be positive integers."
             )
+            self.remote_posts_panel.restore_editing()
             return
 
         self._handle_remote_post_save(
