@@ -182,6 +182,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
         application_password: str,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> int:
         """Update an existing WordPress post and return its HTTP status."""
 
@@ -207,7 +208,22 @@ class UrllibWordPressPostClient(WordPressPostClient):
             credentials.encode("utf-8")
         ).decode("ascii")
 
-        payload = json.dumps({"content": content}).encode("utf-8")
+
+        body = {"content": content}
+
+        if tags is not None:
+            if not isinstance(tags, tuple) or any(
+                type(tag_id) is not int or tag_id <= 0
+                for tag_id in tags
+            ):
+                raise ValueError(
+                    "WordPress tag IDs must be positive integers."
+                )
+
+            body["tags"] = list(tags)
+
+        payload = json.dumps(body).encode("utf-8")
+
 
         request = Request(
             endpoint,

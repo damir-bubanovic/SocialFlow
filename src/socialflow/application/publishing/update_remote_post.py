@@ -1,3 +1,4 @@
+
 from socialflow.application.publishing.remote_post_updater import (
     RemotePostUpdater,
 )
@@ -18,10 +19,16 @@ class UpdateRemotePost:
         account: Account,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> None:
-        """Update the specified remote post."""
-        self._updater.update_post(
-            account=account,
-            post_id=post_id,
-            content=content,
-        )
+        """Update remote post content and optionally its tags."""
+        update_kwargs = {
+            "account": account,
+            "post_id": post_id,
+            "content": content,
+        }
+
+        if tags is not None:
+            update_kwargs["tags"] = tags
+
+        self._updater.update_post(**update_kwargs)

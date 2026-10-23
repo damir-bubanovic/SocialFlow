@@ -180,3 +180,75 @@ def test_rejects_unsuccessful_http_status(status):
 
     client.update_post.assert_called_once()
     store.get.assert_called_once()
+
+
+def test_updates_existing_post_tags():
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+    )
+
+
+def test_removes_all_existing_post_tags():
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(),
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        tags=(),
+    )
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        (0,),
+        (-1,),
+        (True,),
+        ("12",),
+        (12.5,),
+        (None,),
+        [12],
+    ],
+)
+def test_rejects_invalid_existing_post_tags(tags):
+    updater, client, store = make_updater()
+
+    with pytest.raises(
+        ValueError,
+        match="WordPress tag IDs must be positive integers",
+    ):
+        updater.update_post(
+            account=make_account(),
+            post_id=123,
+            content="Updated content",
+            tags=tags,
+        )
+
+    client.update_post.assert_not_called()
+    store.get.assert_not_called()

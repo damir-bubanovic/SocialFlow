@@ -32,23 +32,31 @@ class RemotePostUpdatingController(QObject):
     def is_running(self) -> bool:
         return self._thread is not None
 
+
     def start(
         self,
         account: Account,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> None:
         """Start updating an existing remote post."""
         if self._shutting_down or self.is_running:
             return
 
         thread = QThread()
-        worker = RemotePostUpdatingWorker(
-            update_remote_post=self._update_remote_post,
-            account=account,
-            post_id=post_id,
-            content=content,
-        )
+
+        worker_kwargs = {
+            "update_remote_post": self._update_remote_post,
+            "account": account,
+            "post_id": post_id,
+            "content": content,
+        }
+
+        if tags is not None:
+            worker_kwargs["tags"] = tags
+
+        worker = RemotePostUpdatingWorker(**worker_kwargs)
 
         worker.moveToThread(thread)
 
@@ -67,6 +75,7 @@ class RemotePostUpdatingController(QObject):
         thread.finished.connect(self._on_thread_finished)
 
         thread.start()
+
 
     def _on_thread_finished(self) -> None:
         """Release references after the worker thread stops."""

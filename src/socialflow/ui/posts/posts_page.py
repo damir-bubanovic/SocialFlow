@@ -228,6 +228,9 @@ class PostsPage(QWidget):
         self.remote_posts_panel.save_requested.connect(
             self._handle_remote_post_save
         )
+        self.remote_posts_panel.save_with_tags_requested.connect(
+            self._handle_remote_post_save_with_tags
+        )
 
         layout = QVBoxLayout()
         layout.addWidget(self.new_post_button)
@@ -472,9 +475,10 @@ class PostsPage(QWidget):
         self._start_remote_post_loading()
 
     def _handle_remote_post_save(
-        self,
-        remote_id: str,
-        content: str,
+            self,
+            remote_id: str,
+            content: str,
+            tags: tuple[int, ...] | None = None,
     ) -> None:
         """Save an existing WordPress post asynchronously."""
         controller = self._remote_post_updating_controller
@@ -527,11 +531,40 @@ class PostsPage(QWidget):
             "Saving WordPress post..."
         )
 
-        controller.start(
-            account=account,
-            post_id=post_id,
-            content=content,
+        update_kwargs = {
+            "account": account,
+            "post_id": post_id,
+            "content": content,
+        }
+
+        if tags is not None:
+            update_kwargs["tags"] = tags
+
+        controller.start(**update_kwargs)
+
+
+    def _handle_remote_post_save_with_tags(
+        self,
+        remote_id: str,
+        content: str,
+        tags: tuple[int, ...],
+    ) -> None:
+        """Forward a tag-aware remote-post update."""
+        if not isinstance(tags, tuple) or any(
+            type(tag_id) is not int or tag_id <= 0
+            for tag_id in tags
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "WordPress tag IDs must be positive integers."
+            )
+            return
+
+        self._handle_remote_post_save(
+            remote_id,
+            content,
+            tags=tags,
         )
+
 
     def _on_remote_post_updated(self) -> None:
         """Record a successful update."""

@@ -1,3 +1,4 @@
+
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -15,3 +16,4 @@ class RemotePost:
     content: str
     published_at: datetime
     status: str
+    tag_ids: tuple[int, ...] = ()

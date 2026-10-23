@@ -44,3 +44,43 @@ def test_update_remote_post_propagates_updater_errors():
         )
 
     updater.update_post.assert_called_once()
+
+
+def test_update_remote_post_forwards_tag_ids():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+    )
+
+
+def test_update_remote_post_forwards_empty_tags():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(),
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(),
+    )

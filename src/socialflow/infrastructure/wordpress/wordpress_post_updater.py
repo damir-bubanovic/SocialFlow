@@ -27,11 +27,13 @@ class WordPressPostUpdater(RemotePostUpdater):
         self._client = client
         self._credential_store = credential_store
 
+
     def update_post(
         self,
         account: Account,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> None:
         if account.destination != PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -49,6 +51,15 @@ class WordPressPostUpdater(RemotePostUpdater):
         if not isinstance(content, str) or not content.strip():
             raise ValueError("WordPress post content is required.")
 
+        if tags is not None:
+            if not isinstance(tags, tuple) or any(
+                type(tag_id) is not int or tag_id <= 0
+                for tag_id in tags
+            ):
+                raise ValueError(
+                    "WordPress tag IDs must be positive integers."
+                )
+
         config = config.normalized()
 
         credential_key = WordPressCredentialKeys.application_password(
@@ -64,13 +75,18 @@ class WordPressPostUpdater(RemotePostUpdater):
                 "WordPress application password is missing."
             )
 
-        status = self._client.update_post(
-            site_url=config.site_url,
-            username=config.username,
-            application_password=application_password,
-            post_id=post_id,
-            content=content,
-        )
+        update_kwargs = {
+            "site_url": config.site_url,
+            "username": config.username,
+            "application_password": application_password,
+            "post_id": post_id,
+            "content": content,
+        }
+
+        if tags is not None:
+            update_kwargs["tags"] = tags
+
+        status = self._client.update_post(**update_kwargs)
 
         if status != 200:
             raise RuntimeError(

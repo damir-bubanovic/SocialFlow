@@ -748,3 +748,108 @@ def test_create_post_rejects_invalid_tag_ids(tags):
             )
 
         build_opener.assert_not_called()
+
+
+def test_update_post_includes_wordpress_tag_ids():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            tags=(12, 34),
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts/123"
+    )
+    assert request.get_method() == "POST"
+
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "tags": [12, 34],
+    }
+
+
+def test_update_post_can_remove_all_tags():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            tags=(),
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "tags": [],
+    }
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        (0,),
+        (-1,),
+        (True,),
+        ("12",),
+        (12.5,),
+        (None,),
+        [12],
+    ],
+)
+def test_update_post_rejects_invalid_tag_ids(tags):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress tag IDs must be positive integers",
+        ):
+            client.update_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=123,
+                content="Updated content",
+                tags=cast(tuple[int, ...], tags),
+            )
+
+        build_opener.assert_not_called()

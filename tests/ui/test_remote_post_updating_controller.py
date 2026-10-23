@@ -416,3 +416,83 @@ def test_controller_reports_error_before_completion(qtbot):
 
     finally:
         controller.shutdown()
+
+
+def test_controller_forwards_tag_ids(qtbot):
+    """The controller forwards tag IDs to the update worker."""
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                tags=(12, 34),
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            tags=(12, 34),
+        )
+
+        assert controller._worker is None
+        assert controller._thread is None
+
+    finally:
+        controller.shutdown()
+
+
+def test_controller_forwards_empty_tags(qtbot):
+    """An empty tag tuple removes all tags from the remote post."""
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                tags=(),
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            tags=(),
+        )
+
+        assert controller._worker is None
+        assert controller._thread is None
+
+    finally:
+        controller.shutdown()

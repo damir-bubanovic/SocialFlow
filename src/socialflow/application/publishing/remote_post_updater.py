@@ -12,5 +12,6 @@ class RemotePostUpdater(ABC):
         account: Account,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> None:
-        """Update an existing remote post."""
+        """Update remote post content and optionally replace its tags."""

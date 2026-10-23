@@ -1,3 +1,4 @@
+
 from PySide6.QtCore import QObject, Signal, Slot
 
 from socialflow.application.publishing.update_remote_post import (
@@ -19,6 +20,7 @@ class RemotePostUpdatingWorker(QObject):
         account: Account,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> None:
         super().__init__()
 
@@ -26,16 +28,22 @@ class RemotePostUpdatingWorker(QObject):
         self._account = account
         self._post_id = post_id
         self._content = content
+        self._tags = tags
 
     @Slot()
     def run(self) -> None:
         """Report the update outcome and always signal completion."""
         try:
-            self._update_remote_post.execute(
-                account=self._account,
-                post_id=self._post_id,
-                content=self._content,
-            )
+            update_kwargs = {
+                "account": self._account,
+                "post_id": self._post_id,
+                "content": self._content,
+            }
+
+            if self._tags is not None:
+                update_kwargs["tags"] = self._tags
+
+            self._update_remote_post.execute(**update_kwargs)
         except Exception as error:
             self.failed.emit(str(error))
         else:

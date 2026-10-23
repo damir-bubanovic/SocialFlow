@@ -114,6 +114,7 @@ def test_rejects_missing_wordpress_application_password():
 
     retriever.list_recent_posts.assert_not_called()
 
+
 def test_converts_wordpress_posts_to_remote_posts():
     from datetime import datetime
 
@@ -141,6 +142,7 @@ def test_converts_wordpress_posts_to_remote_posts():
             content="<p>Hello WordPress</p>",
             published_at=datetime(2026, 10, 14, 10, 30),
             status="publish",
+            tag_ids=(12, 34),
         ),
     )
 
@@ -161,6 +163,7 @@ def test_converts_wordpress_posts_to_remote_posts():
             content="<p>Hello WordPress</p>",
             published_at=datetime(2026, 10, 14, 10, 30),
             status="publish",
+            tag_ids=(12, 34),
         ),
     )
 

@@ -107,3 +107,51 @@ def test_remote_post_updating_worker_emits_error_and_finished(qtbot):
         worker.run()
 
     assert errors == ["WordPress update failed"]
+
+
+def test_worker_forwards_tag_ids(qtbot):
+    """Forward tag IDs when updating an existing remote post."""
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+    )
+
+
+def test_worker_forwards_empty_tags(qtbot):
+    """An empty tag tuple explicitly clears existing tags."""
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(),
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(),
+    )

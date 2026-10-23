@@ -295,3 +295,61 @@ def test_remote_post_save_ignored_while_update_running():
     page.remote_posts_panel.save_button.setEnabled.assert_not_called()
     page.remote_posts_panel.content_editor.setEnabled.assert_not_called()
     page.remote_posts_panel.status_label.setText.assert_not_called()
+
+
+def test_remote_post_save_with_tags_starts_tag_aware_update():
+    """Tag-aware saving forwards the selected post and tag IDs."""
+    page = Mock()
+
+    controller = Mock()
+    controller.is_running = False
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = False
+
+    account = Mock()
+    account.destination = PublishingDestination.WORDPRESS
+
+    page.post_editor.selected_accounts.return_value = (account,)
+    page._loaded_remote_posts = (Mock(remote_id="42"),)
+    page._loaded_remote_posts_account = account
+    page.remote_posts_panel = Mock()
+
+    # Bind the real save handler for this isolated test.
+    page._handle_remote_post_save = (
+        lambda remote_id, content, tags=None:
+        PostsPage._handle_remote_post_save(
+            page, remote_id, content, tags
+        )
+    )
+
+    PostsPage._handle_remote_post_save_with_tags(
+        page,
+        "42",
+        "Updated WordPress content",
+        (12, 34),
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated WordPress content",
+        tags=(12, 34),
+    )
+
+
+def test_remote_post_save_with_tags_rejects_invalid_ids():
+    """Invalid tag IDs never reach the update controller."""
+    page = Mock()
+    page.remote_posts_panel = Mock()
+
+    PostsPage._handle_remote_post_save_with_tags(
+        page,
+        "42",
+        "Updated WordPress content",
+        (0, 34),
+    )
+
+    page._handle_remote_post_save.assert_not_called()
+    page.remote_posts_panel.status_label.setText.assert_called_once_with(
+        "WordPress tag IDs must be positive integers."
+    )

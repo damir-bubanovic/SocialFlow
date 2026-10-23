@@ -30,6 +30,7 @@ class WordPressPostClient(ABC):
     ) -> int:
         """Return the HTTP status code from the create-post request."""
 
+
     @abstractmethod
     def update_post(
         self,
@@ -38,8 +39,10 @@ class WordPressPostClient(ABC):
         application_password: str,
         post_id: int,
         content: str,
+        tags: tuple[int, ...] | None = None,
     ) -> int:
-        """Return the HTTP status code from updating an existing post."""
+        """Update a post; optionally replace its assigned tag IDs."""
+
 
     @abstractmethod
     def upload_media(
