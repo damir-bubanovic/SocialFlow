@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID
+from PySide6.QtWidgets import QCheckBox
 
 from PySide6.QtWidgets import QWidget
 from socialflow.domain.post.image_attachment import ImageAttachment
@@ -41,7 +42,6 @@ from unittest.mock import Mock
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.application.tags.list_remote_tags import ListRemoteTags
 from socialflow.domain.post.remote_tag import RemoteTag
-
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -2870,11 +2870,14 @@ def _create_featured_media_test_page(qtbot):
     )
     qtbot.addWidget(page)
 
-    # Set up the same account/post state normally established
-    # after the remote-post loading worker finishes.
-    page.post_editor.destination_selector._checkboxes[0].setChecked(
-        True
-    )
+    # Select the WordPress destination using Qt's public widget API.
+    selector = page.post_editor.destination_selector
+    checkboxes = selector.findChildren(QCheckBox)
+
+    assert len(checkboxes) == 1
+    checkboxes[0].setChecked(True)
+
+    # Simulate the state after remote posts have finished loading.
     page._loaded_remote_posts_account = account
     page._loaded_remote_posts = (remote_post,)
 
