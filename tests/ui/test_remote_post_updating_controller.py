@@ -243,7 +243,7 @@ def test_failed_update_does_not_emit_post_updated(qtbot):
     finally:
         controller.shutdown()
 
-def test_shutdown_waits_for_active_remote_post_update(qtbot):
+def test_shutdown_waits_for_active_remote_post_update():
     """Shutdown must wait until an active update has finished."""
     import threading
 
@@ -494,5 +494,39 @@ def test_controller_forwards_empty_tags(qtbot):
         assert controller._worker is None
         assert controller._thread is None
 
+    finally:
+        controller.shutdown()
+
+def test_controller_forwards_featured_media_id(qtbot):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                featured_media_id=456,
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            featured_media_id=456,
+        )
     finally:
         controller.shutdown()

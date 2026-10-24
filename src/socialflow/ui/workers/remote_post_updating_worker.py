@@ -15,12 +15,13 @@ class RemotePostUpdatingWorker(QObject):
     failed = Signal(str)
 
     def __init__(
-        self,
-        update_remote_post: UpdateRemotePost,
-        account: Account,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            update_remote_post: UpdateRemotePost,
+            account: Account,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> None:
         super().__init__()
 
@@ -29,6 +30,7 @@ class RemotePostUpdatingWorker(QObject):
         self._post_id = post_id
         self._content = content
         self._tags = tags
+        self._featured_media_id = featured_media_id
 
     @Slot()
     def run(self) -> None:
@@ -42,6 +44,11 @@ class RemotePostUpdatingWorker(QObject):
 
             if self._tags is not None:
                 update_kwargs["tags"] = self._tags
+
+            if self._featured_media_id is not None:
+                update_kwargs["featured_media_id"] = (
+                    self._featured_media_id
+                )
 
             self._update_remote_post.execute(**update_kwargs)
         except Exception as error:

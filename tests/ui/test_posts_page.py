@@ -2834,3 +2834,134 @@ def test_switching_wordpress_accounts_clears_visible_remote_tag_names(
     finally:
         release_second.set()
         page.shutdown()
+
+
+def _create_featured_media_test_page(qtbot):
+    """Build a PostsPage with one loaded WordPress post."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository = InMemoryAccountRepository()
+    repository.add(account)
+
+    remote_post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    update_remote_post = Mock()
+
+    page = PostsPage(
+        publish_post=PublishPost(
+            publisher_router=PublisherRouter({}),
+            publication_id_generator=create_publication_id_generator(),
+        ),
+        list_accounts=ListAccounts(repository),
+        list_tags=ListTags(NullTagProvider()),
+        create_tag=CreateTag(NullTagProvider()),
+        list_recent_publications=create_list_recent_publications(),
+        update_remote_post=update_remote_post,
+    )
+    qtbot.addWidget(page)
+
+    # Set up the same account/post state normally established
+    # after the remote-post loading worker finishes.
+    page.post_editor.destination_selector._checkboxes[0].setChecked(
+        True
+    )
+    page._loaded_remote_posts_account = account
+    page._loaded_remote_posts = (remote_post,)
+
+    page.remote_posts_panel.show_posts((remote_post,))
+    page.remote_posts_panel.posts_list.setCurrentRow(0)
+
+    return page, account, update_remote_post
+
+
+def test_posts_page_assigns_featured_media(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        panel = page.remote_posts_panel
+
+        panel.featured_media_checkbox.setChecked(True)
+        panel.featured_media_input.setValue(789)
+
+        assert panel.save_button.isEnabled()
+
+        with qtbot.waitSignal(
+            page._remote_post_updating_controller.post_updated,
+            timeout=5000,
+        ):
+            panel.save_button.click()
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Original content",
+            featured_media_id=789,
+        )
+    finally:
+        page.shutdown()
+
+
+def test_posts_page_removes_featured_media(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        panel = page.remote_posts_panel
+
+        panel.featured_media_checkbox.setChecked(True)
+        panel.featured_media_input.setValue(0)
+
+        assert panel.save_button.isEnabled()
+
+        with qtbot.waitSignal(
+            page._remote_post_updating_controller.post_updated,
+            timeout=5000,
+        ):
+            panel.save_button.click()
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Original content",
+            featured_media_id=0,
+        )
+    finally:
+        page.shutdown()
+
+
+def test_posts_page_rejects_invalid_featured_media_id(qtbot):
+    page, _, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        page._handle_remote_post_save_with_media(
+            remote_id="123",
+            content="Original content",
+            tags=None,
+            featured_media_id=-1,
+        )
+
+        update_remote_post.execute.assert_not_called()
+
+        assert (
+            "non-negative integer"
+            in page.remote_posts_panel.status_label.text()
+        )
+
+        assert page.remote_posts_panel.content_editor.isEnabled()
+    finally:
+        page.shutdown()

@@ -155,3 +155,25 @@ def test_worker_forwards_empty_tags(qtbot):
         content="Updated content",
         tags=(),
     )
+
+def test_worker_forwards_featured_media_id(qtbot):
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=456,
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        featured_media_id=456,
+    )

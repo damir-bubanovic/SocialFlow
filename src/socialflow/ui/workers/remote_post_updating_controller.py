@@ -32,13 +32,13 @@ class RemotePostUpdatingController(QObject):
     def is_running(self) -> bool:
         return self._thread is not None
 
-
     def start(
-        self,
-        account: Account,
-        post_id: int,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            account: Account,
+            post_id: int,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> None:
         """Start updating an existing remote post."""
         if self._shutting_down or self.is_running:
@@ -55,6 +55,9 @@ class RemotePostUpdatingController(QObject):
 
         if tags is not None:
             worker_kwargs["tags"] = tags
+
+        if featured_media_id is not None:
+            worker_kwargs["featured_media_id"] = featured_media_id
 
         worker = RemotePostUpdatingWorker(**worker_kwargs)
 

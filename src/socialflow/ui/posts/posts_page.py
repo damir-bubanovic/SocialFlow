@@ -268,6 +268,9 @@ class PostsPage(QWidget):
         self.remote_posts_panel.save_with_tags_requested.connect(
             self._handle_remote_post_save_with_tags
         )
+        self.remote_posts_panel.save_with_media_requested.connect(
+            self._handle_remote_post_save_with_media
+        )
 
         layout = QVBoxLayout()
         layout.addWidget(self.new_post_button)
@@ -613,20 +616,20 @@ class PostsPage(QWidget):
         self._remote_post_loading_account = None
         self._start_remote_post_loading()
 
-
     def _handle_remote_post_save(
-        self,
-        remote_id: str,
-        content: str,
-        tags: tuple[int, ...] | None = None,
+            self,
+            remote_id: str,
+            content: str,
+            tags: tuple[int, ...] | None = None,
+            featured_media_id: int | None = None,
     ) -> None:
         """Save an existing WordPress post asynchronously."""
         controller = self._remote_post_updating_controller
 
         if (
-            controller is None
-            or self._remote_post_updating_shutting_down
-            or controller.is_running
+                controller is None
+                or self._remote_post_updating_shutting_down
+                or controller.is_running
         ):
             self.remote_posts_panel.restore_editing()
             return
@@ -641,15 +644,15 @@ class PostsPage(QWidget):
         )
 
         if (
-            account is None
-            or account != self._loaded_remote_posts_account
+                account is None
+                or account != self._loaded_remote_posts_account
         ):
             self.remote_posts_panel.restore_editing()
             return
 
         if not any(
-            post.remote_id == remote_id
-            for post in self._loaded_remote_posts
+                post.remote_id == remote_id
+                for post in self._loaded_remote_posts
         ):
             self.remote_posts_panel.restore_editing()
             return
@@ -672,7 +675,11 @@ class PostsPage(QWidget):
 
         self.remote_posts_panel.save_button.setEnabled(False)
         self.remote_posts_panel.content_editor.setEnabled(False)
-        self.remote_posts_panel.tags_editor.setEnabled(False)
+        self.remote_posts_panel.remote_tag_selector.tags_list.setEnabled(
+            False
+        )
+        self.remote_posts_panel.featured_media_checkbox.setEnabled(False)
+        self.remote_posts_panel.featured_media_input.setEnabled(False)
         self.remote_posts_panel.status_label.setText(
             "Saving WordPress post..."
         )
@@ -685,6 +692,9 @@ class PostsPage(QWidget):
 
         if tags is not None:
             update_kwargs["tags"] = tags
+
+        if featured_media_id is not None:
+            update_kwargs["featured_media_id"] = featured_media_id
 
         controller.start(**update_kwargs)
 
@@ -714,6 +724,44 @@ class PostsPage(QWidget):
             tags=tags,
         )
 
+    def _handle_remote_post_save_with_media(
+        self,
+        remote_id: str,
+        content: str,
+        tags: tuple[int, ...] | None,
+        featured_media_id: int,
+    ) -> None:
+        """Forward a remote-post update involving featured media."""
+        if tags is not None and (
+            not isinstance(tags, tuple)
+            or any(
+                type(tag_id) is not int or tag_id <= 0
+                for tag_id in tags
+            )
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "WordPress tag IDs must be positive integers."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        if (
+            type(featured_media_id) is not int
+            or featured_media_id < 0
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "WordPress featured media ID must be "
+                "a non-negative integer."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        self._handle_remote_post_save(
+            remote_id,
+            content,
+            tags=tags,
+            featured_media_id=featured_media_id,
+        )
 
     def _on_remote_post_updated(self) -> None:
         """Record a successful update."""

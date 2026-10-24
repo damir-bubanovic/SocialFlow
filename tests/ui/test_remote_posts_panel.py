@@ -135,3 +135,92 @@ def test_panel_updates_unknown_tag_name_after_loading(qtbot) -> None:
         "Announcements"
     )
 
+
+def test_panel_loads_existing_featured_media_id(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.featured_media_checkbox.isChecked()
+    assert not panel.featured_media_input.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_panel_requests_featured_media_update(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(789)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        789,
+    ]
+
+
+def test_panel_requests_featured_media_removal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(0)
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        0,
+    ]
