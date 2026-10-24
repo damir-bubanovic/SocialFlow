@@ -1,5 +1,11 @@
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QPixmap
+from PySide6.QtNetwork import (
+    QNetworkAccessManager,
+    QNetworkReply,
+    QNetworkRequest,
+)
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -23,12 +29,25 @@ class RemoteMediaSelectionDialog(QDialog):
         super().__init__(parent)
 
         self._media: tuple[RemoteMedia, ...] = ()
+        self._network_manager = QNetworkAccessManager(self)
+        self._thumbnail_reply: QNetworkReply | None = None
+        self._thumbnail_request_id = 0
 
         self.setWindowTitle("Select WordPress featured image")
         self.resize(540, 420)
 
         self.status_label = QLabel(self)
         self.media_list = QListWidget(self)
+
+        self.details_label = QLabel(self)
+        self.details_label.setWordWrap(True)
+        self.details_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.preview_label = QLabel("No preview available.", self)
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setMinimumHeight(160)
+        self.preview_label.setMaximumHeight(220)
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -45,6 +64,8 @@ class RemoteMediaSelectionDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(self.status_label)
         layout.addWidget(self.media_list)
+        layout.addWidget(self.preview_label)
+        layout.addWidget(self.details_label)
         layout.addWidget(self.button_box)
 
         self.media_list.currentRowChanged.connect(
@@ -62,10 +83,14 @@ class RemoteMediaSelectionDialog(QDialog):
 
     def _clear_media(self) -> None:
         """Clear existing media and disable selection."""
+        self._cancel_thumbnail_request()
+        self.preview_label.clear()
+        self.preview_label.setText("No preview available.")
         self._media = ()
         self.media_list.clear()
         self.media_list.setEnabled(False)
         self.select_button.setEnabled(False)
+        self.details_label.setText("No image selected.")
 
     def show_loading(self) -> None:
         """Display the loading state."""
@@ -130,13 +155,114 @@ class RemoteMediaSelectionDialog(QDialog):
         return media.remote_id if media is not None else None
 
     def _update_selection(self, row: int) -> None:
-        """Enable confirmation only for a valid selection."""
-        self.select_button.setEnabled(
-            self.media_list.isEnabled()
-            and 0 <= row < len(self._media)
+        """Update confirmation state, details, and preview."""
+        valid_selection = (
+                self.media_list.isEnabled()
+                and 0 <= row < len(self._media)
         )
+
+        self.select_button.setEnabled(valid_selection)
+
+        if not valid_selection:
+            self._cancel_thumbnail_request()
+            self.preview_label.clear()
+            self.preview_label.setText("No preview available.")
+            self.details_label.setText("No image selected.")
+            return
+
+        media = self._media[row]
+        title = media.title.strip() or "Untitled image"
+
+        self.details_label.setText(
+            f"Title: {title}\n"
+            f"Media ID: {media.remote_id}\n"
+            f"URL: {media.source_url}"
+        )
+
+        self._load_thumbnail(media)
 
     def _accept_selected(self, *_args: object) -> None:
         """Accept the dialog only when an image is selected."""
         if self.selected_media() is not None:
             self.accept()
+
+    def done(self, result: int) -> None:
+        """Cancel pending thumbnail downloads before closing."""
+        self._cancel_thumbnail_request()
+        super().done(result)
+
+    def _cancel_thumbnail_request(self) -> None:
+        """Invalidate and cancel any previous thumbnail download."""
+        self._thumbnail_request_id += 1
+
+        reply = self._thumbnail_reply
+        self._thumbnail_reply = None
+
+        if reply is not None:
+            reply.abort()
+            reply.deleteLater()
+
+    def _load_thumbnail(self, media: RemoteMedia) -> None:
+        """Start loading a preview without blocking the UI."""
+        self._cancel_thumbnail_request()
+
+        url = media.thumbnail_url or media.source_url
+
+        if not url:
+            self.preview_label.setText("No preview available.")
+            return
+
+        self.preview_label.clear()
+        self.preview_label.setText("Loading preview...")
+
+        request_id = self._thumbnail_request_id
+        request = QNetworkRequest(QUrl(url))
+        reply = self._network_manager.get(request)
+        self._thumbnail_reply = reply
+
+        reply.finished.connect(
+            lambda: self._on_thumbnail_finished(
+                reply,
+                request_id,
+                media.remote_id,
+            )
+        )
+
+    def _on_thumbnail_finished(
+            self,
+            reply: QNetworkReply,
+            request_id: int,
+            media_id: int,
+    ) -> None:
+        """Show a thumbnail only if its selection is still current."""
+        if request_id != self._thumbnail_request_id:
+            reply.deleteLater()
+            return
+
+        self._thumbnail_reply = None
+
+        selected = self.selected_media()
+
+        if selected is None or selected.remote_id != media_id:
+            reply.deleteLater()
+            return
+
+        if reply.error() != QNetworkReply.NetworkError.NoError:
+            self.preview_label.setText("Preview unavailable.")
+            reply.deleteLater()
+            return
+
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(reply.readAll()):
+            self.preview_label.setText("Preview unavailable.")
+            reply.deleteLater()
+            return
+
+        scaled = pixmap.scaled(
+            300,
+            200,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self.preview_label.setPixmap(scaled)
+        reply.deleteLater()
