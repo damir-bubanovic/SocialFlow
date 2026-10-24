@@ -317,3 +317,70 @@ def test_applying_invalid_media_id_is_rejected(qtbot, media_id):
     assert panel.featured_media_input.value() == 456
     assert not panel.featured_media_checkbox.isChecked()
     assert not panel.save_button.isEnabled()
+
+def test_content_only_save_omits_unchanged_featured_media(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(456)
+    panel.content_editor.setPlainText("Updated content")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+    ]
+
+
+def test_failed_save_preserves_featured_media_change(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.apply_selected_media(789)
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ):
+        panel.save_button.click()
+
+    assert not panel.save_button.isEnabled()
+
+    panel.restore_editing()
+
+    assert panel.featured_media_checkbox.isChecked()
+    assert panel.featured_media_input.value() == 789
+    assert panel.featured_media_input.isEnabled()
+    assert panel.save_button.isEnabled()

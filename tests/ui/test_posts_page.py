@@ -2965,6 +2965,50 @@ def test_posts_page_removes_featured_media(qtbot):
     finally:
         page.shutdown()
 
+def test_posts_page_preserves_featured_media_after_update_error(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    update_remote_post.execute.side_effect = RuntimeError(
+        "WordPress update failed"
+    )
+
+    try:
+        panel = page.remote_posts_panel
+
+        panel.featured_media_checkbox.setChecked(True)
+        panel.featured_media_input.setValue(789)
+
+        assert panel.save_button.isEnabled()
+
+        with qtbot.waitSignal(
+            page._remote_post_updating_controller.error_occurred,
+            timeout=5000,
+        ):
+            panel.save_button.click()
+
+        assert panel.featured_media_checkbox.isChecked()
+        assert panel.featured_media_input.value() == 789
+
+        assert panel.content_editor.isEnabled()
+        assert panel.featured_media_checkbox.isEnabled()
+        assert panel.featured_media_input.isEnabled()
+        assert panel.save_button.isEnabled()
+
+        assert (
+            "WordPress update failed"
+            in panel.status_label.text()
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Original content",
+            featured_media_id=789,
+        )
+    finally:
+        page.shutdown()
 
 def test_posts_page_rejects_invalid_featured_media_id(qtbot):
     page, _, update_remote_post = (
