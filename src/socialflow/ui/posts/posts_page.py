@@ -59,6 +59,16 @@ from socialflow.domain.post.remote_tag import RemoteTag
 from socialflow.ui.workers.remote_tag_loading_controller import (
     RemoteTagLoadingController,
 )
+from socialflow.application.publishing.list_remote_media import (
+    ListRemoteMedia,
+)
+from socialflow.ui.posts.remote_media_selection_dialog import (
+    RemoteMediaSelectionDialog,
+)
+from socialflow.ui.workers.remote_media_loading_controller import (
+    RemoteMediaLoadingController,
+)
+
 
 
 
@@ -79,8 +89,34 @@ class PostsPage(QWidget):
         list_remote_tags: ListRemoteTags | None = None,
         wordpress_tag_preparation_controller: WordPressTagPreparationController | None = None,
         wordpress_tag_creation_controller: WordPressTagCreationController | None = None,
+        list_remote_media: ListRemoteMedia | None = None,
     ) -> None:
         super().__init__(parent)
+
+        self._remote_media_loading_controller = (
+            RemoteMediaLoadingController(
+                list_remote_media=list_remote_media,
+                parent=self,
+            )
+            if list_remote_media is not None
+            else None
+        )
+
+        self._remote_media_dialog: RemoteMediaSelectionDialog | None = None
+        self._remote_media_loading_account: Account | None = None
+        self._remote_media_selected_post_id: str | None = None
+        self._remote_media_loading_shutting_down = False
+
+        if self._remote_media_loading_controller is not None:
+            self._remote_media_loading_controller.media_ready.connect(
+                self._on_remote_media_loaded
+            )
+            self._remote_media_loading_controller.error_occurred.connect(
+                self._on_remote_media_error
+            )
+            self._remote_media_loading_controller.finished.connect(
+                self._on_remote_media_loading_finished
+            )
 
         self._list_remote_tags = list_remote_tags
         self._remote_tag_loading_controller = (
@@ -270,6 +306,9 @@ class PostsPage(QWidget):
         )
         self.remote_posts_panel.save_with_media_requested.connect(
             self._handle_remote_post_save_with_media
+        )
+        self.remote_posts_panel.browse_media_requested.connect(
+            self._browse_remote_media
         )
 
         layout = QVBoxLayout()
@@ -615,6 +654,126 @@ class PostsPage(QWidget):
         """Process the latest request after worker thread cleanup."""
         self._remote_post_loading_account = None
         self._start_remote_post_loading()
+
+
+    def _browse_remote_media(self) -> None:
+        """Open the media picker and start loading WordPress images."""
+        controller = self._remote_media_loading_controller
+
+        if (
+            controller is None
+            or self._remote_media_loading_shutting_down
+            or controller.is_running
+            or self._remote_media_dialog is not None
+        ):
+            return
+
+        account = self._selected_wordpress_account()
+
+        if (
+            account is None
+            or account != self._loaded_remote_posts_account
+            or not self.remote_posts_panel.browse_media_button.isEnabled()
+        ):
+            return
+
+        dialog = RemoteMediaSelectionDialog(self)
+        dialog.show_loading()
+
+        self._remote_media_dialog = dialog
+        self._remote_media_loading_account = account
+
+        selected_row = self.remote_posts_panel.posts_list.currentRow()
+        self._remote_media_selected_post_id = (
+            self._loaded_remote_posts[selected_row].remote_id
+            if 0 <= selected_row < len(self._loaded_remote_posts)
+            else None
+        )
+
+        dialog.finished.connect(self._on_remote_media_dialog_finished)
+
+        dialog.open()
+        controller.start(account=account)
+
+    def _is_current_remote_media_account(self) -> bool:
+        """Check that the picker still belongs to the selected account."""
+        return (
+            not self._remote_media_loading_shutting_down
+            and self._remote_media_dialog is not None
+            and self._remote_media_loading_account is not None
+            and self._remote_media_loading_account
+            == self._loaded_remote_posts_account
+            and self._remote_media_loading_account
+            == self._selected_wordpress_account()
+        )
+
+    def _on_remote_media_loaded(self, media: tuple) -> None:
+        """Display retrieved images in the active picker."""
+        if not self._is_current_remote_media_account():
+            return
+
+        dialog = self._remote_media_dialog
+        if dialog is not None:
+            dialog.show_media(media)
+
+    def _on_remote_media_error(self, message: str) -> None:
+        """Display a media retrieval error in the picker."""
+        if not self._is_current_remote_media_account():
+            return
+
+        dialog = self._remote_media_dialog
+        if dialog is not None:
+            dialog.show_error(message)
+
+    def _on_remote_media_loading_finished(self) -> None:
+        """Retain the request account while its dialog is open."""
+        if self._remote_media_dialog is None:
+            self._remote_media_loading_account = None
+
+    def _on_remote_media_dialog_finished(self, result: int) -> None:
+        """Apply media only to the post that opened the picker."""
+        dialog = self._remote_media_dialog
+        if dialog is None:
+            return
+
+        selected_row = self.remote_posts_panel.posts_list.currentRow()
+
+        current_post_id = (
+            self._loaded_remote_posts[selected_row].remote_id
+            if 0 <= selected_row < len(self._loaded_remote_posts)
+            else None
+        )
+
+        selection_is_current = (
+                not self._remote_media_loading_shutting_down
+                and self._remote_media_loading_account is not None
+                and self._remote_media_loading_account
+                == self._loaded_remote_posts_account
+                and self._remote_media_loading_account
+                == self._selected_wordpress_account()
+                and self._remote_media_selected_post_id is not None
+                and self._remote_media_selected_post_id == current_post_id
+        )
+
+        media_id = (
+            dialog.selected_media_id()
+            if result == QDialog.DialogCode.Accepted
+            else None
+        )
+
+        self._remote_media_dialog = None
+        self._remote_media_loading_account = None
+        self._remote_media_selected_post_id = None
+
+        if (
+                media_id is not None
+                and selection_is_current
+                and self.remote_posts_panel.browse_media_button.isEnabled()
+        ):
+            self.remote_posts_panel.apply_selected_media(media_id)
+
+        dialog.deleteLater()
+
 
     def _handle_remote_post_save(
             self,
@@ -1205,7 +1364,6 @@ class PostsPage(QWidget):
         """Restore publishing controls after thread cleanup."""
         self.post_editor.publish_button.setEnabled(True)
 
-
     def shutdown(self) -> None:
         """Stop background operations without restarting queued work."""
         self._tag_loading_shutting_down = True
@@ -1214,6 +1372,11 @@ class PostsPage(QWidget):
         self._remote_post_loading_shutting_down = True
         self._remote_post_updating_shutting_down = True
         self._pending_remote_post_account = None
+
+        self._remote_media_loading_shutting_down = True
+
+        if self._remote_media_dialog is not None:
+            self._remote_media_dialog.reject()
 
         self._remote_tag_loading_shutting_down = True
         self._pending_remote_tag_account = None
@@ -1224,6 +1387,9 @@ class PostsPage(QWidget):
 
         if self._remote_tag_loading_controller is not None:
             self._remote_tag_loading_controller.shutdown()
+
+        if self._remote_media_loading_controller is not None:
+            self._remote_media_loading_controller.shutdown()
 
         if self._remote_post_loading_controller is not None:
             self._remote_post_loading_controller.shutdown()

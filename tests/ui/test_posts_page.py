@@ -3,6 +3,8 @@ from uuid import UUID
 from PySide6.QtWidgets import QCheckBox
 
 from PySide6.QtWidgets import QWidget
+
+from socialflow.domain.post.remote_media import RemoteMedia
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.application.accounts.account_repository import AccountRepository
 from socialflow.application.accounts.list_accounts import ListAccounts
@@ -42,6 +44,9 @@ from unittest.mock import Mock
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.application.tags.list_remote_tags import ListRemoteTags
 from socialflow.domain.post.remote_tag import RemoteTag
+from socialflow.ui.posts.remote_media_selection_dialog import (
+    RemoteMediaSelectionDialog,
+)
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -2886,6 +2891,22 @@ def _create_featured_media_test_page(qtbot):
 
     return page, account, update_remote_post
 
+def _open_test_media_dialog(page, account):
+    """Simulate an open picker for the currently selected post."""
+    dialog = RemoteMediaSelectionDialog(page)
+
+    page._remote_media_dialog = dialog
+    page._remote_media_loading_account = account
+    page._remote_media_loading_shutting_down = False
+
+    selected_row = page.remote_posts_panel.posts_list.currentRow()
+    page._remote_media_selected_post_id = (
+        page._loaded_remote_posts[selected_row].remote_id
+    )
+
+    dialog.finished.connect(page._on_remote_media_dialog_finished)
+
+    return dialog
 
 def test_posts_page_assigns_featured_media(qtbot):
     page, account, update_remote_post = (
@@ -2966,5 +2987,111 @@ def test_posts_page_rejects_invalid_featured_media_id(qtbot):
         )
 
         assert page.remote_posts_panel.content_editor.isEnabled()
+    finally:
+        page.shutdown()
+
+def test_media_dialog_does_not_apply_cancelled_selection(qtbot):
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    dialog = RemoteMediaSelectionDialog(page)
+    page._remote_media_dialog = dialog
+
+    dialog.finished.connect(page._on_remote_media_dialog_finished)
+
+    dialog.reject()
+
+    assert page._remote_media_dialog is None
+    assert not page.remote_posts_panel.featured_media_checkbox.isChecked()
+
+def test_media_selection_applies_selected_image(qtbot):
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    try:
+        dialog = _open_test_media_dialog(page, account)
+
+        media = RemoteMedia(
+            remote_id=789,
+            destination=PublishingDestination.WORDPRESS,
+            source_url="https://example.com/image.jpg",
+            title="Featured image",
+        )
+
+        page._on_remote_media_loaded((media,))
+
+        assert dialog.media_list.count() == 1
+
+        dialog.media_list.setCurrentRow(0)
+        dialog.accept()
+
+        assert page._remote_media_dialog is None
+        assert page.remote_posts_panel.featured_media_checkbox.isChecked()
+        assert page.remote_posts_panel.featured_media_input.value() == 789
+    finally:
+        page.shutdown()
+
+
+def test_media_selection_does_not_apply_to_different_post(qtbot):
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    try:
+        dialog = _open_test_media_dialog(page, account)
+
+        media = RemoteMedia(
+            remote_id=789,
+            destination=PublishingDestination.WORDPRESS,
+            source_url="https://example.com/image.jpg",
+            title="Featured image",
+        )
+
+        page._on_remote_media_loaded((media,))
+        dialog.media_list.setCurrentRow(0)
+
+        second_post = RemotePost(
+            remote_id="124",
+            destination=PublishingDestination.WORDPRESS,
+            content="Second post",
+            published_at=datetime(2026, 10, 16, 12, 0),
+            status="publish",
+            featured_media_id=555,
+        )
+
+        page._loaded_remote_posts = (
+            page._loaded_remote_posts[0],
+            second_post,
+        )
+
+        page.remote_posts_panel.show_posts(page._loaded_remote_posts)
+        page.remote_posts_panel.posts_list.setCurrentRow(1)
+
+        dialog.accept()
+
+        assert page._remote_media_dialog is None
+        assert page.remote_posts_panel.featured_media_input.value() == 555
+        assert not page.remote_posts_panel.featured_media_checkbox.isChecked()
+    finally:
+        page.shutdown()
+
+
+def test_media_loading_error_preserves_featured_image(qtbot):
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    try:
+        dialog = _open_test_media_dialog(page, account)
+
+        page._on_remote_media_error("HTTP 403")
+
+        assert (
+            "HTTP 403"
+            in dialog.status_label.text()
+        )
+        assert dialog.media_list.count() == 0
+        assert not dialog.select_button.isEnabled()
+
+        dialog.reject()
+
+        assert page._remote_media_dialog is None
+        assert page.remote_posts_panel.featured_media_input.value() == 456
+        assert not page.remote_posts_panel.featured_media_checkbox.isChecked()
     finally:
         page.shutdown()

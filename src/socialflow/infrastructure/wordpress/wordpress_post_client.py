@@ -20,6 +20,16 @@ class WordPressPostClient(ABC):
         """Retrieve recent WordPress posts, newest first."""
 
     @abstractmethod
+    def list_media(
+        self,
+        site_url: str,
+        username: str,
+        application_password: str,
+        limit: int = 50,
+    ) -> list[dict]:
+        """Retrieve recent WordPress media library items."""
+
+    @abstractmethod
     def create_post(
             self,
             site_url: str,

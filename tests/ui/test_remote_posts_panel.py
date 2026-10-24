@@ -1,4 +1,5 @@
 from datetime import datetime
+import pytest
 
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.domain.publishing.destination import PublishingDestination
@@ -224,3 +225,95 @@ def test_panel_requests_featured_media_removal(qtbot):
         None,
         0,
     ]
+
+def test_browse_media_button_enabled_for_selected_post(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    assert not panel.browse_media_button.isEnabled()
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.browse_media_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.browse_media_requested,
+        timeout=1000,
+    ):
+        panel.browse_media_button.click()
+
+
+def test_applying_selected_media_enables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.apply_selected_media(789)
+
+    assert panel.featured_media_checkbox.isChecked()
+    assert panel.featured_media_input.value() == 789
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        789,
+    ]
+
+    assert not panel.browse_media_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "media_id",
+    [0, -1, True, False, "123", 1.5],
+)
+def test_applying_invalid_media_id_is_rejected(qtbot, media_id):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    with pytest.raises(ValueError, match="positive integer"):
+        panel.apply_selected_media(media_id)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.featured_media_checkbox.isChecked()
+    assert not panel.save_button.isEnabled()

@@ -22,6 +22,7 @@ class RemotePostsPanel(QWidget):
     save_requested = Signal(str, str)
     save_with_tags_requested = Signal(str, str, object)
     save_with_media_requested = Signal(str, str, object, object)
+    browse_media_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -53,6 +54,12 @@ class RemotePostsPanel(QWidget):
         self.featured_media_input.setEnabled(False)
         self.featured_media_checkbox.setEnabled(False)
 
+        self.browse_media_button = QPushButton(
+            "Browse WordPress Media",
+            self,
+        )
+        self.browse_media_button.setEnabled(False)
+
         self.save_button = QPushButton("Save changes", self)
 
         self.content_editor.setPlaceholderText(
@@ -72,6 +79,7 @@ class RemotePostsPanel(QWidget):
         layout.addWidget(self.featured_media_label)
         layout.addWidget(self.featured_media_checkbox)
         layout.addWidget(self.featured_media_input)
+        layout.addWidget(self.browse_media_button)
         layout.addWidget(self.save_button)
 
         self.posts_list.currentRowChanged.connect(
@@ -92,6 +100,9 @@ class RemotePostsPanel(QWidget):
         self.save_button.clicked.connect(
             self._request_save
         )
+        self.browse_media_button.clicked.connect(
+            self.browse_media_requested.emit
+        )
 
         self.show_empty()
 
@@ -101,12 +112,37 @@ class RemotePostsPanel(QWidget):
         self.featured_media_checkbox.setEnabled(False)
         self.featured_media_input.setValue(media_id)
         self.featured_media_input.setEnabled(False)
+        self.browse_media_button.setEnabled(False)
 
     def _on_featured_media_toggled(self, checked: bool) -> None:
         """Enable featured-image editing when explicitly requested."""
         self.featured_media_input.setEnabled(
             checked and self.content_editor.isEnabled()
         )
+        self._update_save_button()
+
+    def apply_selected_media(self, media_id: int) -> None:
+        """Apply an existing WordPress media ID to the editor."""
+        if type(media_id) is not int or media_id <= 0:
+            raise ValueError(
+                "Selected media ID must be a positive integer."
+            )
+
+        row = self.posts_list.currentRow()
+
+        if not 0 <= row < len(self._posts):
+            raise ValueError(
+                "Select a remote post before choosing media."
+            )
+
+        if not self.content_editor.isEnabled():
+            raise ValueError(
+                "Remote post editing is currently unavailable."
+            )
+
+        self.featured_media_checkbox.setChecked(True)
+        self.featured_media_input.setValue(media_id)
+
         self._update_save_button()
 
     def _clear_selection(self) -> None:
@@ -184,13 +220,14 @@ class RemotePostsPanel(QWidget):
 
         self._reset_featured_media(post.featured_media_id)
         self.featured_media_checkbox.setEnabled(True)
+        self.browse_media_button.setEnabled(True)
 
         self._update_save_button()
 
     def restore_editing(self) -> None:
         """Restore editing controls after a failed save."""
         has_selection = (
-            0 <= self.posts_list.currentRow() < len(self._posts)
+                0 <= self.posts_list.currentRow() < len(self._posts)
         )
 
         self.content_editor.setEnabled(has_selection)
@@ -200,6 +237,7 @@ class RemotePostsPanel(QWidget):
             has_selection
             and self.featured_media_checkbox.isChecked()
         )
+        self.browse_media_button.setEnabled(has_selection)
 
         self._update_save_button()
 
@@ -270,8 +308,10 @@ class RemotePostsPanel(QWidget):
         self.save_button.setEnabled(False)
         self.content_editor.setEnabled(False)
         self.remote_tag_selector.tags_list.setEnabled(False)
+
         self.featured_media_checkbox.setEnabled(False)
         self.featured_media_input.setEnabled(False)
+        self.browse_media_button.setEnabled(False)
 
         if media_changed:
             self.save_with_media_requested.emit(

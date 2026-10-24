@@ -1021,3 +1021,130 @@ def test_update_post_rejects_invalid_featured_media_id(
             )
 
         build_opener.assert_not_called()
+
+def test_lists_wordpress_image_media():
+    media_items = [
+        {
+            "id": 123,
+            "media_type": "image",
+            "source_url": "https://example.com/uploads/photo.jpg",
+        },
+        {
+            "id": 456,
+            "media_type": "image",
+            "source_url": "https://example.com/uploads/banner.png",
+        },
+    ]
+
+    response = make_response(status=200)
+    response.read.return_value = json.dumps(media_items).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient(timeout=5.0)
+        result = client.list_media(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            limit=20,
+        )
+
+    assert result == media_items
+
+    request = opener.open.call_args.args[0]
+    assert request.get_method() == "GET"
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/media"
+        "?per_page=20&orderby=date&order=desc&media_type=image"
+    )
+    assert opener.open.call_args.kwargs["timeout"] == 5.0
+
+    expected_auth = base64.b64encode(
+        b"admin:secret"
+    ).decode("ascii")
+
+    assert request.get_header("Authorization") == (
+        f"Basic {expected_auth}"
+    )
+
+
+@pytest.mark.parametrize(
+    "limit",
+    [0, -1, 101, True, False, "20", 1.5],
+)
+def test_list_media_rejects_invalid_limit(limit):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(ValueError, match="Media limit"):
+            client.list_media(
+                "https://example.com",
+                "admin",
+                "secret",
+                limit=limit,
+            )
+
+        build_opener.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "site_url",
+    [
+        "http://example.com",
+        "https://user:password@example.com",
+        "https://example.com?token=secret",
+        "https://example.com#fragment",
+        "not-a-url",
+    ],
+)
+def test_list_media_rejects_invalid_url(site_url):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(ValueError, match="HTTPS"):
+            client.list_media(
+                site_url,
+                "admin",
+                "secret",
+            )
+
+        build_opener.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "response_body",
+    [
+        b'{"id": 123}',
+        b'[{"id": 123}, null]',
+        b'[1, 2, 3]',
+    ],
+)
+def test_list_media_rejects_invalid_response(response_body):
+    response = make_response(status=200)
+    response.read.return_value = response_body
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(ValueError, match="Invalid WordPress media"):
+            client.list_media(
+                "https://example.com",
+                "admin",
+                "secret",
+            )

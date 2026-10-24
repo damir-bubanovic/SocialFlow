@@ -97,6 +97,13 @@ from socialflow.ui.workers.wordpress_tag_creation_controller import (
 from socialflow.application.tags.list_remote_tags import (
     ListRemoteTags,
 )
+from socialflow.application.publishing.list_remote_media import (
+    ListRemoteMedia,
+)
+from socialflow.infrastructure.wordpress.wordpress_media_provider import (
+    WordPressMediaProvider,
+)
+
 
 
 class MainContent(QWidget):
@@ -187,6 +194,14 @@ class MainContent(QWidget):
         list_remote_posts = ListRemotePosts(
             provider=wordpress_post_provider,
         )
+        wordpress_media_provider = WordPressMediaProvider(
+            client=wordpress_post_client,
+            credential_store=credential_store,
+        )
+
+        list_remote_media = ListRemoteMedia(
+            provider=wordpress_media_provider,
+        )
         wordpress_post_updater = WordPressPostUpdater(
             client=wordpress_post_client,
             credential_store=credential_store,
@@ -253,6 +268,7 @@ class MainContent(QWidget):
                 tag_client=wordpress_tag_client,
             ),
             list_remote_tags=list_remote_tags,
+            list_remote_media=list_remote_media,
         )
 
 
