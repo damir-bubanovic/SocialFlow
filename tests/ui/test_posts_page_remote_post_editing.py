@@ -40,6 +40,8 @@ def test_remote_post_update_error_restores_editing():
     account = Mock()
 
     page._remote_post_updating_shutting_down = False
+    page._remote_posts_generation = 1
+    page._remote_post_updating_generation = 1
     page._remote_post_updating_account = account
     page._loaded_remote_posts_account = account
     page.post_editor.selected_accounts.return_value = (account,)

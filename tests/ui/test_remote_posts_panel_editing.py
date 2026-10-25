@@ -372,12 +372,15 @@ def test_successful_remote_post_update_refreshes_posts():
     account = Mock()
 
     page._remote_post_updating_shutting_down = False
+    page._remote_posts_generation = 1
+    page._remote_post_updating_generation = 1
     page._remote_post_updating_account = account
     page._loaded_remote_posts_account = account
     page._remote_post_update_succeeded = True
 
     PostsPage._on_remote_post_update_finished(page)
 
+    assert page._remote_post_updating_generation is None
     assert page._remote_post_updating_account is None
     assert page._remote_post_update_succeeded is False
 
@@ -394,12 +397,15 @@ def test_failed_remote_post_update_restores_editing():
     account = Mock()
 
     page._remote_post_updating_shutting_down = False
+    page._remote_posts_generation = 1
+    page._remote_post_updating_generation = 1
     page._remote_post_updating_account = account
     page._loaded_remote_posts_account = account
     page._remote_post_update_succeeded = False
 
     PostsPage._on_remote_post_update_finished(page)
 
+    assert page._remote_post_updating_generation is None
     assert page._remote_post_updating_account is None
     assert page._remote_post_update_succeeded is False
 

@@ -252,6 +252,8 @@ class PostsPage(QWidget):
             if update_remote_post is not None
             else None
         )
+        self._remote_posts_generation = 0
+        self._remote_post_updating_generation: int | None = None
         self._remote_post_updating_account: Account | None = None
         self._remote_post_update_succeeded = False
         self._remote_post_updating_shutting_down = False
@@ -582,6 +584,7 @@ class PostsPage(QWidget):
         if controller is None:
             return
 
+        self._remote_posts_generation += 1
         account = next(
             (
                 selected
@@ -834,8 +837,10 @@ class PostsPage(QWidget):
             return
 
         self._remote_post_updating_account = account
+        self._remote_post_updating_generation = (
+            self._remote_posts_generation
+        )
         self._remote_post_update_succeeded = False
-
         self.remote_posts_panel.save_button.setEnabled(False)
         self.remote_posts_panel.content_editor.setEnabled(False)
         self.remote_posts_panel.post_status_selector.setEnabled(False)
@@ -1003,6 +1008,8 @@ class PostsPage(QWidget):
         if (
                 account is None
                 or account != self._loaded_remote_posts_account
+                or self._remote_post_updating_generation
+                != self._remote_posts_generation
         ):
             return
 
@@ -1017,14 +1024,17 @@ class PostsPage(QWidget):
             return
 
         account = self._remote_post_updating_account
+        generation = self._remote_post_updating_generation
         succeeded = self._remote_post_update_succeeded
 
         self._remote_post_updating_account = None
+        self._remote_post_updating_generation = None
         self._remote_post_update_succeeded = False
 
         if (
                 account is None
                 or account != self._loaded_remote_posts_account
+                or generation != self._remote_posts_generation
         ):
             return
 

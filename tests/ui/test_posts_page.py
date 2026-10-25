@@ -3371,3 +3371,187 @@ def test_remote_post_update_failure_does_not_restore_new_account_editor(
         assert not page._remote_post_update_succeeded
     finally:
         page.shutdown()
+
+
+def test_remote_post_update_success_ignores_reselected_same_account(
+    qtbot,
+    monkeypatch,
+):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    refresh_calls = []
+    monkeypatch.setattr(
+        page,
+        "_refresh_remote_posts",
+        lambda: refresh_calls.append(True),
+    )
+
+    try:
+        # An update started in the original account session.
+        page._remote_post_updating_account = account
+        page._remote_post_updating_generation = (
+            page._remote_posts_generation
+        )
+        page._remote_post_update_succeeded = True
+
+        # Switching away invalidates the original session.
+        page._remote_posts_generation += 1
+        page._loaded_remote_posts_account = None
+        page._loaded_remote_posts = ()
+        page.remote_posts_panel.show_empty()
+
+        # The user returns to the same account.
+        page._remote_posts_generation += 1
+        page._loaded_remote_posts_account = account
+
+        page._on_remote_post_update_finished()
+
+        assert refresh_calls == []
+        assert page._remote_post_updating_account is None
+        assert not page._remote_post_update_succeeded
+    finally:
+        page.shutdown()
+
+def test_remote_post_update_error_ignores_reselected_same_account(
+    qtbot,
+    monkeypatch,
+):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    restore_calls = []
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "restore_editing",
+        lambda: restore_calls.append(True),
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_updating_generation = (
+            page._remote_posts_generation
+        )
+
+        # Leave the original session.
+        page._remote_posts_generation += 1
+        page._loaded_remote_posts_account = None
+        page._loaded_remote_posts = ()
+        page.remote_posts_panel.show_empty()
+
+        # Return to the same account in a different session.
+        page._remote_posts_generation += 1
+        page._loaded_remote_posts_account = account
+
+        original_status = (
+            page.remote_posts_panel.status_label.text()
+        )
+
+        page._on_remote_post_update_error(
+            "Failure from the previous account session"
+        )
+
+        assert restore_calls == []
+        assert (
+            page.remote_posts_panel.status_label.text()
+            == original_status
+        )
+    finally:
+        page.shutdown()
+
+
+def test_remote_post_update_success_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    refresh_calls = []
+
+    monkeypatch.setattr(
+        page,
+        "_refresh_remote_posts",
+        lambda: refresh_calls.append(True),
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_updating_generation = (
+            page._remote_posts_generation
+        )
+        page._remote_post_update_succeeded = True
+
+        page._on_remote_post_update_finished()
+
+        assert refresh_calls == [True]
+        assert page.remote_posts_panel.status_label.text() == (
+            "WordPress post updated successfully."
+        )
+        assert page._remote_post_updating_account is None
+        assert page._remote_post_updating_generation is None
+        assert not page._remote_post_update_succeeded
+    finally:
+        page.shutdown()
+
+
+def test_remote_post_update_error_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    restore_calls = []
+
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "restore_editing",
+        lambda: restore_calls.append(True),
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_updating_generation = (
+            page._remote_posts_generation
+        )
+
+        page._on_remote_post_update_error(
+            "WordPress permission denied"
+        )
+
+        assert page.remote_posts_panel.status_label.text() == (
+            "Unable to update WordPress post: "
+            "WordPress permission denied"
+        )
+        assert restore_calls == [True]
+    finally:
+        page.shutdown()
+
+
+def test_remote_post_update_failure_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    restore_calls = []
+
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "restore_editing",
+        lambda: restore_calls.append(True),
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_updating_generation = (
+            page._remote_posts_generation
+        )
+        page._remote_post_update_succeeded = False
+
+        page._on_remote_post_update_finished()
+
+        assert restore_calls == [True]
+        assert page._remote_post_updating_account is None
+        assert page._remote_post_updating_generation is None
+        assert not page._remote_post_update_succeeded
+    finally:
+        page.shutdown()
