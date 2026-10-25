@@ -958,3 +958,162 @@ def test_new_account_posts_are_selectable_after_locked_save(qtbot):
     assert panel.content_editor.toPlainText() == "Second account post"
     assert panel.content_editor.isEnabled()
     assert not panel.save_button.isEnabled()
+
+def test_loading_error_clears_locked_remote_post_editor(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_error("WordPress request failed")
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.posts_list.isEnabled()
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+    assert "WordPress request failed" in panel.status_label.text()
+
+def test_remote_post_editor_recovers_after_loading_error(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_error("Temporary WordPress failure")
+
+    panel.show_loading()
+    panel.show_posts((
+        make_post(remote_id="456", content="Recovered post"),
+    ))
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.count() == 1
+
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.isEnabled()
+    assert panel.content_editor.toPlainText() == "Recovered post"
+    assert not panel.save_button.isEnabled()
+
+    panel.content_editor.setPlainText("Edited recovered post")
+
+    assert panel.save_button.isEnabled()
+
+def test_clearing_account_discards_unsaved_status_change(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    draft_index = panel.post_status_selector.findData("draft")
+    assert draft_index >= 0
+
+    panel.post_status_selector.setCurrentIndex(draft_index)
+    assert panel.save_button.isEnabled()
+
+    panel.show_empty()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.isEnabled()
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+    panel.show_posts((
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.post_status_selector.currentData() == "publish"
+    assert not panel.save_button.isEnabled()
+
+def test_late_save_failure_does_not_restore_cleared_account(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_empty()
+
+    # Simulate a delayed failure callback from the previous save.
+    panel.restore_editing()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_late_save_failure_does_not_restore_editor_during_loading(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.show_loading()
+
+    # A delayed save failure must not restore the old post.
+    panel.restore_editing()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+    assert panel.status_label.text() == "Loading WordPress posts..."
+
+
+def test_late_save_failure_does_not_restore_editor_after_load_error(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.show_error("WordPress connection failed")
+
+    # Simulate a delayed failure callback from the previous save.
+    panel.restore_editing()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+    assert "WordPress connection failed" in panel.status_label.text()

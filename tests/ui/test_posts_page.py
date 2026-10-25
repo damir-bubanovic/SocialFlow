@@ -3278,3 +3278,96 @@ def test_shutdown_ignores_late_remote_post_update_error(qtbot):
         assert page._remote_post_updating_shutting_down
     finally:
         page.shutdown()
+
+def test_remote_post_update_error_ignores_previous_account(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        page._remote_post_updating_account = account
+
+        # Simulate switching away from the account that started the save.
+        page._loaded_remote_posts_account = None
+        page._loaded_remote_posts = ()
+        page.remote_posts_panel.show_empty()
+
+        original_status = page.remote_posts_panel.status_label.text()
+
+        page._on_remote_post_update_error(
+            "Old account WordPress failure"
+        )
+
+        assert page.remote_posts_panel.status_label.text() == original_status
+        assert page.remote_posts_panel.posts_list.count() == 0
+        assert not page.remote_posts_panel.content_editor.isEnabled()
+        assert not page.remote_posts_panel.save_button.isEnabled()
+    finally:
+        page.shutdown()
+
+
+def test_remote_post_update_success_does_not_refresh_previous_account(
+    qtbot,
+    monkeypatch,
+):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    refresh_calls = []
+    monkeypatch.setattr(
+        page,
+        "_refresh_remote_posts",
+        lambda: refresh_calls.append(True),
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_update_succeeded = True
+
+        # The active account has changed before the update completes.
+        page._loaded_remote_posts_account = None
+        page._loaded_remote_posts = ()
+        page.remote_posts_panel.show_empty()
+
+        page._on_remote_post_update_finished()
+
+        assert refresh_calls == []
+        assert page._remote_post_updating_account is None
+        assert not page._remote_post_update_succeeded
+        assert page.remote_posts_panel.posts_list.count() == 0
+    finally:
+        page.shutdown()
+
+
+def test_remote_post_update_failure_does_not_restore_new_account_editor(
+    qtbot,
+    monkeypatch,
+):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    restore_calls = []
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "restore_editing",
+        lambda: restore_calls.append(True),
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_update_succeeded = False
+
+        # The previous save finishes after its account was deselected.
+        page._loaded_remote_posts_account = None
+        page._loaded_remote_posts = ()
+        page.remote_posts_panel.show_empty()
+
+        page._on_remote_post_update_finished()
+
+        assert restore_calls == []
+        assert page._remote_post_updating_account is None
+        assert not page._remote_post_update_succeeded
+    finally:
+        page.shutdown()
