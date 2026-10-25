@@ -128,6 +128,8 @@ class PostsPage(QWidget):
             else None
         )
 
+        self._remote_tags_generation = 0
+        self._remote_tag_loading_generation: int | None = None
         self._remote_tag_loading_account: Account | None = None
         self._pending_remote_tag_account: Account | None = None
         self._loaded_remote_tags_account: Account | None = None
@@ -494,6 +496,7 @@ class PostsPage(QWidget):
         """Queue tag retrieval for the selected WordPress account."""
         if self._remote_tag_loading_shutting_down:
             return
+        self._remote_tags_generation += 1
 
         account = self._selected_wordpress_account()
 
@@ -525,6 +528,9 @@ class PostsPage(QWidget):
             return
 
         self._remote_tag_loading_account = account
+        self._remote_tag_loading_generation = (
+            self._remote_tags_generation
+        )
         controller.start(account)
 
     def _is_current_remote_tag_account(self) -> bool:
@@ -535,8 +541,10 @@ class PostsPage(QWidget):
             return False
 
         return (
-            account == self._selected_wordpress_account()
-            and self._pending_remote_tag_account is None
+                account == self._selected_wordpress_account()
+                and self._pending_remote_tag_account is None
+                and self._remote_tag_loading_generation
+                == self._remote_tags_generation
         )
 
 
@@ -569,10 +577,10 @@ class PostsPage(QWidget):
 
         self.remote_posts_panel.set_available_remote_tags(())
 
-
     def _on_remote_tag_loading_finished(self) -> None:
         """Start the latest queued request after thread cleanup."""
         self._remote_tag_loading_account = None
+        self._remote_tag_loading_generation = None
         self._start_remote_tag_loading()
 
 

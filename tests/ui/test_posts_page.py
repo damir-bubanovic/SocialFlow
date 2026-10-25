@@ -3697,3 +3697,180 @@ def test_remote_posts_loading_finished_clears_generation(
         assert next_load_calls == [True]
     finally:
         page.shutdown()
+
+
+def test_remote_tags_loading_ignores_reselected_same_account(
+    qtbot,
+    monkeypatch,
+):
+    """Old tag results must not update a newly selected A session."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    stale_tags = (
+        RemoteTag(remote_id=999, name="Outdated tag"),
+    )
+
+    displayed_tags = []
+    monkeypatch.setattr(
+        page,
+        "_selected_wordpress_account",
+        lambda: account,
+    )
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "set_available_remote_tags",
+        lambda tags: displayed_tags.append(tags),
+    )
+
+    try:
+        # The original request belongs to an earlier A session.
+        page._remote_tag_loading_account = account
+        page._remote_tag_loading_generation = 1
+
+        # Simulate A -> B -> A, with no pending request
+        # at the moment the old callback arrives.
+        page._remote_tags_generation = 3
+        page._pending_remote_tag_account = None
+
+        page._on_remote_tags_loaded(stale_tags)
+
+        assert displayed_tags == []
+        assert page._loaded_remote_tags != stale_tags
+        assert page._loaded_remote_tags_account is None
+    finally:
+        page.shutdown()
+
+
+def test_remote_tags_loading_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Current-generation tag results must update the editor."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    tags = (
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    )
+
+    displayed_tags = []
+    monkeypatch.setattr(
+        page,
+        "_selected_wordpress_account",
+        lambda: account,
+    )
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "set_available_remote_tags",
+        lambda value: displayed_tags.append(value),
+    )
+
+    try:
+        page._remote_tag_loading_account = account
+        page._remote_tag_loading_generation = (
+            page._remote_tags_generation
+        )
+        page._pending_remote_tag_account = None
+
+        page._on_remote_tags_loaded(tags)
+
+        assert displayed_tags == [tags]
+        assert page._loaded_remote_tags == tags
+        assert page._loaded_remote_tags_account == account
+    finally:
+        page.shutdown()
+
+
+def test_remote_tags_loading_error_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Current-generation tag-loading errors must be reported."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    try:
+        page._remote_tag_loading_account = account
+        page._remote_tag_loading_generation = (
+            page._remote_tags_generation
+        )
+        page._pending_remote_tag_account = None
+
+        monkeypatch.setattr(
+            page,
+            "_selected_wordpress_account",
+            lambda: account,
+        )
+
+        page._on_remote_tags_error("WordPress tag request failed")
+
+        assert page._remote_tags_error == "WordPress tag request failed"
+        assert page._loaded_remote_tags == ()
+        assert page._loaded_remote_tags_account is None
+    finally:
+        page.shutdown()
+
+
+def test_remote_tags_loading_finished_clears_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Completing a tag request clears its generation state."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    list_remote_tags = Mock(spec=ListRemoteTags)
+    page = create_remote_tag_posts_page(
+        (account,),
+        list_remote_tags,
+    )
+    qtbot.addWidget(page)
+
+    next_load_calls = []
+    monkeypatch.setattr(
+        page,
+        "_start_remote_tag_loading",
+        lambda: next_load_calls.append(True),
+    )
+
+    try:
+        page._remote_tag_loading_account = account
+        page._remote_tag_loading_generation = (
+            page._remote_tags_generation
+        )
+
+        page._on_remote_tag_loading_finished()
+
+        assert page._remote_tag_loading_account is None
+        assert page._remote_tag_loading_generation is None
+        assert next_load_calls == [True]
+    finally:
+        page.shutdown()
