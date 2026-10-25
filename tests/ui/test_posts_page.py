@@ -3555,3 +3555,145 @@ def test_remote_post_update_failure_accepts_current_generation(
         assert not page._remote_post_update_succeeded
     finally:
         page.shutdown()
+
+
+def test_remote_posts_loading_ignores_reselected_same_account(
+    qtbot,
+    monkeypatch,
+):
+    """An old A request must not populate a newly selected A session."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    stale_posts = (
+        RemotePost(
+            remote_id="999",
+            destination=PublishingDestination.WORDPRESS,
+            content="Outdated response",
+            published_at=datetime(2026, 10, 15, 12, 0),
+            status="publish",
+        ),
+    )
+
+    displayed_posts = []
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "show_posts",
+        lambda posts: displayed_posts.append(posts),
+    )
+
+    try:
+        # The original request started for account A.
+        page._remote_post_loading_account = account
+        original_generation = page._remote_posts_generation
+
+        # Simulate leaving A and returning to A.
+        page._remote_posts_generation += 2
+        page._pending_remote_post_account = None
+
+        # The selected account is A again, but this response
+        # belongs to the earlier generation.
+        page._remote_post_loading_generation = original_generation
+
+        page._on_remote_posts_loaded(stale_posts)
+
+        assert displayed_posts == []
+        assert page._loaded_remote_posts != stale_posts
+    finally:
+        page.shutdown()
+
+
+def test_remote_posts_loading_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Current-generation results must still populate remote posts."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    posts = (
+        RemotePost(
+            remote_id="123",
+            destination=PublishingDestination.WORDPRESS,
+            content="Current WordPress post",
+            published_at=datetime(2026, 10, 15, 12, 0),
+            status="publish",
+        ),
+    )
+
+    displayed_posts = []
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "show_posts",
+        lambda value: displayed_posts.append(value),
+    )
+
+    try:
+        page._remote_post_loading_account = account
+        page._remote_post_loading_generation = (
+            page._remote_posts_generation
+        )
+        page._pending_remote_post_account = None
+
+        page._on_remote_posts_loaded(posts)
+
+        assert displayed_posts == [posts]
+        assert page._loaded_remote_posts == posts
+        assert page._loaded_remote_posts_account == account
+    finally:
+        page.shutdown()
+
+
+def test_remote_posts_loading_error_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Current-generation loading errors must remain visible."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    errors = []
+    monkeypatch.setattr(
+        page.remote_posts_panel,
+        "show_error",
+        lambda message: errors.append(message),
+    )
+
+    try:
+        page._remote_post_loading_account = account
+        page._remote_post_loading_generation = (
+            page._remote_posts_generation
+        )
+        page._pending_remote_post_account = None
+
+        page._on_remote_posts_error("WordPress request failed")
+
+        assert errors == ["WordPress request failed"]
+    finally:
+        page.shutdown()
+
+
+def test_remote_posts_loading_finished_clears_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Finishing a load must discard its request-generation state."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    next_load_calls = []
+    monkeypatch.setattr(
+        page,
+        "_start_remote_post_loading",
+        lambda: next_load_calls.append(True),
+    )
+
+    try:
+        page._remote_post_loading_account = account
+        page._remote_post_loading_generation = (
+            page._remote_posts_generation
+        )
+
+        page._on_remote_post_loading_finished()
+
+        assert page._remote_post_loading_account is None
+        assert page._remote_post_loading_generation is None
+        assert next_load_calls == [True]
+    finally:
+        page.shutdown()

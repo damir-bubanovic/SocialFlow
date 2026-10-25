@@ -268,6 +268,7 @@ class PostsPage(QWidget):
                 self._on_remote_post_update_finished
             )
         self._remote_post_loading_account: Account | None = None
+        self._remote_post_loading_generation: int | None = None
         self._pending_remote_post_account: Account | None = None
         self._remote_post_loading_shutting_down = False
         self._loaded_remote_posts: tuple[RemotePost, ...] = ()
@@ -620,6 +621,9 @@ class PostsPage(QWidget):
             return
 
         self._remote_post_loading_account = account
+        self._remote_post_loading_generation = (
+            self._remote_posts_generation
+        )
         controller.start(account)
 
     def _is_current_remote_post_account(self) -> bool:
@@ -636,7 +640,12 @@ class PostsPage(QWidget):
             ),
             None,
         )
-        return account == selected and self._pending_remote_post_account is None
+        return (
+                account == selected
+                and self._pending_remote_post_account is None
+                and self._remote_post_loading_generation
+                == self._remote_posts_generation
+        )
 
     def _on_remote_posts_loaded(self, posts: tuple) -> None:
         """Display remote posts for the currently selected account."""
@@ -656,9 +665,11 @@ class PostsPage(QWidget):
 
         self.remote_posts_panel.show_error(message)
 
+
     def _on_remote_post_loading_finished(self) -> None:
         """Process the latest request after worker thread cleanup."""
         self._remote_post_loading_account = None
+        self._remote_post_loading_generation = None
         self._start_remote_post_loading()
 
 
