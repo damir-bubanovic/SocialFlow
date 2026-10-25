@@ -723,3 +723,238 @@ def test_missing_tag_catalog_preserves_editable_existing_tags(qtbot):
         "Original content",
         (12,),
     ]
+
+def test_save_locks_remote_post_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+    assert not panel.content_editor.isEnabled()
+
+
+def test_failed_save_restores_selection_and_unsaved_content(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.restore_editing()
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+    assert panel.content_editor.isEnabled()
+    assert panel.content_editor.toPlainText() == "Unsaved changes"
+    assert panel.save_button.isEnabled()
+
+
+def test_failed_save_allows_selecting_another_post(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456", content="Second post"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.restore_editing()
+    panel.posts_list.setCurrentRow(1)
+
+    assert panel.posts_list.currentRow() == 1
+    assert panel.content_editor.toPlainText() == "Second post"
+    assert not panel.save_button.isEnabled()
+
+def test_status_save_locks_post_selection_and_restores_on_failure(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_status_selector.setCurrentIndex(
+        panel.post_status_selector.findData("draft")
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        "draft",
+    ]
+    assert not panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+
+    panel.restore_editing()
+
+    assert panel.posts_list.isEnabled()
+    assert panel.post_status_selector.isEnabled()
+    assert panel.post_status_selector.currentData() == "draft"
+    assert panel.save_button.isEnabled()
+
+def test_featured_image_save_locks_selection_and_restores_on_failure(
+    qtbot,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(789)
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        789,
+    ]
+    assert not panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+
+    panel.restore_editing()
+
+    assert panel.posts_list.isEnabled()
+    assert panel.featured_media_checkbox.isEnabled()
+    assert panel.featured_media_input.isEnabled()
+    assert panel.featured_media_input.value() == 789
+    assert panel.save_button.isEnabled()
+
+def test_successful_refresh_resets_locked_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_loading()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == -1
+    assert not panel.save_button.isEnabled()
+
+    panel.show_posts((
+        make_post(remote_id="123", content="Updated content"),
+        make_post(remote_id="456"),
+    ))
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.count() == 2
+    assert panel.posts_list.currentRow() == -1
+    assert not panel.save_button.isEnabled()
+
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.toPlainText() == "Updated content"
+    assert not panel.save_button.isEnabled()
+
+def test_account_switch_clears_locked_remote_post_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    # The account-switch path clears the previous account's posts.
+    panel.show_empty()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.posts_list.isEnabled()
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+def test_new_account_posts_are_selectable_after_locked_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123", content="First account post"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved first account changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_loading()
+    panel.show_posts((
+        make_post(remote_id="456", content="Second account post"),
+    ))
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.count() == 1
+    assert panel.posts_list.currentRow() == -1
+
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.toPlainText() == "Second account post"
+    assert panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()

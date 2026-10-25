@@ -3234,3 +3234,47 @@ def test_posts_page_preserves_status_after_update_error(qtbot):
         )
     finally:
         page.shutdown()
+
+def test_shutdown_ignores_late_remote_post_update_success(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        page._remote_post_updating_account = account
+        page._remote_post_update_succeeded = False
+
+        page.shutdown()
+
+        page._on_remote_post_updated()
+        page._on_remote_post_update_finished()
+
+        assert not page._remote_post_update_succeeded
+        assert page._remote_post_updating_shutting_down
+    finally:
+        page.shutdown()
+
+
+def test_shutdown_ignores_late_remote_post_update_error(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        page._remote_post_updating_account = account
+
+        original_status = page.remote_posts_panel.status_label.text()
+
+        page.shutdown()
+
+        page._on_remote_post_update_error(
+            "Late WordPress update failure"
+        )
+
+        assert (
+            page.remote_posts_panel.status_label.text()
+            == original_status
+        )
+        assert page._remote_post_updating_shutting_down
+    finally:
+        page.shutdown()

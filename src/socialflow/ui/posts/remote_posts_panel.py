@@ -166,6 +166,7 @@ class RemotePostsPanel(QWidget):
         """Clear the editor and its associated remote post."""
         self._posts = ()
         self.posts_list.clear()
+        self.posts_list.setEnabled(True)
 
         self.content_editor.clear()
         self.content_editor.setEnabled(False)
@@ -261,6 +262,7 @@ class RemotePostsPanel(QWidget):
                 0 <= self.posts_list.currentRow() < len(self._posts)
         )
 
+        self.posts_list.setEnabled(bool(self._posts))
         self.content_editor.setEnabled(has_selection)
         self.post_status_selector.setEnabled(
             has_selection
@@ -355,6 +357,7 @@ class RemotePostsPanel(QWidget):
             return
 
         self.save_button.setEnabled(False)
+        self.posts_list.setEnabled(False)
         self.content_editor.setEnabled(False)
         self.post_status_selector.setEnabled(False)
         self.remote_tag_selector.tags_list.setEnabled(False)
