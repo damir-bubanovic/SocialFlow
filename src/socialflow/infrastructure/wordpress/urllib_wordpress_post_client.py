@@ -247,6 +247,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
             content: str,
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
+            status: str | None = None,
     ) -> int:
         """Update an existing WordPress post and return its HTTP status."""
 
@@ -275,6 +276,17 @@ class UrllibWordPressPostClient(WordPressPostClient):
                     "a non-negative integer."
                 )
 
+        if status is not None:
+            if type(status) is not str or status not in (
+                    "draft",
+                    "pending",
+                    "private",
+                    "publish",
+            ):
+                raise ValueError(
+                    "Unsupported WordPress post status."
+                )
+
         endpoint = (
                 site_url.rstrip("/")
                 + f"/wp-json/wp/v2/posts/{post_id}"
@@ -300,6 +312,9 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
         if featured_media_id is not None:
             body["featured_media"] = featured_media_id
+
+        if status is not None:
+            body["status"] = status
 
         payload = json.dumps(body).encode("utf-8")
 

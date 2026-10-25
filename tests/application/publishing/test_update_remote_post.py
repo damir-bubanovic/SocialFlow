@@ -146,3 +146,26 @@ def test_update_remote_post_forwards_tags_and_featured_media():
         tags=(12, 34),
         featured_media_id=456,
     )
+
+@pytest.mark.parametrize(
+    "status",
+    ("draft", "pending", "private", "publish"),
+)
+def test_update_remote_post_forwards_status(status):
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        status=status,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        status=status,
+    )

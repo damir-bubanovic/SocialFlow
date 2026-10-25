@@ -384,3 +384,196 @@ def test_failed_save_preserves_featured_media_change(qtbot):
     assert panel.featured_media_input.value() == 789
     assert panel.featured_media_input.isEnabled()
     assert panel.save_button.isEnabled()
+
+@pytest.mark.parametrize(
+    ("status", "expected_label"),
+    (
+        ("publish", "Published"),
+        ("draft", "Draft"),
+        ("pending", "Pending review"),
+        ("private", "Private"),
+    ),
+)
+def test_panel_loads_wordpress_post_status(
+    qtbot,
+    status,
+    expected_label,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status=status,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.post_status_selector.isEnabled()
+    assert panel.post_status_selector.currentData() == status
+    assert panel.post_status_selector.currentText() == expected_label
+    assert not panel.save_button.isEnabled()
+
+
+def test_panel_enables_save_when_wordpress_status_changes(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_status_selector.setCurrentIndex(
+        panel.post_status_selector.findData("draft")
+    )
+
+    assert panel.post_status_selector.currentData() == "draft"
+    assert panel.save_button.isEnabled()
+
+
+def test_panel_disables_unknown_wordpress_status(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="future",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+@pytest.mark.parametrize(
+    "status",
+    ("draft", "pending", "private", "publish"),
+)
+def test_panel_emits_status_only_save(qtbot, status):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    initial_status = "draft" if status == "publish" else "publish"
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status=initial_status,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_status_selector.setCurrentIndex(
+        panel.post_status_selector.findData(status)
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        status,
+    ]
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+def test_panel_emits_status_with_content_tags_and_media(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+        tag_ids=(10,),
+        featured_media_id=456,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=10, name="Original"),
+        RemoteTag(remote_id=20, name="Additional"),
+    ))
+
+    panel.content_editor.setPlainText("Updated content")
+    panel.remote_tag_selector.tags_list.item(1).setCheckState(
+        Qt.CheckState.Checked
+    )
+    panel.apply_selected_media(789)
+    panel.post_status_selector.setCurrentIndex(
+        panel.post_status_selector.findData("draft")
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+        (10, 20),
+        789,
+        "draft",
+    ]
+
+
+def test_panel_restores_status_after_failed_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(2026, 10, 15, 12, 0),
+        status="publish",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_status_selector.setCurrentIndex(
+        panel.post_status_selector.findData("draft")
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ):
+        panel.save_button.click()
+
+    panel.restore_editing()
+
+    assert panel.post_status_selector.isEnabled()
+    assert panel.post_status_selector.currentData() == "draft"
+    assert panel.save_button.isEnabled()

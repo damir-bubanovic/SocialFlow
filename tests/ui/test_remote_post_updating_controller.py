@@ -1,5 +1,6 @@
 from threading import Event
 from unittest.mock import Mock
+import pytest
 
 from socialflow.domain.account.account import Account
 from socialflow.domain.publishing.destination import (
@@ -527,6 +528,84 @@ def test_controller_forwards_featured_media_id(qtbot):
             post_id=123,
             content="Updated content",
             featured_media_id=456,
+        )
+    finally:
+        controller.shutdown()
+
+
+@pytest.mark.parametrize(
+    "status",
+    ("draft", "pending", "private", "publish"),
+)
+def test_controller_forwards_wordpress_status(qtbot, status):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                status=status,
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            status=status,
+        )
+    finally:
+        controller.shutdown()
+
+
+def test_controller_combines_status_with_existing_metadata(qtbot):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                tags=(10, 20),
+                featured_media_id=456,
+                status="draft",
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            tags=(10, 20),
+            featured_media_id=456,
+            status="draft",
         )
     finally:
         controller.shutdown()

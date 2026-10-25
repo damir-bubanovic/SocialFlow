@@ -350,3 +350,49 @@ def test_rejects_invalid_featured_media_id(featured_media_id):
 
     client.update_post.assert_not_called()
     store.get.assert_not_called()
+
+@pytest.mark.parametrize(
+    "status",
+    ("draft", "pending", "private", "publish"),
+)
+def test_updates_wordpress_post_status(status):
+    account = make_account()
+    updater, client, _ = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        status=status,
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        status=status,
+    )
+
+
+@pytest.mark.parametrize(
+    "status",
+    ("", "scheduled", "trash", "PUBLISH", 123, True),
+)
+def test_rejects_unsupported_wordpress_post_status(status):
+    account = make_account()
+    updater, client, _ = make_updater()
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported WordPress post status",
+    ):
+        updater.update_post(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            status=status,
+        )
+
+    client.update_post.assert_not_called()

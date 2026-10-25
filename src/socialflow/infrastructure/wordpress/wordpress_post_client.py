@@ -50,8 +50,9 @@ class WordPressPostClient(ABC):
             content: str,
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
+            status: str | None = None,
     ) -> int:
-        """Update post content and optionally replace tags or featured media."""
+        """Update post content and optional WordPress metadata."""
 
 
     @abstractmethod

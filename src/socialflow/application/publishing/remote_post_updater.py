@@ -14,5 +14,6 @@ class RemotePostUpdater(ABC):
             content: str,
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
+            status: str | None = None,
     ) -> None:
-        """Update post content, tags, and optionally featured media."""
+        """Update post content and optionally tags, featured media, or status."""

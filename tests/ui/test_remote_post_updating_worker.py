@@ -177,3 +177,59 @@ def test_worker_forwards_featured_media_id(qtbot):
         content="Updated content",
         featured_media_id=456,
     )
+
+import pytest
+
+
+@pytest.mark.parametrize(
+    "status",
+    ("draft", "pending", "private", "publish"),
+)
+def test_worker_forwards_wordpress_status(qtbot, status):
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+        status=status,
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        status=status,
+    )
+
+
+def test_worker_combines_status_with_existing_metadata(qtbot):
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(10, 20),
+        featured_media_id=456,
+        status="draft",
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        tags=(10, 20),
+        featured_media_id=456,
+        status="draft",
+    )

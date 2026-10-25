@@ -1,4 +1,3 @@
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -9,6 +8,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QVBoxLayout,
     QWidget,
+    QComboBox,
 )
 
 from socialflow.domain.post.remote_post import RemotePost
@@ -22,6 +22,9 @@ class RemotePostsPanel(QWidget):
     save_requested = Signal(str, str)
     save_with_tags_requested = Signal(str, str, object)
     save_with_media_requested = Signal(str, str, object, object)
+    save_with_status_requested = Signal(
+        str, str, object, object, str
+    )
     browse_media_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -35,6 +38,15 @@ class RemotePostsPanel(QWidget):
 
         self.edit_label = QLabel("Edit selected post", self)
         self.content_editor = QPlainTextEdit(self)
+
+        self.post_status_label = QLabel("WordPress post status", self)
+
+        self.post_status_selector = QComboBox(self)
+        self.post_status_selector.addItem("Published", "publish")
+        self.post_status_selector.addItem("Draft", "draft")
+        self.post_status_selector.addItem("Pending review", "pending")
+        self.post_status_selector.addItem("Private", "private")
+        self.post_status_selector.setEnabled(False)
 
         self.tags_label = QLabel("WordPress tags", self)
         self.remote_tag_selector = RemoteTagSelector(self)
@@ -74,6 +86,8 @@ class RemotePostsPanel(QWidget):
         layout.addWidget(self.posts_list)
         layout.addWidget(self.edit_label)
         layout.addWidget(self.content_editor)
+        layout.addWidget(self.post_status_label)
+        layout.addWidget(self.post_status_selector)
         layout.addWidget(self.tags_label)
         layout.addWidget(self.remote_tag_selector)
         layout.addWidget(self.featured_media_label)
@@ -86,6 +100,9 @@ class RemotePostsPanel(QWidget):
             self._on_post_selected
         )
         self.content_editor.textChanged.connect(
+            self._update_save_button
+        )
+        self.post_status_selector.currentIndexChanged.connect(
             self._update_save_button
         )
         self.remote_tag_selector.selection_changed.connect(
@@ -152,6 +169,8 @@ class RemotePostsPanel(QWidget):
 
         self.content_editor.clear()
         self.content_editor.setEnabled(False)
+        self.post_status_selector.setCurrentIndex(0)
+        self.post_status_selector.setEnabled(False)
 
         self.remote_tag_selector.set_selected_ids(())
         self.remote_tag_selector.tags_list.setEnabled(False)
@@ -203,6 +222,9 @@ class RemotePostsPanel(QWidget):
             self.content_editor.clear()
             self.content_editor.setEnabled(False)
 
+            self.post_status_selector.setCurrentIndex(0)
+            self.post_status_selector.setEnabled(False)
+
             self.remote_tag_selector.set_selected_ids(())
             self.remote_tag_selector.tags_list.setEnabled(False)
 
@@ -214,6 +236,15 @@ class RemotePostsPanel(QWidget):
 
         self.content_editor.setEnabled(True)
         self.content_editor.setPlainText(post.content)
+
+        status_index = self.post_status_selector.findData(post.status)
+
+        self.post_status_selector.setCurrentIndex(
+            status_index if status_index >= 0 else 0
+        )
+        self.post_status_selector.setEnabled(
+            status_index >= 0
+        )
 
         self.remote_tag_selector.set_selected_ids(post.tag_ids)
         self.remote_tag_selector.tags_list.setEnabled(True)
@@ -231,6 +262,12 @@ class RemotePostsPanel(QWidget):
         )
 
         self.content_editor.setEnabled(has_selection)
+        self.post_status_selector.setEnabled(
+            has_selection
+            and self.post_status_selector.findData(
+                self._posts[self.posts_list.currentRow()].status
+            ) >= 0
+        )
         self.remote_tag_selector.tags_list.setEnabled(has_selection)
         self.featured_media_checkbox.setEnabled(has_selection)
         self.featured_media_input.setEnabled(
@@ -263,6 +300,10 @@ class RemotePostsPanel(QWidget):
         updated_tags = self.remote_tag_selector.selected_ids()
 
         content_changed = updated_content != post.content
+        status_changed = (
+                self.post_status_selector.isEnabled()
+                and self.post_status_selector.currentData() != post.status
+        )
         tags_changed = set(updated_tags) != set(post.tag_ids)
         media_changed = (
             self.featured_media_checkbox.isChecked()
@@ -271,7 +312,10 @@ class RemotePostsPanel(QWidget):
         )
 
         self.save_button.setEnabled(
-            content_changed or tags_changed or media_changed
+            content_changed
+            or tags_changed
+            or media_changed
+            or status_changed
         )
 
     def _request_save(self) -> None:
@@ -291,6 +335,10 @@ class RemotePostsPanel(QWidget):
             return
 
         updated_tags = self.remote_tag_selector.selected_ids()
+        status_changed = (
+                self.post_status_selector.isEnabled()
+                and self.post_status_selector.currentData() != post.status
+        )
         tags_changed = set(updated_tags) != set(post.tag_ids)
         media_changed = (
             self.featured_media_checkbox.isChecked()
@@ -302,18 +350,32 @@ class RemotePostsPanel(QWidget):
             updated_content == post.content
             and not tags_changed
             and not media_changed
+            and not status_changed
         ):
             return
 
         self.save_button.setEnabled(False)
         self.content_editor.setEnabled(False)
+        self.post_status_selector.setEnabled(False)
         self.remote_tag_selector.tags_list.setEnabled(False)
 
         self.featured_media_checkbox.setEnabled(False)
         self.featured_media_input.setEnabled(False)
         self.browse_media_button.setEnabled(False)
 
-        if media_changed:
+        if status_changed:
+            self.save_with_status_requested.emit(
+                post.remote_id,
+                updated_content,
+                updated_tags if tags_changed else None,
+                (
+                    self.featured_media_input.value()
+                    if media_changed
+                    else None
+                ),
+                self.post_status_selector.currentData(),
+            )
+        elif media_changed:
             self.save_with_media_requested.emit(
                 post.remote_id,
                 updated_content,

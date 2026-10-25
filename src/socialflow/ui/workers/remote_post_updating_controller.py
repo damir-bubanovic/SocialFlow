@@ -39,6 +39,7 @@ class RemotePostUpdatingController(QObject):
             content: str,
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
+            status: str | None = None,
     ) -> None:
         """Start updating an existing remote post."""
         if self._shutting_down or self.is_running:
@@ -58,6 +59,9 @@ class RemotePostUpdatingController(QObject):
 
         if featured_media_id is not None:
             worker_kwargs["featured_media_id"] = featured_media_id
+
+        if status is not None:
+            worker_kwargs["status"] = status
 
         worker = RemotePostUpdatingWorker(**worker_kwargs)
 

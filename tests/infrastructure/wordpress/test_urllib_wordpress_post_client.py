@@ -1148,3 +1148,108 @@ def test_list_media_rejects_invalid_response(response_body):
                 "admin",
                 "secret",
             )
+
+
+@pytest.mark.parametrize(
+    "post_status",
+    ("draft", "pending", "private", "publish"),
+)
+def test_update_post_includes_wordpress_status(post_status):
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        result = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            status=post_status,
+        )
+
+    assert result == 200
+
+    request = opener.open.call_args.args[0]
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts/123"
+    )
+    assert request.get_method() == "POST"
+
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "status": post_status,
+    }
+
+
+@pytest.mark.parametrize(
+    "post_status",
+    ("", "scheduled", "trash", "PUBLISH", 123, True),
+)
+def test_update_post_rejects_invalid_wordpress_status(post_status):
+    client = UrllibWordPressPostClient()
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        with pytest.raises(
+            ValueError,
+            match="Unsupported WordPress post status",
+        ):
+            client.update_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=123,
+                content="Updated content",
+                status=cast(str, post_status),
+            )
+
+    build_opener.assert_not_called()
+
+
+def test_update_post_combines_status_tags_and_featured_image():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        result = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            tags=(10, 20),
+            featured_media_id=456,
+            status="draft",
+        )
+
+    assert result == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "tags": [10, 20],
+        "featured_media": 456,
+        "status": "draft",
+    }

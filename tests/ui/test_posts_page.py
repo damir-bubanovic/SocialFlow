@@ -3139,3 +3139,98 @@ def test_media_loading_error_preserves_featured_image(qtbot):
         assert not page.remote_posts_panel.featured_media_checkbox.isChecked()
     finally:
         page.shutdown()
+
+def test_posts_page_saves_wordpress_status_only(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        panel = page.remote_posts_panel
+
+        panel.post_status_selector.setCurrentIndex(
+            panel.post_status_selector.findData("draft")
+        )
+
+        with qtbot.waitSignal(
+            page._remote_post_updating_controller.post_updated,
+            timeout=5000,
+        ):
+            panel.save_button.click()
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Original content",
+            status="draft",
+        )
+    finally:
+        page.shutdown()
+
+
+def test_posts_page_saves_status_with_featured_media(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    try:
+        panel = page.remote_posts_panel
+
+        panel.featured_media_checkbox.setChecked(True)
+        panel.featured_media_input.setValue(789)
+        panel.post_status_selector.setCurrentIndex(
+            panel.post_status_selector.findData("draft")
+        )
+
+        with qtbot.waitSignal(
+            page._remote_post_updating_controller.post_updated,
+            timeout=5000,
+        ):
+            panel.save_button.click()
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Original content",
+            featured_media_id=789,
+            status="draft",
+        )
+    finally:
+        page.shutdown()
+
+
+def test_posts_page_preserves_status_after_update_error(qtbot):
+    page, account, update_remote_post = (
+        _create_featured_media_test_page(qtbot)
+    )
+
+    update_remote_post.execute.side_effect = RuntimeError(
+        "WordPress update failed"
+    )
+
+    try:
+        panel = page.remote_posts_panel
+
+        panel.post_status_selector.setCurrentIndex(
+            panel.post_status_selector.findData("draft")
+        )
+
+        with qtbot.waitSignal(
+            page._remote_post_updating_controller.error_occurred,
+            timeout=5000,
+        ):
+            panel.save_button.click()
+
+        assert panel.post_status_selector.isEnabled()
+        assert panel.post_status_selector.currentData() == "draft"
+        assert panel.save_button.isEnabled()
+        assert "WordPress update failed" in panel.status_label.text()
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Original content",
+            status="draft",
+        )
+    finally:
+        page.shutdown()

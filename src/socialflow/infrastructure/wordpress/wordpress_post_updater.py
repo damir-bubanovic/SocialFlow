@@ -34,6 +34,7 @@ class WordPressPostUpdater(RemotePostUpdater):
             content: str,
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
+            status: str | None = None,
     ) -> None:
         if account.destination != PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -70,6 +71,17 @@ class WordPressPostUpdater(RemotePostUpdater):
                     "a non-negative integer."
                 )
 
+        if status is not None:
+            if type(status) is not str or status not in (
+                    "draft",
+                    "pending",
+                    "private",
+                    "publish",
+            ):
+                raise ValueError(
+                    "Unsupported WordPress post status."
+                )
+
         config = config.normalized()
 
         credential_key = WordPressCredentialKeys.application_password(
@@ -98,6 +110,9 @@ class WordPressPostUpdater(RemotePostUpdater):
 
         if featured_media_id is not None:
             update_kwargs["featured_media_id"] = featured_media_id
+
+        if status is not None:
+            update_kwargs["status"] = status
 
         status = self._client.update_post(**update_kwargs)
 
