@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 
 from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.domain.account.account import Account
@@ -66,8 +66,8 @@ class WordPressTagCreationController(QObject):
 
         thread.started.connect(worker.run)
 
-        worker.finished.connect(self.tags_created.emit)
-        worker.failed.connect(self.error_occurred.emit)
+        worker.finished.connect(self._on_worker_tags_created)
+        worker.failed.connect(self._on_worker_error)
 
         worker.finished.connect(
             thread.quit,
@@ -82,6 +82,22 @@ class WordPressTagCreationController(QObject):
         thread.finished.connect(self._on_thread_finished)
 
         thread.start()
+
+    @Slot(object)
+    def _on_worker_tags_created(self, created_tags: object) -> None:
+        """Forward created tags unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.tags_created.emit(created_tags)
+
+    @Slot(str)
+    def _on_worker_error(self, message: str) -> None:
+        """Forward creation errors unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.error_occurred.emit(message)
 
     def _on_thread_finished(self) -> None:
         thread = self._thread

@@ -1,5 +1,5 @@
 from unittest.mock import Mock
-
+from threading import Event
 import pytest
 
 from socialflow.domain.account.account import Account
@@ -251,3 +251,113 @@ def test_shutdown_during_active_tag_creation(qtbot):
     assert not controller.is_running
     assert client.create_tag.call_count == 1
 
+
+def test_shutdown_suppresses_queued_tag_creation_result(qtbot):
+    """A queued tag creation result must not be delivered after shutdown."""
+    controller, account, creation_plan, client = make_controller()
+
+    creation_complete = Event()
+    original_created_tag = client.create_tag.return_value
+
+    def create_tag(**_kwargs):
+        creation_complete.set()
+        return original_created_tag
+
+    client.create_tag.side_effect = create_tag
+
+    result_listener = Mock()
+    error_listener = Mock()
+
+    controller.tags_created.connect(result_listener)
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        controller.start(account, creation_plan)
+
+        # Wait for the worker without processing Qt UI events.
+        assert creation_complete.wait(timeout=3)
+
+        controller.shutdown()
+
+        assert not controller.is_running
+
+        # Process any signals queued before shutdown.
+        qtbot.wait(100)
+
+        result_listener.assert_not_called()
+        error_listener.assert_not_called()
+    finally:
+        controller.shutdown()
+
+
+def test_shutdown_suppresses_queued_tag_creation_error(qtbot):
+    """A queued tag creation error must not be delivered after shutdown."""
+    controller, account, creation_plan, client = make_controller()
+
+    creation_complete = Event()
+
+    def create_tag(**_kwargs):
+        creation_complete.set()
+        raise RuntimeError("Simulated WordPress tag creation failure")
+
+    client.create_tag.side_effect = create_tag
+
+    result_listener = Mock()
+    error_listener = Mock()
+
+    controller.tags_created.connect(result_listener)
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        controller.start(account, creation_plan)
+
+        # Wait for the worker without processing Qt UI events.
+        assert creation_complete.wait(timeout=3)
+
+        controller.shutdown()
+
+        assert not controller.is_running
+
+        qtbot.wait(100)
+
+        result_listener.assert_not_called()
+        error_listener.assert_not_called()
+    finally:
+        controller.shutdown()
+
+
+def test_normal_tag_creation_forwards_result_before_completion(qtbot):
+    """Normal tag creation delivers its result before completion."""
+    controller, account, creation_plan, client = make_controller()
+
+    events = []
+
+    controller.tags_created.connect(
+        lambda created_tags: events.append(("created", created_tags))
+    )
+    controller.error_occurred.connect(
+        lambda message: events.append(("error", message))
+    )
+    controller.finished.connect(
+        lambda: events.append(("finished", None))
+    )
+
+    try:
+        with qtbot.waitSignals(
+            [controller.tags_created, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(account, creation_plan)
+
+        assert len(events) == 2
+        assert events[0][0] == "created"
+        assert events[1] == ("finished", None)
+
+        received_tags = events[0][1]
+        assert received_tags == (WordPressTag(id=42, name="SocialFlow"),)
+
+        assert not controller.is_running
+        client.create_tag.assert_called_once()
+    finally:
+        controller.shutdown()
