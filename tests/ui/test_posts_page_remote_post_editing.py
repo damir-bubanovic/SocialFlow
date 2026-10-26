@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+from typing import cast
 
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.domain.publishing.destination import PublishingDestination
@@ -418,3 +419,147 @@ def test_rejected_remote_post_save_restores_editing(
 
     controller.start.assert_not_called()
     page.remote_posts_panel.restore_editing.assert_called_once_with()
+
+
+
+def make_featured_media_update_page():
+    page = Mock()
+
+    controller = Mock()
+    controller.is_running = False
+
+    account = Mock()
+    account.destination = PublishingDestination.WORDPRESS
+
+    page._remote_post_updating_controller = controller
+    page._remote_post_updating_shutting_down = False
+    page._remote_posts_generation = 1
+
+    page._loaded_remote_posts_account = account
+    page._loaded_remote_posts = (Mock(remote_id="42"),)
+
+    page.post_editor.selected_accounts.return_value = (account,)
+
+    save_handler = getattr(
+        PostsPage,
+        "_handle_remote_post_save",
+    )
+
+    page._handle_remote_post_save = lambda *args, **kwargs: (
+        save_handler(page, *args, **kwargs)
+    )
+
+    return page, controller, account
+
+
+@pytest.mark.parametrize(
+    "featured_media_id",
+    [789, 0],
+    ids=["replace-featured-image", "remove-featured-image"],
+)
+def test_featured_media_update_reaches_controller(
+    featured_media_id,
+):
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_media(
+        page,
+        "42",
+        "Updated content čćžšđ",
+        None,
+        featured_media_id,
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content čćžšđ",
+        featured_media_id=featured_media_id,
+    )
+
+    assert page._remote_post_updating_account is account
+    assert page._remote_post_updating_generation == 1
+    assert page._remote_post_update_succeeded is False
+
+
+@pytest.mark.parametrize(
+    "featured_media_id",
+    [789, 0],
+    ids=["replace-with-tags", "remove-with-tags"],
+)
+def test_featured_media_update_preserves_explicit_tags(
+    featured_media_id,
+):
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_media(
+        page,
+        "42",
+        "Updated content",
+        (12, 34),
+        featured_media_id,
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=featured_media_id,
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_media_id",
+    [-1, True, False, 1.5, "789", None],
+)
+def test_invalid_featured_media_id_does_not_start_update(
+    invalid_media_id,
+):
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_media(
+        page,
+        "42",
+        "Updated content",
+        None,
+        invalid_media_id,
+    )
+
+    controller.start.assert_not_called()
+
+    page.remote_posts_panel.status_label.setText.assert_called_once_with(
+        "WordPress featured media ID must be "
+        "a non-negative integer."
+    )
+    page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "invalid_tags",
+    [
+        [12, 34],
+        (0,),
+        (-1,),
+    ],
+    ids=["list-instead-of-tuple", "zero-tag", "negative-tag"],
+)
+def test_invalid_tags_block_featured_media_update(
+    invalid_tags,
+):
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_media(
+        page,
+        "42",
+        "Updated content",
+        cast(tuple[int, ...] | None, invalid_tags),
+        789,
+    )
+
+    controller.start.assert_not_called()
+
+    page.remote_posts_panel.status_label.setText.assert_called_once_with(
+        "WordPress tag IDs must be positive integers."
+    )
+    page.remote_posts_panel.restore_editing.assert_called_once()

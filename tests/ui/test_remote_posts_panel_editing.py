@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from PySide6.QtCore import Qt
 from unittest.mock import Mock
+import pytest
 
 from socialflow.ui.posts.posts_page import PostsPage
 
@@ -1123,3 +1124,141 @@ def test_late_save_failure_does_not_restore_editor_after_load_error(qtbot):
     assert not panel.post_status_selector.isEnabled()
     assert not panel.save_button.isEnabled()
     assert "WordPress connection failed" in panel.status_label.text()
+
+
+
+def make_post_with_featured_image(
+    remote_id="123",
+    featured_media_id=456,
+    tag_ids=(12, 34),
+):
+    return RemotePost(
+        remote_id=remote_id,
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content čćžšđ",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=tag_ids,
+        featured_media_id=featured_media_id,
+    )
+
+
+def test_existing_featured_image_loads_without_enabling_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.featured_media_checkbox.isChecked()
+    assert not panel.featured_media_input.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    ("new_media_id", "description"),
+    [
+        (789, "replace"),
+        (0, "remove"),
+    ],
+)
+def test_featured_image_change_emits_correct_media_id(
+    qtbot,
+    new_media_id,
+    description,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(new_media_id)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content čćžšđ",
+        None,
+        new_media_id,
+    ]
+
+
+def test_unchanged_featured_image_cannot_be_saved(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.save_button.isEnabled()
+
+
+def test_reverting_featured_image_change_disables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(789)
+
+    assert panel.save_button.isEnabled()
+
+    panel.featured_media_input.setValue(456)
+
+    assert not panel.save_button.isEnabled()
+
+
+def test_browsed_media_selection_enables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.apply_selected_media(789)
+
+    assert panel.featured_media_checkbox.isChecked()
+    assert panel.featured_media_input.value() == 789
+    assert panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "invalid_media_id",
+    [-1, 0, True, False, 1.5, "789", None],
+)
+def test_browsed_media_rejects_invalid_ids(
+    qtbot,
+    invalid_media_id,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    with pytest.raises(
+        ValueError,
+        match="positive integer",
+    ):
+        panel.apply_selected_media(invalid_media_id)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.featured_media_checkbox.isChecked()
+    assert not panel.save_button.isEnabled()
