@@ -5064,3 +5064,169 @@ def test_retry_without_failed_accounts_preserves_existing_context(
         preparation.assert_not_called()
     finally:
         page.shutdown()
+
+
+def test_pending_wordpress_preparation_blocks_new_publish_request(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """An active preparation request cannot be replaced by another publish."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    pending_request = Mock()
+    replacement_request = Mock()
+
+    page._pending_publish_request = pending_request
+    page._last_publish_request = pending_request
+    page._last_publish_results = ()
+
+    preparation = Mock()
+    monkeypatch.setattr(
+        page,
+        "_begin_wordpress_tag_preparation",
+        preparation,
+    )
+
+    try:
+        assert page._publishing_workflow_is_busy()
+
+        page._handle_publish_request(replacement_request)
+
+        assert page._pending_publish_request is pending_request
+        assert page._last_publish_request is pending_request
+        assert page._last_publish_results == ()
+
+        preparation.assert_not_called()
+    finally:
+        page.shutdown()
+
+
+def test_cancelled_wordpress_preparation_cannot_resume_publishing(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """A late preparation-finished callback cannot publish a cancelled request."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    pending_request = Mock()
+    pending_account = Mock()
+
+    page._pending_publish_request = pending_request
+    page._pending_wordpress_accounts = [pending_account]
+    page._preparing_wordpress_account = pending_account
+
+    start_publishing = Mock()
+    monkeypatch.setattr(
+        page,
+        "_start_publishing",
+        start_publishing,
+    )
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        assert page._pending_publish_request is None
+        assert page._pending_wordpress_accounts == []
+        assert page._preparing_wordpress_account is None
+
+        # Simulate the preparation worker's completion arriving
+        # after the user has cancelled the operation.
+        page._on_wordpress_tag_preparation_finished()
+
+        start_publishing.assert_not_called()
+        assert page._pending_publish_request is None
+    finally:
+        page.shutdown()
+
+
+def test_cancelled_wordpress_preparation_restores_page_state(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """Cancellation clears preparation state and restores publishing controls."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    pending_request = Mock()
+    pending_account = Mock()
+
+    page._pending_publish_request = pending_request
+    page._pending_wordpress_accounts = [pending_account]
+    page._approved_wordpress_tag_plans["previous"] = Mock()
+    page._preparing_wordpress_account = pending_account
+
+    page._wordpress_tag_creation_completed = True
+    page._wordpress_tag_creation_failed = True
+
+    page.post_editor.publish_button.setEnabled(False)
+    page.retry_failed_button.setEnabled(False)
+
+    monkeypatch.setattr(
+        page,
+        "_build_failed_retry_request",
+        lambda: None,
+    )
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        assert page._pending_publish_request is None
+        assert page._pending_wordpress_accounts == []
+        assert page._approved_wordpress_tag_plans == {}
+        assert page._preparing_wordpress_account is None
+
+        assert not page._wordpress_tag_creation_completed
+        assert not page._wordpress_tag_creation_failed
+
+        assert page.post_editor.publish_button.isEnabled()
+        assert not page.retry_failed_button.isEnabled()
+    finally:
+        page.shutdown()
+
+
+def test_fresh_request_is_accepted_after_cancelled_wordpress_preparation(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """Cancellation allows a new request to replace the previous context."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    cancelled_request = Mock()
+    fresh_request = Mock()
+
+    page._pending_publish_request = cancelled_request
+    page._last_publish_request = cancelled_request
+    page._last_publish_results = (Mock(),)
+
+    preparation = Mock()
+
+    monkeypatch.setattr(
+        page,
+        "_begin_wordpress_tag_preparation",
+        preparation,
+    )
+    monkeypatch.setattr(
+        page,
+        "_build_failed_retry_request",
+        lambda: None,
+    )
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        assert not page._publishing_workflow_is_busy()
+
+        # A delayed completion from the cancelled operation
+        # must not restart publishing.
+        page._on_wordpress_tag_preparation_finished()
+
+        page._handle_publish_request(fresh_request)
+
+        assert page._last_publish_request is fresh_request
+        assert page._last_publish_results == ()
+        preparation.assert_called_once_with(fresh_request)
+    finally:
+        page.shutdown()
