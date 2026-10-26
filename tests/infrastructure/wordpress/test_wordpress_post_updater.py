@@ -396,3 +396,70 @@ def test_rejects_unsupported_wordpress_post_status(status):
         )
 
     client.update_post.assert_not_called()
+
+
+
+@pytest.mark.parametrize(
+    "featured_media_id",
+    [789, 0],
+    ids=["replace-image", "remove-image"],
+)
+def test_featured_image_change_reaches_wordpress_client(
+    featured_media_id,
+):
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=make_account(),
+        post_id=123,
+        content="Updated content čćžšđ",
+        featured_media_id=featured_media_id,
+    )
+
+    kwargs = client.update_post.call_args.kwargs
+
+    assert kwargs["post_id"] == 123
+    assert kwargs["featured_media_id"] == featured_media_id
+    assert "tags" not in kwargs
+    assert "status" not in kwargs
+
+
+@pytest.mark.parametrize(
+    "invalid_id",
+    [-1, True, False, 1.5, "789", [], {}],
+)
+def test_rejects_invalid_featured_media_ids_before_network_call(
+    invalid_id,
+):
+    updater, client, store = make_updater()
+
+    with pytest.raises(
+        ValueError,
+        match="featured media ID",
+    ):
+        updater.update_post(
+            account=make_account(),
+            post_id=123,
+            content="Updated content",
+            featured_media_id=invalid_id,
+        )
+
+    client.update_post.assert_not_called()
+    store.get.assert_not_called()
+
+
+def test_featured_image_change_propagates_wordpress_failure():
+    updater, client, store = make_updater(status=403)
+
+    with pytest.raises(
+        RuntimeError,
+        match="WordPress post update failed",
+    ):
+        updater.update_post(
+            account=make_account(),
+            post_id=123,
+            content="Updated content",
+            featured_media_id=789,
+        )
+
+    client.update_post.assert_called_once()
