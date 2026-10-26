@@ -983,3 +983,135 @@ def test_failed_request_then_success_preserves_signal_order(qtbot):
         assert not controller.is_running
     finally:
         controller.shutdown()
+
+
+def test_shutdown_during_active_publishing_failure(qtbot):
+    """Shutdown cleans up an active worker that subsequently fails."""
+    from threading import Event, Thread
+
+    service = Mock(spec=PublishPost)
+    request = create_request()
+
+    started = Event()
+    release = Event()
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+        assert callable(on_progress)
+
+        started.set()
+
+        if not release.wait(timeout=5):
+            raise TimeoutError("Test worker was not released.")
+
+        raise PublishingError("Simulated publishing failure")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+
+    finished_listener = Mock()
+    controller.finished.connect(finished_listener)
+
+    controller.start(request)
+
+    assert started.wait(timeout=3)
+    assert controller.is_running
+
+    # Release the worker while shutdown is waiting for it.
+    def release_worker():
+        release.set()
+
+    helper = Thread(target=release_worker, daemon=True)
+
+    try:
+        helper.start()
+        controller.shutdown()
+        helper.join(timeout=3)
+
+        assert not helper.is_alive()
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+        assert controller._shutting_down is True
+
+        qtbot.waitUntil(
+            lambda: finished_listener.call_count == 1,
+            timeout=3000,
+        )
+
+        # A queued thread-finished notification must not
+        # cause a second completion.
+        qtbot.wait(50)
+
+        assert finished_listener.call_count == 1
+
+        controller.start(create_request())
+
+        assert not controller.is_running
+        service.execute.assert_called_once()
+    finally:
+        release.set()
+        controller.shutdown()
+
+
+def test_repeated_shutdown_emits_finished_only_once(qtbot):
+    """Repeated shutdown must not duplicate completion notifications."""
+    service = Mock(spec=PublishPost)
+    controller = PublishingController(service)
+
+    finished_listener = Mock()
+    controller.finished.connect(finished_listener)
+
+    request = create_request()
+    service.execute.return_value = ()
+
+    try:
+        with qtbot.waitSignal(controller.finished, timeout=3000):
+            controller.start(request)
+
+        assert finished_listener.call_count == 1
+        assert not controller.is_running
+
+        controller.shutdown()
+        controller.shutdown()
+
+        qtbot.wait(50)
+
+        assert finished_listener.call_count == 1
+        assert controller._thread is None
+        assert controller._worker is None
+    finally:
+        controller.shutdown()
+
+
+def test_delayed_thread_finished_after_shutdown_is_ignored(qtbot):
+    """A delayed cleanup callback must not emit finished twice."""
+    service = Mock(spec=PublishPost)
+    controller = PublishingController(service)
+
+    finished_listener = Mock()
+    controller.finished.connect(finished_listener)
+
+    request = create_request()
+    service.execute.return_value = ()
+
+    try:
+        with qtbot.waitSignal(controller.finished, timeout=3000):
+            controller.start(request)
+
+        assert finished_listener.call_count == 1
+
+        controller.shutdown()
+
+        # Simulate a delayed thread-finished notification.
+        controller._on_thread_finished()
+
+        qtbot.wait(50)
+
+        assert finished_listener.call_count == 1
+        assert controller._thread is None
+        assert controller._worker is None
+        assert not controller.is_running
+    finally:
+        controller.shutdown()
