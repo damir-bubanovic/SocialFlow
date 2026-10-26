@@ -1,4 +1,5 @@
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Qt, Slot
+
 
 from socialflow.application.publishing.list_remote_posts import (
     ListRemotePosts,
@@ -49,8 +50,8 @@ class RemotePostLoadingController(QObject):
         self._worker = worker
 
         thread.started.connect(worker.run)
-        worker.finished.connect(self.posts_ready.emit)
-        worker.failed.connect(self.error_occurred.emit)
+        worker.finished.connect(self._on_worker_posts_ready)
+        worker.failed.connect(self._on_worker_error)
 
         worker.finished.connect(thread.quit)
         worker.failed.connect(thread.quit)
@@ -59,6 +60,22 @@ class RemotePostLoadingController(QObject):
         thread.finished.connect(self._on_thread_finished)
 
         thread.start()
+
+    @Slot(object)
+    def _on_worker_posts_ready(self, posts: object) -> None:
+        """Forward loaded posts unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.posts_ready.emit(posts)
+
+    @Slot(str)
+    def _on_worker_error(self, message: str) -> None:
+        """Forward retrieval errors unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.error_occurred.emit(message)
 
     def _on_thread_finished(self) -> None:
         """Release references after the worker thread stops."""

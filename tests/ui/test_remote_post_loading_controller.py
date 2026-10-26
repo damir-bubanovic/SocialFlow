@@ -144,3 +144,148 @@ def test_controller_shutdown_waits_for_active_worker(qtbot):
     finally:
         allow_worker_to_finish.set()
         controller.shutdown()
+
+
+def test_shutdown_suppresses_queued_remote_posts(qtbot):
+    """Queued remote posts must not be delivered after shutdown."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    retrieval_complete = Event()
+
+    def retrieve_posts(**kwargs):
+        assert kwargs == {
+            "account": account,
+            "limit": 5,
+        }
+        retrieval_complete.set()
+        return ()
+
+    list_remote_posts = Mock()
+    list_remote_posts.execute.side_effect = retrieve_posts
+
+    controller = RemotePostLoadingController(
+        list_remote_posts=list_remote_posts,
+    )
+
+    posts_listener = Mock()
+    error_listener = Mock()
+
+    controller.posts_ready.connect(posts_listener)
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        controller.start(account)
+
+        # Wait for retrieval without processing Qt UI events.
+        assert retrieval_complete.wait(timeout=3)
+
+        controller.shutdown()
+
+        assert not controller.is_running
+
+        # Deliver notifications queued before shutdown.
+        qtbot.wait(100)
+
+        posts_listener.assert_not_called()
+        error_listener.assert_not_called()
+    finally:
+        controller.shutdown()
+
+
+def test_shutdown_suppresses_queued_remote_post_error(qtbot):
+    """Queued retrieval errors must not be delivered after shutdown."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    retrieval_complete = Event()
+
+    def retrieve_posts(**kwargs):
+        assert kwargs == {
+            "account": account,
+            "limit": 5,
+        }
+        retrieval_complete.set()
+        raise RuntimeError("Simulated remote post retrieval failure")
+
+    list_remote_posts = Mock()
+    list_remote_posts.execute.side_effect = retrieve_posts
+
+    controller = RemotePostLoadingController(
+        list_remote_posts=list_remote_posts,
+    )
+
+    posts_listener = Mock()
+    error_listener = Mock()
+
+    controller.posts_ready.connect(posts_listener)
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        controller.start(account)
+
+        # Wait without pumping Qt events.
+        assert retrieval_complete.wait(timeout=3)
+
+        controller.shutdown()
+
+        assert not controller.is_running
+
+        qtbot.wait(100)
+
+        posts_listener.assert_not_called()
+        error_listener.assert_not_called()
+    finally:
+        controller.shutdown()
+
+
+def test_normal_remote_post_loading_forwards_posts_before_completion(qtbot):
+    """Normal loading delivers posts before the completion signal."""
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    list_remote_posts = Mock()
+    list_remote_posts.execute.return_value = ()
+
+    controller = RemotePostLoadingController(
+        list_remote_posts=list_remote_posts,
+    )
+
+    events = []
+
+    controller.posts_ready.connect(
+        lambda received_posts: events.append(("posts", received_posts))
+    )
+    controller.error_occurred.connect(
+        lambda message: events.append(("error", message))
+    )
+    controller.finished.connect(
+        lambda: events.append(("finished", None))
+    )
+
+    try:
+        with qtbot.waitSignals(
+            [controller.posts_ready, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(account)
+
+        assert events == [
+            ("posts", ()),
+            ("finished", None),
+        ]
+
+        assert not controller.is_running
+        list_remote_posts.execute.assert_called_once_with(
+            account=account,
+            limit=5,
+        )
+    finally:
+        controller.shutdown()
