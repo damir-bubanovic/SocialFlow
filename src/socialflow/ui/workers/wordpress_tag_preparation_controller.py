@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.domain.account.account import Account
@@ -58,8 +58,8 @@ class WordPressTagPreparationController(QObject):
 
         thread.started.connect(worker.run)
 
-        worker.finished.connect(self.plan_ready.emit)
-        worker.failed.connect(self.error_occurred.emit)
+        worker.finished.connect(self._on_worker_plan_ready)
+        worker.failed.connect(self._on_worker_error)
 
         worker.finished.connect(thread.quit)
         worker.failed.connect(thread.quit)
@@ -68,6 +68,22 @@ class WordPressTagPreparationController(QObject):
         thread.finished.connect(self._on_thread_finished)
 
         thread.start()
+
+    @Slot(object)
+    def _on_worker_plan_ready(self, plan: object) -> None:
+        """Forward the preparation plan unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.plan_ready.emit(plan)
+
+    @Slot(str)
+    def _on_worker_error(self, message: str) -> None:
+        """Forward the preparation error unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.error_occurred.emit(message)
 
     def _on_thread_finished(self) -> None:
         thread = self._thread
