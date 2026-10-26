@@ -193,3 +193,150 @@ def test_worker_does_not_expose_internal_error_details(qtbot) -> None:
 
     assert signal.args == ["Publishing could not be completed."]
     assert sensitive_message not in signal.args[0]
+
+
+def test_worker_success_signal_sequence() -> None:
+    """Progress events precede one successful terminal event."""
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    first_result = object()
+    second_result = object()
+    results = (first_result, second_result)
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+        on_progress(first_result)
+        on_progress(second_result)
+        return results
+
+    service.execute.side_effect = execute
+
+    worker = PublishingWorker(service, request)
+    events = []
+
+    worker.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    worker.finished.connect(
+        lambda result: events.append(("finished", result))
+    )
+    worker.failed.connect(
+        lambda message: events.append(("failed", message))
+    )
+
+    worker.run()
+
+    assert events == [
+        ("progress", first_result),
+        ("progress", second_result),
+        ("finished", results),
+    ]
+    service.execute.assert_called_once()
+
+
+def test_worker_failure_signal_sequence() -> None:
+    """Progress events precede one failed terminal event."""
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    progress_result = object()
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+        on_progress(progress_result)
+        raise RuntimeError("Sensitive publishing failure")
+
+    service.execute.side_effect = execute
+
+    worker = PublishingWorker(service, request)
+    events = []
+
+    worker.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    worker.finished.connect(
+        lambda result: events.append(("finished", result))
+    )
+    worker.failed.connect(
+        lambda message: events.append(("failed", message))
+    )
+
+    worker.run()
+
+    assert events == [
+        ("progress", progress_result),
+        ("failed", "Publishing could not be completed."),
+    ]
+    service.execute.assert_called_once()
+
+
+def test_worker_handles_progress_reporting_failure() -> None:
+    """A failure after progress reporting produces one failure signal."""
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    progress_result = object()
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+
+        on_progress(progress_result)
+
+        raise RuntimeError("Progress reporting failed")
+
+    service.execute.side_effect = execute
+
+    worker = PublishingWorker(service, request)
+    events = []
+
+    worker.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    worker.finished.connect(
+        lambda results: events.append(("finished", results))
+    )
+    worker.failed.connect(
+        lambda message: events.append(("failed", message))
+    )
+
+    worker.run()
+
+    assert events == [
+        ("progress", progress_result),
+        ("failed", "Publishing could not be completed."),
+    ]
+
+    service.execute.assert_called_once()
+
+
+def test_worker_immediate_failure_emits_no_progress() -> None:
+    """An immediate service failure emits no progress or success."""
+    service = Mock(spec=PublishPost)
+    request = PublishRequest(post=Mock(), accounts=())
+
+    service.execute.side_effect = RuntimeError(
+        "Failure before publishing starts"
+    )
+
+    worker = PublishingWorker(service, request)
+    events = []
+
+    worker.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    worker.finished.connect(
+        lambda results: events.append(("finished", results))
+    )
+    worker.failed.connect(
+        lambda message: events.append(("failed", message))
+    )
+
+    worker.run()
+
+    assert events == [
+        ("failed", "Publishing could not be completed."),
+    ]
+
+    service.execute.assert_called_once()
+    service.execute.assert_called_once()
