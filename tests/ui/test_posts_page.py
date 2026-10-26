@@ -4563,3 +4563,201 @@ def test_wordpress_creation_idle_after_cancellation_when_workers_idle(
             assert page._publishing_workflow_is_busy() is False
     finally:
         page.shutdown()
+
+
+def test_publish_progress_ignored_after_shutdown(qtbot):
+    """Late progress must not update the status after shutdown."""
+    from typing import cast
+
+    from socialflow.application.publishing.publish_result import PublishResult
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page.shutdown()
+
+        original_status = page.publish_status.text()
+        original_completed = page._publishing_completed
+
+        # The shutdown guard must return before accessing the result.
+        result = cast(PublishResult, object())
+
+        page._on_publish_progress(result)
+
+        assert page._publishing_completed == original_completed
+        assert page.publish_status.text() == original_status
+    finally:
+        page.shutdown()
+
+
+def test_publish_results_ignored_after_shutdown(qtbot):
+    """Late results must not change publishing state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page.shutdown()
+
+        original_results = page._last_publish_results
+        original_status = page.publish_status.text()
+
+        page._on_publish_results(())
+
+        assert page._last_publish_results is original_results
+        assert page.publish_status.text() == original_status
+    finally:
+        page.shutdown()
+
+
+def test_publish_error_ignored_after_shutdown(qtbot):
+    """Late errors must not clear publishing state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page.shutdown()
+
+        original_request = page._last_publish_request
+        original_results = page._last_publish_results
+        original_status = page.publish_status.text()
+
+        page._on_publish_error("Delayed publishing error")
+
+        assert page._last_publish_request is original_request
+        assert page._last_publish_results is original_results
+        assert page.publish_status.text() == original_status
+    finally:
+        page.shutdown()
+
+
+def test_publishing_finished_ignored_after_shutdown(qtbot):
+    """Late completion must not re-enable publishing controls."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page.shutdown()
+
+        page.post_editor.publish_button.setEnabled(False)
+
+        page._on_publishing_finished()
+
+        assert page.post_editor.publish_button.isEnabled() is False
+    finally:
+        page.shutdown()
+
+def test_publish_progress_accepted_before_shutdown(qtbot):
+    """Publishing progress increments the counter while the page is active."""
+    from socialflow.application.publishing.publish_result import PublishResult
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        account = page.post_editor.destination_selector._accounts[0]
+        result = PublishResult(account=account, succeeded=True)
+
+        original_completed = page._publishing_completed
+
+        page._on_publish_progress(result)
+
+        assert page._publishing_completed == original_completed + 1
+    finally:
+        page.shutdown()
+
+
+def test_publish_results_accepted_before_shutdown(qtbot):
+    """Publishing results are stored while the page is active."""
+    from socialflow.application.publishing.publish_result import PublishResult
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        account = page.post_editor.destination_selector._accounts[0]
+        result = PublishResult(account=account, succeeded=True)
+
+        page._on_publish_results((result,))
+
+        assert page._last_publish_results == (result,)
+    finally:
+        page.shutdown()
+
+
+def test_publish_error_accepted_before_shutdown(qtbot):
+    """Publishing errors update the status while the page is active."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._on_publish_error("Simulated publishing failure")
+
+        assert page.publish_status.text() == "Publish request failed."
+    finally:
+        page.shutdown()
+
+
+def test_publishing_finished_accepted_before_shutdown(qtbot):
+    """Publishing completion restores the publish button."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page.post_editor.publish_button.setEnabled(False)
+
+        page._on_publishing_finished()
+
+        assert page.post_editor.publish_button.isEnabled() is True
+    finally:
+        page.shutdown()
+
+
+def test_publish_progress_accepted_when_worker_is_idle(qtbot, monkeypatch):
+    """Queued progress remains valid after the worker stops."""
+    from socialflow.application.publishing.publish_result import PublishResult
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        account = page.post_editor.destination_selector._accounts[0]
+        result = PublishResult(account=account, succeeded=True)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                type(page._publishing_controller),
+                "is_running",
+                property(lambda self: False),
+            )
+
+            original_completed = page._publishing_completed
+
+            page._on_publish_progress(result)
+
+            assert page._publishing_completed == original_completed + 1
+            assert account.name in page.publish_status.text()
+    finally:
+        page.shutdown()
+
+
+def test_publish_error_accepted_when_worker_is_idle(qtbot, monkeypatch):
+    """Queued errors remain valid after the worker stops."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                type(page._publishing_controller),
+                "is_running",
+                property(lambda self: False),
+            )
+
+            page._on_publish_error("Queued publishing error")
+
+            assert page.publish_status.text() == "Publish request failed."
+            assert page._last_publish_request is None
+            assert page._last_publish_results == ()
+    finally:
+        page.shutdown()

@@ -1447,6 +1447,9 @@ class PostsPage(QWidget):
 
     def _on_publish_progress(self, result: PublishResult) -> None:
         """Display progress and the outcome of the completed account."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
         self._publishing_completed += 1
 
         outcome = "Published" if result.succeeded else "Failed"
@@ -1462,6 +1465,9 @@ class PostsPage(QWidget):
             results: tuple[PublishResult, ...],
     ) -> None:
         """Store publishing results and refresh the interface."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
         self._last_publish_results = results
         self.retry_failed_button.setEnabled(
             self._build_failed_retry_request() is not None
@@ -1472,6 +1478,9 @@ class PostsPage(QWidget):
 
     def _on_publish_error(self, _message: str) -> None:
         """Clear retry state after an unexpected publishing error."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
         self._last_publish_request = None
         self._last_publish_results = ()
 
@@ -1480,6 +1489,9 @@ class PostsPage(QWidget):
 
     def _on_publishing_finished(self) -> None:
         """Restore publishing controls after thread cleanup."""
+        if self._wordpress_preparation_shutting_down:
+            return
+
         self.post_editor.publish_button.setEnabled(True)
 
     def shutdown(self) -> None:
