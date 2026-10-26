@@ -4330,3 +4330,236 @@ def test_general_tags_queue_uses_current_generation(qtbot, monkeypatch):
         assert page._tag_loading_generation == page._tags_generation
     finally:
         page.shutdown()
+
+
+def test_wordpress_tags_created_ignored_without_active_workflow(qtbot):
+    """A stray success callback must not mark creation complete."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        assert page._pending_publish_request is None
+        assert page._preparing_wordpress_account is None
+
+        page._on_wordpress_tags_created(())
+
+        assert page._wordpress_tag_creation_completed is False
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tag_creation_error_ignored_without_active_workflow(qtbot):
+    """A stray error must not change the idle publishing state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        original_status = page.publish_status.text()
+
+        page._on_wordpress_tag_creation_error("Delayed creation error")
+
+        assert page._pending_publish_request is None
+        assert page._wordpress_tag_creation_failed is False
+        assert page.publish_status.text() == original_status
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tags_created_ignored_after_cancellation(qtbot):
+    """A late success callback must not revive cancelled creation."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        page._on_wordpress_tags_created(())
+
+        assert page._pending_publish_request is None
+        assert page._wordpress_tag_creation_completed is False
+        assert page._wordpress_tag_creation_failed is False
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tag_creation_error_ignored_after_cancellation(qtbot):
+    """A late error must not overwrite cancelled workflow state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+        original_status = page.publish_status.text()
+
+        page._on_wordpress_tag_creation_error("Delayed creation error")
+
+        assert page._pending_publish_request is None
+        assert page._wordpress_tag_creation_failed is False
+        assert page.publish_status.text() == original_status
+    finally:
+        page.shutdown()
+
+def test_wordpress_tags_created_accepted_during_active_workflow(qtbot):
+    """A successful creation callback is accepted during preparation."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        account = page.post_editor.destination_selector._accounts[0]
+
+        page._pending_publish_request = object()
+        page._preparing_wordpress_account = account
+
+        page._on_wordpress_tags_created(())
+
+        assert page._wordpress_tag_creation_completed is True
+        assert page._wordpress_tag_creation_failed is False
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tag_creation_error_handled_during_active_workflow(qtbot):
+    """A creation error is reported and cancels active preparation."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        account = page.post_editor.destination_selector._accounts[0]
+
+        page._pending_publish_request = object()
+        page._preparing_wordpress_account = account
+
+        page._on_wordpress_tag_creation_error("HTTP 403")
+
+        assert "HTTP 403" in page.publish_status.text()
+        assert page._pending_publish_request is None
+        assert page._preparing_wordpress_account is None
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tag_creation_finished_ignored_without_active_workflow(qtbot):
+    """A stray finished callback must not cancel an idle workflow."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._wordpress_tag_creation_completed = True
+
+        page._on_wordpress_tag_creation_finished()
+
+        assert page._wordpress_tag_creation_completed is True
+        assert page._pending_publish_request is None
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tag_creation_finished_ignored_after_cancellation(qtbot):
+    """A delayed finished callback must not modify cancelled state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        page._wordpress_tag_creation_completed = True
+
+        page._on_wordpress_tag_creation_finished()
+
+        assert page._wordpress_tag_creation_completed is True
+        assert page._pending_publish_request is None
+        assert page._preparing_wordpress_account is None
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_tag_creation_finished_accepted_during_active_workflow(qtbot):
+    """An active successful creation may continue preparation."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        account = page.post_editor.destination_selector._accounts[0]
+
+        page._pending_publish_request = object()
+        page._preparing_wordpress_account = account
+        page._wordpress_tag_creation_completed = True
+
+        continued = []
+
+        original_continue = page._continue_wordpress_tag_preparation
+
+        page._continue_wordpress_tag_preparation = (
+            lambda: continued.append(True)
+        )
+
+        page._on_wordpress_tag_creation_finished()
+
+        assert continued == [True]
+        assert page._preparing_wordpress_account is None
+        assert page._wordpress_tag_creation_completed is False
+
+        page._continue_wordpress_tag_preparation = original_continue
+    finally:
+        page.shutdown()
+
+def test_wordpress_creation_worker_keeps_publishing_busy_after_cancellation(
+    qtbot,
+    monkeypatch,
+):
+    """Cancellation must not hide a still-running creation worker."""
+    from types import SimpleNamespace
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                page,
+                "_wordpress_tag_creation_controller",
+                SimpleNamespace(is_running=True),
+            )
+
+            assert page._pending_publish_request is None
+            assert page._publishing_workflow_is_busy() is True
+    finally:
+        page.shutdown()
+
+
+def test_wordpress_creation_idle_after_cancellation_when_workers_idle(
+    qtbot,
+    monkeypatch,
+):
+    """Cancellation releases the workflow when all workers are idle."""
+    from types import SimpleNamespace
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._cancel_wordpress_tag_preparation()
+
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                page,
+                "_wordpress_tag_creation_controller",
+                SimpleNamespace(is_running=False),
+            )
+            patch.setattr(
+                page,
+                "_wordpress_tag_preparation_controller",
+                SimpleNamespace(is_running=False),
+            )
+            patch.setattr(
+                page,
+                "_publishing_controller",
+                SimpleNamespace(is_running=False),
+            )
+
+            assert page._pending_publish_request is None
+            assert page._publishing_workflow_is_busy() is False
+    finally:
+        page.shutdown()

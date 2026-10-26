@@ -1298,15 +1298,27 @@ class PostsPage(QWidget):
         self._start_publishing(request)
 
     def _on_wordpress_tags_created(self, _tags: object) -> None:
-        """Record successful completion of approved tag creation."""
+        """Record success only for an active tag-creation workflow."""
         if self._wordpress_preparation_shutting_down:
+            return
+
+        if (
+                self._pending_publish_request is None
+                or self._preparing_wordpress_account is None
+        ):
             return
 
         self._wordpress_tag_creation_completed = True
 
     def _on_wordpress_tag_creation_error(self, message: str) -> None:
-        """Stop publishing when approved tag creation fails."""
+        """Handle creation errors only for an active workflow."""
         if self._wordpress_preparation_shutting_down:
+            return
+
+        if (
+                self._pending_publish_request is None
+                or self._preparing_wordpress_account is None
+        ):
             return
 
         self._wordpress_tag_creation_failed = True
@@ -1319,7 +1331,11 @@ class PostsPage(QWidget):
 
     def _on_wordpress_tag_creation_finished(self) -> None:
         """Continue only after successful creation and thread cleanup."""
-        if self._wordpress_preparation_shutting_down:
+        if (
+                self._wordpress_preparation_shutting_down
+                or self._pending_publish_request is None
+                or self._preparing_wordpress_account is None
+        ):
             return
 
         succeeded = (
