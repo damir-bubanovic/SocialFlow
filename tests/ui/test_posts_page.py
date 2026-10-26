@@ -4761,3 +4761,136 @@ def test_publish_error_accepted_when_worker_is_idle(qtbot, monkeypatch):
             assert page._last_publish_results == ()
     finally:
         page.shutdown()
+
+
+def test_posts_page_recovers_across_success_failure_success_sequence(
+    qtbot,
+) -> None:
+    """Consecutive operations reset UI state after an unexpected failure."""
+    from unittest.mock import patch
+
+    repository = InMemoryAccountRepository()
+    repository.add(
+        Account(
+            name="Main Facebook",
+            destination=PublishingDestination.FACEBOOK,
+        )
+    )
+
+    publisher = RecordingPublisher()
+    list_tags, create_tag = create_tag_services()
+
+    publish_post = PublishPost(
+        publisher_router=PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: publisher,
+            }
+        ),
+        publication_id_generator=create_publication_id_generator(),
+    )
+
+    original_execute = publish_post.execute
+    attempts = 0
+
+    def execute(request, *, on_progress=None):
+        nonlocal attempts
+        attempts += 1
+
+        if attempts == 2:
+            raise RuntimeError("Unexpected second-operation failure")
+
+        return original_execute(
+            request,
+            on_progress=on_progress,
+        )
+
+    page = PostsPage(
+        publish_post=publish_post,
+        list_accounts=ListAccounts(repository),
+        list_tags=list_tags,
+        create_tag=create_tag,
+        list_recent_publications=create_list_recent_publications(),
+    )
+    qtbot.addWidget(page)
+
+    page.post_editor.text_editor.setPlainText(
+        "Consecutive publishing recovery"
+    )
+    page.post_editor.destination_selector._checkboxes[0].setChecked(True)
+
+    try:
+        with patch.object(publish_post, "execute", side_effect=execute):
+            # First operation succeeds.
+            with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+                page.post_editor.publish_button.click()
+
+            assert attempts == 1
+            assert len(publisher.published_posts) == 1
+            assert page.post_editor.publish_button.isEnabled()
+            assert not page.retry_failed_button.isEnabled()
+            assert len(page._last_publish_results) == 1
+            assert page._last_publish_results[0].succeeded
+
+            # Second operation encounters an unexpected worker error.
+            with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+                page.post_editor.publish_button.click()
+
+            assert attempts == 2
+            assert len(publisher.published_posts) == 1
+            assert page._last_publish_request is None
+            assert page._last_publish_results == ()
+            assert not page.retry_failed_button.isEnabled()
+            assert page.post_editor.publish_button.isEnabled()
+            assert page.publish_status.property("status") == "error"
+
+            # Third operation succeeds without recreating PostsPage.
+            with qtbot.waitSignal(page.publishing_finished, timeout=5000):
+                page.post_editor.publish_button.click()
+
+            assert attempts == 3
+            assert len(publisher.published_posts) == 2
+            assert page.post_editor.publish_button.isEnabled()
+            assert not page.retry_failed_button.isEnabled()
+            assert len(page._last_publish_results) == 1
+            assert page._last_publish_results[0].succeeded
+            assert not page.publishing_is_running
+    finally:
+        page.shutdown()
+
+
+def test_new_publishing_operation_clears_previous_retry_state(
+    qtbot,
+) -> None:
+    """Starting a new operation must invalidate the previous retry action."""
+    from unittest.mock import Mock
+
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    previous_request = Mock()
+    previous_result = Mock()
+    previous_result.succeeded = False
+
+    page._last_publish_request = previous_request
+    page._last_publish_results = (previous_result,)
+    page.retry_failed_button.setEnabled(True)
+
+    assert page.retry_failed_button.isEnabled()
+
+    new_request = Mock()
+    new_request.accounts = (Mock(),)
+
+    page._publishing_controller.start = Mock()
+
+    try:
+        page._start_publishing(new_request)
+
+        assert not page.retry_failed_button.isEnabled()
+        assert page._publishing_completed == 0
+        assert page._publishing_total == 1
+
+        page._publishing_controller.start.assert_called_once_with(
+            new_request
+        )
+    finally:
+        page.shutdown()
