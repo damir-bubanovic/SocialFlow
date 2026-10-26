@@ -268,3 +268,50 @@ def test_omitted_featured_image_does_not_modify_remote_media():
 
     assert kwargs["tags"] == ()
     assert "featured_media_id" not in kwargs
+
+
+
+@pytest.mark.parametrize(
+    "excerpt",
+    [
+        "",
+        "Short summary",
+        "Sažetak čćžšđ",
+    ],
+)
+def test_update_remote_post_forwards_excerpt(excerpt: str):
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        excerpt=excerpt,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        excerpt=excerpt,
+    )
+
+
+def test_update_remote_post_omits_excerpt_when_not_supplied():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=42,
+        content="Updated content",
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+    )

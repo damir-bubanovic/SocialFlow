@@ -35,6 +35,7 @@ class WordPressPostUpdater(RemotePostUpdater):
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
+            excerpt: str | None = None
     ) -> None:
         if account.destination != PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -82,6 +83,13 @@ class WordPressPostUpdater(RemotePostUpdater):
                     "Unsupported WordPress post status."
                 )
 
+
+        if excerpt is not None and type(excerpt) is not str:
+            raise ValueError(
+                "WordPress post excerpt must be a string."
+            )
+
+
         config = config.normalized()
 
         credential_key = WordPressCredentialKeys.application_password(
@@ -113,6 +121,9 @@ class WordPressPostUpdater(RemotePostUpdater):
 
         if status is not None:
             update_kwargs["status"] = status
+
+        if excerpt is not None:
+            update_kwargs["excerpt"] = excerpt
 
         status = self._client.update_post(**update_kwargs)
 

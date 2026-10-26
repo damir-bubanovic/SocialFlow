@@ -17,3 +17,4 @@ class RemotePost:
     status: str
     tag_ids: tuple[int, ...] = ()
     featured_media_id: int = 0
+    excerpt: str = ""

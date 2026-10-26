@@ -26,6 +26,9 @@ class RemotePostsPanel(QWidget):
         str, str, object, object, str
     )
     browse_media_requested = Signal()
+    save_with_excerpt_requested = Signal(
+        str, str, object, object, object, str
+    )
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -38,6 +41,12 @@ class RemotePostsPanel(QWidget):
 
         self.edit_label = QLabel("Edit selected post", self)
         self.content_editor = QPlainTextEdit(self)
+        self.excerpt_label = QLabel("WordPress excerpt", self)
+        self.excerpt_editor = QPlainTextEdit(self)
+        self.excerpt_editor.setPlaceholderText(
+            "Optional short summary of this WordPress post."
+        )
+        self.excerpt_editor.setEnabled(False)
 
         self.post_status_label = QLabel("WordPress post status", self)
 
@@ -86,6 +95,8 @@ class RemotePostsPanel(QWidget):
         layout.addWidget(self.posts_list)
         layout.addWidget(self.edit_label)
         layout.addWidget(self.content_editor)
+        layout.addWidget(self.excerpt_label)
+        layout.addWidget(self.excerpt_editor)
         layout.addWidget(self.post_status_label)
         layout.addWidget(self.post_status_selector)
         layout.addWidget(self.tags_label)
@@ -100,6 +111,9 @@ class RemotePostsPanel(QWidget):
             self._on_post_selected
         )
         self.content_editor.textChanged.connect(
+            self._update_save_button
+        )
+        self.excerpt_editor.textChanged.connect(
             self._update_save_button
         )
         self.post_status_selector.currentIndexChanged.connect(
@@ -170,6 +184,8 @@ class RemotePostsPanel(QWidget):
 
         self.content_editor.clear()
         self.content_editor.setEnabled(False)
+        self.excerpt_editor.clear()
+        self.excerpt_editor.setEnabled(False)
         self.post_status_selector.setCurrentIndex(0)
         self.post_status_selector.setEnabled(False)
 
@@ -226,6 +242,9 @@ class RemotePostsPanel(QWidget):
             self.post_status_selector.setCurrentIndex(0)
             self.post_status_selector.setEnabled(False)
 
+            self.excerpt_editor.clear()
+            self.excerpt_editor.setEnabled(False)
+
             self.remote_tag_selector.set_selected_ids(())
             self.remote_tag_selector.tags_list.setEnabled(False)
 
@@ -237,6 +256,8 @@ class RemotePostsPanel(QWidget):
 
         self.content_editor.setEnabled(True)
         self.content_editor.setPlainText(post.content)
+        self.excerpt_editor.setPlainText(post.excerpt)
+        self.excerpt_editor.setEnabled(True)
 
         status_index = self.post_status_selector.findData(post.status)
 
@@ -264,6 +285,7 @@ class RemotePostsPanel(QWidget):
 
         self.posts_list.setEnabled(bool(self._posts))
         self.content_editor.setEnabled(has_selection)
+        self.excerpt_editor.setEnabled(has_selection)
         self.post_status_selector.setEnabled(
             has_selection
             and self.post_status_selector.findData(
@@ -302,6 +324,9 @@ class RemotePostsPanel(QWidget):
         updated_tags = self.remote_tag_selector.selected_ids()
 
         content_changed = updated_content != post.content
+        excerpt_changed = (
+                self.excerpt_editor.toPlainText() != post.excerpt
+        )
         status_changed = (
                 self.post_status_selector.isEnabled()
                 and self.post_status_selector.currentData() != post.status
@@ -315,6 +340,7 @@ class RemotePostsPanel(QWidget):
 
         self.save_button.setEnabled(
             content_changed
+            or excerpt_changed
             or tags_changed
             or media_changed
             or status_changed
@@ -347,18 +373,22 @@ class RemotePostsPanel(QWidget):
             and self.featured_media_input.value()
             != post.featured_media_id
         )
+        updated_excerpt = self.excerpt_editor.toPlainText()
+        excerpt_changed = updated_excerpt != post.excerpt
 
         if (
-            updated_content == post.content
-            and not tags_changed
-            and not media_changed
-            and not status_changed
+                updated_content == post.content
+                and not excerpt_changed
+                and not tags_changed
+                and not media_changed
+                and not status_changed
         ):
             return
 
         self.save_button.setEnabled(False)
         self.posts_list.setEnabled(False)
         self.content_editor.setEnabled(False)
+        self.excerpt_editor.setEnabled(False)
         self.post_status_selector.setEnabled(False)
         self.remote_tag_selector.tags_list.setEnabled(False)
 
@@ -366,7 +396,25 @@ class RemotePostsPanel(QWidget):
         self.featured_media_input.setEnabled(False)
         self.browse_media_button.setEnabled(False)
 
-        if status_changed:
+
+        if excerpt_changed:
+            self.save_with_excerpt_requested.emit(
+                post.remote_id,
+                updated_content,
+                updated_tags if tags_changed else None,
+                (
+                    self.featured_media_input.value()
+                    if media_changed
+                    else None
+                ),
+                (
+                    self.post_status_selector.currentData()
+                    if status_changed
+                    else None
+                ),
+                updated_excerpt,
+            )
+        elif status_changed:
             self.save_with_status_requested.emit(
                 post.remote_id,
                 updated_content,
@@ -396,6 +444,7 @@ class RemotePostsPanel(QWidget):
                 post.remote_id,
                 updated_content,
             )
+
 
     def set_available_remote_tags(
         self,

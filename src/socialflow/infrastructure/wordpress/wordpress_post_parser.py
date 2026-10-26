@@ -33,6 +33,25 @@ class WordPressPostParser:
                 "non-negative integer."
             )
 
+
+        excerpt_data = data.get("excerpt", {})
+
+        if not isinstance(excerpt_data, dict):
+            raise ValueError(
+                "WordPress post excerpt must be an object."
+            )
+
+        excerpt = excerpt_data.get("raw")
+
+        if excerpt is None:
+            excerpt = excerpt_data.get("rendered", "")
+
+        if not isinstance(excerpt, str):
+            raise ValueError(
+                "WordPress post excerpt must be a string."
+            )
+
+
         return WordPressPost(
             id=int(data["id"]),
             content=str(data["content"]["rendered"]),
@@ -40,4 +59,5 @@ class WordPressPostParser:
             status=str(data["status"]),
             tag_ids=tuple(raw_tags),
             featured_media_id=featured_media_id,
+            excerpt=excerpt,
         )

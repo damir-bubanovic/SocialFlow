@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from PySide6.QtCore import Qt
 from unittest.mock import Mock
 import pytest
+from dataclasses import replace
 
 from socialflow.ui.posts.posts_page import PostsPage
 
@@ -1262,3 +1263,198 @@ def test_browsed_media_rejects_invalid_ids(
     assert panel.featured_media_input.value() == 456
     assert not panel.featured_media_checkbox.isChecked()
     assert not panel.save_button.isEnabled()
+
+
+
+def test_selecting_post_loads_excerpt(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = make_post()
+    post = replace(
+        post,
+        excerpt="Postojeći sažetak čćžšđ",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.excerpt_editor.isEnabled()
+    assert (
+        panel.excerpt_editor.toPlainText()
+        == "Postojeći sažetak čćžšđ"
+    )
+    assert not panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "updated_excerpt",
+    [
+        "",
+        "Novi sažetak čćžšđ",
+    ],
+)
+def test_excerpt_change_emits_excerpt_save_signal(
+    qtbot,
+    updated_excerpt,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText(updated_excerpt)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        updated_excerpt,
+    ]
+
+
+
+@pytest.mark.parametrize(
+    "updated_excerpt",
+    [
+        "",
+        "Novi sažetak čćžšđ",
+    ],
+    ids=["clear-excerpt", "replace-excerpt"],
+)
+def test_excerpt_only_save_preserves_other_fields(
+    qtbot,
+    updated_excerpt,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText(updated_excerpt)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        updated_excerpt,
+    ]
+
+    assert not panel.excerpt_editor.isEnabled()
+    assert not panel.posts_list.isEnabled()
+
+
+def test_reverting_excerpt_disables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText("Changed excerpt")
+    assert panel.save_button.isEnabled()
+
+    panel.excerpt_editor.setPlainText("Original excerpt")
+    assert not panel.save_button.isEnabled()
+
+
+def test_failed_excerpt_save_restores_unsaved_excerpt(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText("Unsaved čćžšđ")
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ):
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    panel.restore_editing()
+
+    assert panel.excerpt_editor.isEnabled()
+    assert panel.excerpt_editor.toPlainText() == "Unsaved čćžšđ"
+    assert panel.save_button.isEnabled()
+    assert panel.posts_list.isEnabled()
+
+
+def test_unchanged_excerpt_uses_existing_content_save_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Keep this excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+    ]

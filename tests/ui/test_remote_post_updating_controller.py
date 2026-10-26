@@ -609,3 +609,47 @@ def test_controller_combines_status_with_existing_metadata(qtbot):
         )
     finally:
         controller.shutdown()
+
+
+
+@pytest.mark.parametrize(
+    "excerpt",
+    [
+        "",
+        "Sažetak čćžšđ",
+    ],
+    ids=["clear-excerpt", "replace-excerpt"],
+)
+def test_controller_forwards_excerpt_to_worker(qtbot, excerpt):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                excerpt=excerpt,
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            excerpt=excerpt,
+        )
+    finally:
+        controller.shutdown()

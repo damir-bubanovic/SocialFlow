@@ -1,5 +1,4 @@
 from datetime import datetime
-
 import pytest
 
 from socialflow.infrastructure.wordpress.wordpress_post import (
@@ -145,5 +144,91 @@ def test_rejects_invalid_featured_media(featured_media):
                 },
                 "status": "publish",
                 "featured_media": featured_media,
+            }
+        )
+
+
+
+@pytest.mark.parametrize(
+    ("raw_excerpt", "expected"),
+    [
+        ("Short summary", "Short summary"),
+        ("Sažetak članka čćžšđ", "Sažetak članka čćžšđ"),
+        ("", ""),
+    ],
+)
+def test_parser_preserves_wordpress_excerpt(
+    raw_excerpt,
+    expected,
+):
+    data = {
+        "id": 42,
+        "content": {"rendered": "<p>Existing content</p>"},
+        "excerpt": {"rendered": raw_excerpt},
+        "date": "2026-10-26T12:00:00",
+        "status": "publish",
+        "tags": [],
+        "featured_media": 0,
+    }
+
+    post = WordPressPostParser.parse(data)
+
+    assert post.excerpt == expected
+
+
+def test_parser_defaults_missing_excerpt_to_empty_string():
+    data = {
+        "id": 42,
+        "content": {"rendered": "<p>Existing content</p>"},
+        "date": "2026-10-26T12:00:00",
+        "status": "publish",
+        "tags": [],
+        "featured_media": 0,
+    }
+
+    post = WordPressPostParser.parse(data)
+
+    assert post.excerpt == ""
+
+
+
+def test_parser_prefers_raw_excerpt_over_rendered():
+    post = WordPressPostParser.parse(
+        {
+            "id": 42,
+            "content": {"rendered": "<p>Content</p>"},
+            "excerpt": {
+                "raw": "Sažetak čćžšđ",
+                "rendered": "<p>Sažetak čćžšđ</p>",
+            },
+            "date": "2026-10-26T12:00:00",
+            "status": "publish",
+        }
+    )
+
+    assert post.excerpt == "Sažetak čćžšđ"
+
+
+@pytest.mark.parametrize(
+    "invalid_excerpt",
+    [
+        None,
+        "Plain text",
+        [],
+        {"raw": 123},
+        {"rendered": False},
+    ],
+)
+def test_parser_rejects_invalid_excerpt_data(
+    invalid_excerpt,
+):
+    with pytest.raises(ValueError, match="excerpt"):
+        WordPressPostParser.parse(
+            {
+                "id": 42,
+                "content": {"rendered": "<p>Content</p>"},
+                "excerpt": invalid_excerpt,
+                "date": "2026-10-26T12:00:00",
+                "status": "publish",
             }
         )

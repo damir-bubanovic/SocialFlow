@@ -23,6 +23,7 @@ class RemotePostUpdatingWorker(QObject):
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
+            excerpt: str | None = None,
     ) -> None:
         super().__init__()
 
@@ -33,6 +34,7 @@ class RemotePostUpdatingWorker(QObject):
         self._tags = tags
         self._featured_media_id = featured_media_id
         self._status = status
+        self._excerpt = excerpt
 
     @Slot()
     def run(self) -> None:
@@ -54,6 +56,9 @@ class RemotePostUpdatingWorker(QObject):
 
             if self._status is not None:
                 update_kwargs["status"] = self._status
+
+            if self._excerpt is not None:
+                update_kwargs["excerpt"] = self._excerpt
 
             self._update_remote_post.execute(**update_kwargs)
         except Exception as error:

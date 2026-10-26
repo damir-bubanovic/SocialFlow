@@ -318,6 +318,9 @@ class PostsPage(QWidget):
         self.remote_posts_panel.save_with_status_requested.connect(
             self._handle_remote_post_save_with_status
         )
+        self.remote_posts_panel.save_with_excerpt_requested.connect(
+            self._handle_remote_post_save_with_excerpt
+        )
         self.remote_posts_panel.browse_media_requested.connect(
             self._browse_remote_media
         )
@@ -811,7 +814,6 @@ class PostsPage(QWidget):
 
         dialog.deleteLater()
 
-
     def _handle_remote_post_save(
             self,
             remote_id: str,
@@ -819,6 +821,7 @@ class PostsPage(QWidget):
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
+            excerpt: str | None = None,
     ) -> None:
         """Save an existing WordPress post asynchronously."""
         controller = self._remote_post_updating_controller
@@ -874,6 +877,7 @@ class PostsPage(QWidget):
         self._remote_post_update_succeeded = False
         self.remote_posts_panel.save_button.setEnabled(False)
         self.remote_posts_panel.content_editor.setEnabled(False)
+        self.remote_posts_panel.excerpt_editor.setEnabled(False)
         self.remote_posts_panel.post_status_selector.setEnabled(False)
         self.remote_posts_panel.remote_tag_selector.tags_list.setEnabled(
             False
@@ -899,9 +903,10 @@ class PostsPage(QWidget):
         if status is not None:
             update_kwargs["status"] = status
 
+        if excerpt is not None:
+            update_kwargs["excerpt"] = excerpt
+
         controller.start(**update_kwargs)
-
-
 
 
     def _handle_remote_post_save_with_tags(
@@ -965,6 +970,67 @@ class PostsPage(QWidget):
             tags=tags,
             featured_media_id=featured_media_id,
         )
+
+
+    def _handle_remote_post_save_with_excerpt(
+        self,
+        remote_id: str,
+        content: str,
+        tags: tuple[int, ...] | None,
+        featured_media_id: int | None,
+        status: str | None,
+        excerpt: str,
+    ) -> None:
+        """Forward an update containing a changed WordPress excerpt."""
+        if type(excerpt) is not str:
+            self.remote_posts_panel.status_label.setText(
+                "WordPress excerpt must be a string."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        if tags is not None and (
+            not isinstance(tags, tuple)
+            or any(
+                type(tag_id) is not int or tag_id <= 0
+                for tag_id in tags
+            )
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "WordPress tag IDs must be positive integers."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        if featured_media_id is not None and (
+            type(featured_media_id) is not int
+            or featured_media_id < 0
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "WordPress featured media ID must be "
+                "a non-negative integer."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        if status is not None and status not in (
+            "draft", "pending", "private", "publish"
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "Unsupported WordPress post status."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        self._handle_remote_post_save(
+            remote_id,
+            content,
+            tags=tags,
+            featured_media_id=featured_media_id,
+            status=status,
+            excerpt=excerpt,
+        )
+
 
     def _handle_remote_post_save_with_status(
             self,

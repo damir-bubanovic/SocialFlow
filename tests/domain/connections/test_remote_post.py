@@ -45,3 +45,29 @@ def test_remote_post_defaults_to_no_known_tags():
     )
 
     assert post.tag_ids == ()
+
+
+
+def test_remote_post_excerpt_defaults_to_empty_string():
+    post = RemotePost(
+        remote_id="42",
+        destination=PublishingDestination.WORDPRESS,
+        content="Existing content",
+        published_at=datetime(2026, 10, 26),
+        status="publish",
+    )
+
+    assert post.excerpt == ""
+
+
+def test_remote_post_preserves_unicode_excerpt():
+    post = RemotePost(
+        remote_id="42",
+        destination=PublishingDestination.WORDPRESS,
+        content="Existing content",
+        published_at=datetime(2026, 10, 26),
+        status="publish",
+        excerpt="Sažetak članka čćžšđ",
+    )
+
+    assert post.excerpt == "Sažetak članka čćžšđ"

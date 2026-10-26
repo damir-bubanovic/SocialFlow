@@ -22,6 +22,7 @@ class UpdateRemotePost:
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
+            excerpt: str | None = None,
     ) -> None:
         """Update a remote post without changing omitted metadata."""
         update_kwargs = {
@@ -38,5 +39,8 @@ class UpdateRemotePost:
 
         if status is not None:
             update_kwargs["status"] = status
+
+        if excerpt is not None:
+            update_kwargs["excerpt"] = excerpt
 
         self._updater.update_post(**update_kwargs)

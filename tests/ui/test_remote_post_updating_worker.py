@@ -233,3 +233,30 @@ def test_worker_combines_status_with_existing_metadata(qtbot):
         featured_media_id=456,
         status="draft",
     )
+
+
+@pytest.mark.parametrize(
+    "excerpt",
+    ["", "Sažetak čćžšđ"],
+)
+def test_worker_forwards_excerpt(qtbot, excerpt):
+    account = Mock()
+    update_remote_post = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=42,
+        content="Updated content",
+        excerpt=excerpt,
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        excerpt=excerpt,
+    )

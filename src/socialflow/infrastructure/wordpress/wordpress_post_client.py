@@ -51,6 +51,7 @@ class WordPressPostClient(ABC):
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
+            excerpt: str | None = None,
     ) -> int:
         """Update post content and optional WordPress metadata."""
 

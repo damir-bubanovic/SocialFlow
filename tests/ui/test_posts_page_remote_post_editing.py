@@ -563,3 +563,94 @@ def test_invalid_tags_block_featured_media_update(
         "WordPress tag IDs must be positive integers."
     )
     page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+
+@pytest.mark.parametrize(
+    "excerpt",
+    [
+        "",
+        "Sažetak čćžšđ",
+    ],
+    ids=["clear-excerpt", "replace-excerpt"],
+)
+def test_excerpt_update_reaches_controller(excerpt):
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_excerpt(
+        page,
+        "42",
+        "Updated content",
+        None,
+        None,
+        None,
+        excerpt,
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        excerpt=excerpt,
+    )
+
+    assert page._remote_post_updating_account is account
+    assert page._remote_post_update_succeeded is False
+
+
+def test_excerpt_update_preserves_combined_metadata():
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_excerpt(
+        page,
+        "42",
+        "Updated content",
+        (12, 34),
+        789,
+        "draft",
+        "Sažetak čćžšđ",
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=789,
+        status="draft",
+        excerpt="Sažetak čćžšđ",
+    )
+
+
+def test_excerpt_update_rejects_invalid_tag_ids():
+    page, controller, _account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_excerpt(
+        page,
+        "42",
+        "Updated content",
+        (0,),
+        None,
+        None,
+        "New excerpt",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+def test_excerpt_update_rejects_invalid_status():
+    page, controller, _account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_excerpt(
+        page,
+        "42",
+        "Updated content",
+        None,
+        None,
+        "unsupported",
+        "New excerpt",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once()

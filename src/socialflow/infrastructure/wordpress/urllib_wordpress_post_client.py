@@ -248,6 +248,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
+            excerpt: str | None = None,
     ) -> int:
         """Update an existing WordPress post and return its HTTP status."""
 
@@ -287,6 +288,11 @@ class UrllibWordPressPostClient(WordPressPostClient):
                     "Unsupported WordPress post status."
                 )
 
+        if excerpt is not None and type(excerpt) is not str:
+            raise ValueError(
+                "WordPress post excerpt must be a string."
+            )
+
         endpoint = (
                 site_url.rstrip("/")
                 + f"/wp-json/wp/v2/posts/{post_id}"
@@ -315,6 +321,9 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
         if status is not None:
             body["status"] = status
+
+        if excerpt is not None:
+            body["excerpt"] = excerpt
 
         payload = json.dumps(body).encode("utf-8")
 
