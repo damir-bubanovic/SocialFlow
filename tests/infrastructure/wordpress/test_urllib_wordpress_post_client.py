@@ -1253,3 +1253,64 @@ def test_update_post_combines_status_tags_and_featured_image():
         "featured_media": 456,
         "status": "draft",
     }
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Updated title", "Novi naslov čćžšđ"],
+)
+def test_update_post_includes_wordpress_title(title):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        response = build_opener.return_value.open.return_value
+        response.__enter__.return_value.status = 200
+
+        client = UrllibWordPressPostClient()
+
+        result = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            title=title,
+        )
+
+        assert result == 200
+
+        request = build_opener.return_value.open.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+
+        assert payload == {
+            "content": "Updated content",
+            "title": title,
+        }
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["", "   ", 123, True, []],
+)
+def test_update_post_rejects_invalid_wordpress_title(title):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress post title",
+        ):
+            client.update_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=123,
+                content="Updated content",
+                title=title,
+            )
+
+        build_opener.assert_not_called()

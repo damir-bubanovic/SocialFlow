@@ -144,6 +144,7 @@ def test_converts_wordpress_posts_to_remote_posts():
             status="publish",
             tag_ids=(12, 34),
             excerpt="Sažetak članka čćžšđ",
+            title="Naslov članka čćžšđ",
         ),
     )
 
@@ -166,6 +167,7 @@ def test_converts_wordpress_posts_to_remote_posts():
             status="publish",
             tag_ids=(12, 34),
             excerpt="Sažetak članka čćžšđ",
+            title="Naslov članka čćžšđ",
         ),
     )
 

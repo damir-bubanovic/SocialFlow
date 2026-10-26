@@ -260,3 +260,62 @@ def test_worker_forwards_excerpt(qtbot, excerpt):
         content="Updated content",
         excerpt=excerpt,
     )
+
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Updated title", "Novi naslov čćžšđ"],
+)
+def test_worker_forwards_title(qtbot, title):
+    account = Mock()
+    update_remote_post = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=42,
+        content="Updated content",
+        title=title,
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        title=title,
+    )
+
+
+def test_worker_forwards_title_with_metadata(qtbot):
+    account = Mock()
+    update_remote_post = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=42,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=789,
+        status="draft",
+        excerpt="Updated excerpt",
+        title="Updated title",
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=789,
+        status="draft",
+        excerpt="Updated excerpt",
+        title="Updated title",
+    )

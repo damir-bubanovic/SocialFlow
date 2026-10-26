@@ -232,3 +232,85 @@ def test_parser_rejects_invalid_excerpt_data(
                 "status": "publish",
             }
         )
+
+
+
+@pytest.mark.parametrize(
+    ("title_data", "expected"),
+    [
+        (
+            {"rendered": "WordPress title"},
+            "WordPress title",
+        ),
+        (
+            {"rendered": "Naslov članka čćžšđ"},
+            "Naslov članka čćžšđ",
+        ),
+        (
+            {
+                "raw": "Editable title",
+                "rendered": "Rendered title",
+            },
+            "Editable title",
+        ),
+        (
+            {"rendered": ""},
+            "",
+        ),
+    ],
+)
+def test_parser_preserves_wordpress_title(
+    title_data,
+    expected,
+):
+    post = WordPressPostParser.parse(
+        {
+            "id": 42,
+            "date": "2026-10-26T12:00:00",
+            "content": {"rendered": "<p>Content</p>"},
+            "status": "publish",
+            "title": title_data,
+        }
+    )
+
+    assert post.title == expected
+
+
+def test_parser_defaults_missing_title_to_empty_string():
+    post = WordPressPostParser.parse(
+        {
+            "id": 42,
+            "date": "2026-10-26T12:00:00",
+            "content": {"rendered": "<p>Content</p>"},
+            "status": "publish",
+        }
+    )
+
+    assert post.title == ""
+
+
+@pytest.mark.parametrize(
+    "invalid_title",
+    [
+        None,
+        "Plain string",
+        123,
+        [],
+        {"raw": 123},
+        {"rendered": None},
+        {"raw": False},
+    ],
+)
+def test_parser_rejects_invalid_wordpress_title(
+    invalid_title,
+):
+    with pytest.raises(ValueError, match="WordPress post title"):
+        WordPressPostParser.parse(
+            {
+                "id": 42,
+                "date": "2026-10-26T12:00:00",
+                "content": {"rendered": "<p>Content</p>"},
+                "status": "publish",
+                "title": invalid_title,
+            }
+        )

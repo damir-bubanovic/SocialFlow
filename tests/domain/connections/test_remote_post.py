@@ -71,3 +71,28 @@ def test_remote_post_preserves_unicode_excerpt():
     )
 
     assert post.excerpt == "Sažetak članka čćžšđ"
+
+
+def test_remote_post_title_defaults_to_empty_string():
+    post = RemotePost(
+        remote_id="42",
+        destination=PublishingDestination.WORDPRESS,
+        content="Existing content",
+        published_at=datetime(2026, 10, 26),
+        status="publish",
+    )
+
+    assert post.title == ""
+
+
+def test_remote_post_preserves_unicode_title():
+    post = RemotePost(
+        remote_id="42",
+        destination=PublishingDestination.WORDPRESS,
+        content="Existing content",
+        published_at=datetime(2026, 10, 26),
+        status="publish",
+        title="Naslov članka čćžšđ",
+    )
+
+    assert post.title == "Naslov članka čćžšđ"

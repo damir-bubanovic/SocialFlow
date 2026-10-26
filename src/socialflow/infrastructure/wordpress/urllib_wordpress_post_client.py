@@ -249,6 +249,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
             featured_media_id: int | None = None,
             status: str | None = None,
             excerpt: str | None = None,
+            title: str | None = None,
     ) -> int:
         """Update an existing WordPress post and return its HTTP status."""
 
@@ -293,6 +294,12 @@ class UrllibWordPressPostClient(WordPressPostClient):
                 "WordPress post excerpt must be a string."
             )
 
+        if title is not None:
+            if type(title) is not str or not title.strip():
+                raise ValueError(
+                    "WordPress post title must be a non-empty string."
+                )
+
         endpoint = (
                 site_url.rstrip("/")
                 + f"/wp-json/wp/v2/posts/{post_id}"
@@ -324,6 +331,9 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
         if excerpt is not None:
             body["excerpt"] = excerpt
+
+        if title is not None:
+            body["title"] = title
 
         payload = json.dumps(body).encode("utf-8")
 

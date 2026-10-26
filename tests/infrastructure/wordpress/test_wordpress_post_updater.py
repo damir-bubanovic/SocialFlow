@@ -463,3 +463,87 @@ def test_featured_image_change_propagates_wordpress_failure():
         )
 
     client.update_post.assert_called_once()
+
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Updated title", "Novi naslov čćžšđ"],
+)
+def test_updates_wordpress_post_title(title):
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=make_account(),
+        post_id=123,
+        content="Updated content",
+        title=title,
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        title=title,
+    )
+
+    store.get.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["", "   ", 123, True, [], None],
+)
+def test_wordpress_updater_rejects_invalid_title_except_none(title):
+    updater, client, store = make_updater()
+
+    if title is None:
+        updater.update_post(
+            account=make_account(),
+            post_id=123,
+            content="Updated content",
+            title=title,
+        )
+        client.update_post.assert_called_once()
+    else:
+        with pytest.raises(
+            ValueError,
+            match="WordPress post title",
+        ):
+            updater.update_post(
+                account=make_account(),
+                post_id=123,
+                content="Updated content",
+                title=title,
+            )
+
+        client.update_post.assert_not_called()
+        store.get.assert_not_called()
+
+
+def test_wordpress_updater_combines_title_and_excerpt():
+    updater, client, _store = make_updater()
+
+    updater.update_post(
+        account=make_account(),
+        post_id=123,
+        content="Updated content",
+        title="Novi naslov",
+        excerpt="Novi sažetak",
+        tags=(12, 34),
+        status="draft",
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        tags=(12, 34),
+        status="draft",
+        excerpt="Novi sažetak",
+        title="Novi naslov",
+    )

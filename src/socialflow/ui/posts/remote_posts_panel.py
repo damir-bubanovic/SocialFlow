@@ -29,6 +29,9 @@ class RemotePostsPanel(QWidget):
     save_with_excerpt_requested = Signal(
         str, str, object, object, object, str
     )
+    save_with_title_requested = Signal(
+        str, str, object, object, object, object, str
+    )
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -40,6 +43,15 @@ class RemotePostsPanel(QWidget):
         self.posts_list = QListWidget(self)
 
         self.edit_label = QLabel("Edit selected post", self)
+
+        self.post_title_label = QLabel("WordPress post title", self)
+        self.post_title_editor = QPlainTextEdit(self)
+        self.post_title_editor.setPlaceholderText(
+            "Enter a title for this WordPress post."
+        )
+        self.post_title_editor.setFixedHeight(65)
+        self.post_title_editor.setEnabled(False)
+
         self.content_editor = QPlainTextEdit(self)
         self.excerpt_label = QLabel("WordPress excerpt", self)
         self.excerpt_editor = QPlainTextEdit(self)
@@ -94,6 +106,8 @@ class RemotePostsPanel(QWidget):
         layout.addWidget(self.status_label)
         layout.addWidget(self.posts_list)
         layout.addWidget(self.edit_label)
+        layout.addWidget(self.post_title_label)
+        layout.addWidget(self.post_title_editor)
         layout.addWidget(self.content_editor)
         layout.addWidget(self.excerpt_label)
         layout.addWidget(self.excerpt_editor)
@@ -109,6 +123,9 @@ class RemotePostsPanel(QWidget):
 
         self.posts_list.currentRowChanged.connect(
             self._on_post_selected
+        )
+        self.post_title_editor.textChanged.connect(
+            self._update_save_button
         )
         self.content_editor.textChanged.connect(
             self._update_save_button
@@ -182,6 +199,8 @@ class RemotePostsPanel(QWidget):
         self.posts_list.clear()
         self.posts_list.setEnabled(True)
 
+        self.post_title_editor.clear()
+        self.post_title_editor.setEnabled(False)
         self.content_editor.clear()
         self.content_editor.setEnabled(False)
         self.excerpt_editor.clear()
@@ -236,6 +255,8 @@ class RemotePostsPanel(QWidget):
     def _on_post_selected(self, row: int) -> None:
         """Load the selected post into the editing fields."""
         if not 0 <= row < len(self._posts):
+            self.post_title_editor.clear()
+            self.post_title_editor.setEnabled(False)
             self.content_editor.clear()
             self.content_editor.setEnabled(False)
 
@@ -253,6 +274,9 @@ class RemotePostsPanel(QWidget):
             return
 
         post = self._posts[row]
+
+        self.post_title_editor.setPlainText(post.title)
+        self.post_title_editor.setEnabled(True)
 
         self.content_editor.setEnabled(True)
         self.content_editor.setPlainText(post.content)
@@ -285,6 +309,7 @@ class RemotePostsPanel(QWidget):
 
         self.posts_list.setEnabled(bool(self._posts))
         self.content_editor.setEnabled(has_selection)
+        self.post_title_editor.setEnabled(has_selection)
         self.excerpt_editor.setEnabled(has_selection)
         self.post_status_selector.setEnabled(
             has_selection
@@ -321,6 +346,13 @@ class RemotePostsPanel(QWidget):
             self.save_button.setEnabled(False)
             return
 
+        updated_title = self.post_title_editor.toPlainText()
+        title_changed = updated_title != post.title
+
+        if title_changed and not updated_title.strip():
+            self.save_button.setEnabled(False)
+            return
+
         updated_tags = self.remote_tag_selector.selected_ids()
 
         content_changed = updated_content != post.content
@@ -339,7 +371,8 @@ class RemotePostsPanel(QWidget):
         )
 
         self.save_button.setEnabled(
-            content_changed
+            title_changed
+            or content_changed
             or excerpt_changed
             or tags_changed
             or media_changed
@@ -362,6 +395,12 @@ class RemotePostsPanel(QWidget):
         if not updated_content.strip():
             return
 
+        updated_title = self.post_title_editor.toPlainText()
+        title_changed = updated_title != post.title
+
+        if title_changed and not updated_title.strip():
+            return
+
         updated_tags = self.remote_tag_selector.selected_ids()
         status_changed = (
                 self.post_status_selector.isEnabled()
@@ -378,6 +417,7 @@ class RemotePostsPanel(QWidget):
 
         if (
                 updated_content == post.content
+                and not title_changed
                 and not excerpt_changed
                 and not tags_changed
                 and not media_changed
@@ -388,6 +428,7 @@ class RemotePostsPanel(QWidget):
         self.save_button.setEnabled(False)
         self.posts_list.setEnabled(False)
         self.content_editor.setEnabled(False)
+        self.post_title_editor.setEnabled(False)
         self.excerpt_editor.setEnabled(False)
         self.post_status_selector.setEnabled(False)
         self.remote_tag_selector.tags_list.setEnabled(False)
@@ -396,8 +437,25 @@ class RemotePostsPanel(QWidget):
         self.featured_media_input.setEnabled(False)
         self.browse_media_button.setEnabled(False)
 
-
-        if excerpt_changed:
+        if title_changed:
+            self.save_with_title_requested.emit(
+                post.remote_id,
+                updated_content,
+                updated_tags if tags_changed else None,
+                (
+                    self.featured_media_input.value()
+                    if media_changed
+                    else None
+                ),
+                (
+                    self.post_status_selector.currentData()
+                    if status_changed
+                    else None
+                ),
+                updated_excerpt if excerpt_changed else None,
+                updated_title,
+            )
+        elif excerpt_changed:
             self.save_with_excerpt_requested.emit(
                 post.remote_id,
                 updated_content,

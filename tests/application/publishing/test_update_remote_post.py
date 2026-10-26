@@ -315,3 +315,49 @@ def test_update_remote_post_omits_excerpt_when_not_supplied():
         post_id=42,
         content="Updated content",
     )
+
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Updated title",
+        "Novi naslov čćžšđ",
+    ],
+)
+def test_update_remote_post_forwards_title(title: str):
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        title=title,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        title=title,
+    )
+
+
+def test_update_remote_post_omits_title_when_not_supplied():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=42,
+        content="Updated content",
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+    )

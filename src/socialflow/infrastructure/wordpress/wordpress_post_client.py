@@ -52,6 +52,7 @@ class WordPressPostClient(ABC):
             featured_media_id: int | None = None,
             status: str | None = None,
             excerpt: str | None = None,
+            title: str | None = None,
     ) -> int:
         """Update post content and optional WordPress metadata."""
 

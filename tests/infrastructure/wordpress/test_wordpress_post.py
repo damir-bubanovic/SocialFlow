@@ -33,3 +33,14 @@ def test_wordpress_post_is_immutable():
 
     with pytest.raises(FrozenInstanceError):
         setattr(post, "content", "Changed")
+
+def test_wordpress_post_preserves_unicode_title():
+    post = WordPressPost(
+        id=42,
+        content="Existing content",
+        published_at=datetime(2026, 10, 26),
+        status="publish",
+        title="Naslov članka čćžšđ",
+    )
+
+    assert post.title == "Naslov članka čćžšđ"

@@ -35,7 +35,8 @@ class WordPressPostUpdater(RemotePostUpdater):
             tags: tuple[int, ...] | None = None,
             featured_media_id: int | None = None,
             status: str | None = None,
-            excerpt: str | None = None
+            excerpt: str | None = None,
+            title: str | None = None,
     ) -> None:
         if account.destination != PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -89,6 +90,12 @@ class WordPressPostUpdater(RemotePostUpdater):
                 "WordPress post excerpt must be a string."
             )
 
+        if title is not None:
+            if type(title) is not str or not title.strip():
+                raise ValueError(
+                    "WordPress post title must be a non-empty string."
+                )
+
 
         config = config.normalized()
 
@@ -124,6 +131,9 @@ class WordPressPostUpdater(RemotePostUpdater):
 
         if excerpt is not None:
             update_kwargs["excerpt"] = excerpt
+
+        if title is not None:
+            update_kwargs["title"] = title
 
         status = self._client.update_post(**update_kwargs)
 

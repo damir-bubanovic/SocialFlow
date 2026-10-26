@@ -654,3 +654,135 @@ def test_excerpt_update_rejects_invalid_status():
 
     controller.start.assert_not_called()
     page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Updated title", "Novi naslov čćžšđ"],
+)
+def test_title_update_reaches_controller(title):
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_title(
+        page,
+        "42",
+        "Updated content",
+        None,
+        None,
+        None,
+        None,
+        title,
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        title=title,
+    )
+
+    assert page._remote_post_updating_account is account
+    assert page._remote_post_update_succeeded is False
+
+
+def test_title_update_preserves_combined_metadata():
+    page, controller, account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_title(
+        page,
+        "42",
+        "Updated content",
+        (12, 34),
+        789,
+        "draft",
+        "Updated excerpt",
+        "Updated title",
+    )
+
+    controller.start.assert_called_once_with(
+        account=account,
+        post_id=42,
+        content="Updated content",
+        tags=(12, 34),
+        featured_media_id=789,
+        status="draft",
+        excerpt="Updated excerpt",
+        title="Updated title",
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_title",
+    ["", "   ", "\n\t", 123, True, None],
+)
+def test_title_update_rejects_invalid_title(invalid_title):
+    page, controller, _account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_title(
+        page,
+        "42",
+        "Updated content",
+        None,
+        None,
+        None,
+        None,
+        invalid_title,
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+def test_title_update_rejects_invalid_tags():
+    page, controller, _account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_title(
+        page,
+        "42",
+        "Updated content",
+        (0,),
+        None,
+        None,
+        None,
+        "Updated title",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+def test_title_update_rejects_invalid_status():
+    page, controller, _account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_title(
+        page,
+        "42",
+        "Updated content",
+        None,
+        None,
+        "unsupported",
+        None,
+        "Updated title",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once()
+
+
+def test_title_update_rejects_invalid_excerpt():
+    page, controller, _account = make_featured_media_update_page()
+
+    PostsPage._handle_remote_post_save_with_title(
+        page,
+        "42",
+        "Updated content",
+        None,
+        None,
+        None,
+        123,
+        "Updated title",
+    )
+
+    controller.start.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once()

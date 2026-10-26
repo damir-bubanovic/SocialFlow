@@ -653,3 +653,86 @@ def test_controller_forwards_excerpt_to_worker(qtbot, excerpt):
         )
     finally:
         controller.shutdown()
+
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Updated title", "Novi naslov čćžšđ"],
+)
+def test_controller_forwards_title(qtbot, title):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                title=title,
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            title=title,
+        )
+    finally:
+        controller.shutdown()
+
+
+def test_controller_forwards_title_with_metadata(qtbot):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                tags=(12, 34),
+                featured_media_id=789,
+                status="draft",
+                excerpt="Updated excerpt",
+                title="Updated title",
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            tags=(12, 34),
+            featured_media_id=789,
+            status="draft",
+            excerpt="Updated excerpt",
+            title="Updated title",
+        )
+    finally:
+        controller.shutdown()

@@ -16,5 +16,6 @@ class RemotePostUpdater(ABC):
             featured_media_id: int | None = None,
             status: str | None = None,
             excerpt: str | None = None,
+            title: str | None = None,
     ) -> None:
         """Update post content and optionally tags, featured media, status, optional excerpts."""

@@ -1458,3 +1458,214 @@ def test_unchanged_excerpt_uses_existing_content_save_signal(qtbot):
         "123",
         "Updated content",
     ]
+
+
+
+def test_selecting_post_loads_title_without_enabling_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        title="Original title čćžšđ",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.post_title_editor.isEnabled()
+    assert (
+        panel.post_title_editor.toPlainText()
+        == "Original title čćžšđ"
+    )
+    assert not panel.save_button.isEnabled()
+
+
+def test_title_only_change_emits_title_save_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+        excerpt="Original excerpt",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText(
+        "Novi naslov čćžšđ"
+    )
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        None,
+        "Novi naslov čćžšđ",
+    ]
+
+    assert not panel.post_title_editor.isEnabled()
+    assert not panel.posts_list.isEnabled()
+
+
+def test_title_and_excerpt_change_emit_combined_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+        excerpt="Original excerpt",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Updated title")
+    panel.excerpt_editor.setPlainText("Updated excerpt")
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        "Updated excerpt",
+        "Updated title",
+    ]
+
+
+def test_reverting_title_disables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Changed title")
+    assert panel.save_button.isEnabled()
+
+    panel.post_title_editor.setPlainText("Original title")
+    assert not panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "invalid_title",
+    ["", "   ", "\n\t"],
+)
+def test_empty_title_change_cannot_be_saved(
+    qtbot,
+    invalid_title,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText(invalid_title)
+
+    assert not panel.save_button.isEnabled()
+
+
+def test_failed_title_save_restores_unsaved_title(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText(
+        "Unsaved title čćžšđ"
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ):
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    panel.restore_editing()
+
+    assert panel.post_title_editor.isEnabled()
+    assert (
+        panel.post_title_editor.toPlainText()
+        == "Unsaved title čćžšđ"
+    )
+    assert panel.save_button.isEnabled()
+    assert panel.posts_list.isEnabled()
+
+
+def test_unchanged_title_uses_existing_content_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+    ]

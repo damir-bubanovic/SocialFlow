@@ -51,6 +51,22 @@ class WordPressPostParser:
                 "WordPress post excerpt must be a string."
             )
 
+        title_data = data.get("title", {})
+
+        if not isinstance(title_data, dict):
+            raise ValueError(
+                "WordPress post title must be an object."
+            )
+
+        title = title_data.get("raw")
+
+        if title is None:
+            title = title_data.get("rendered", "")
+
+        if not isinstance(title, str):
+            raise ValueError(
+                "WordPress post title must be a string."
+            )
 
         return WordPressPost(
             id=int(data["id"]),
@@ -60,4 +76,5 @@ class WordPressPostParser:
             tag_ids=tuple(raw_tags),
             featured_media_id=featured_media_id,
             excerpt=excerpt,
+            title=title,
         )
