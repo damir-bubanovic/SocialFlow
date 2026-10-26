@@ -2897,6 +2897,9 @@ def _open_test_media_dialog(page, account):
 
     page._remote_media_dialog = dialog
     page._remote_media_loading_account = account
+    page._remote_media_loading_generation = (
+        page._remote_posts_generation
+    )
     page._remote_media_loading_shutting_down = False
 
     selected_row = page.remote_posts_panel.posts_list.currentRow()
@@ -3872,5 +3875,103 @@ def test_remote_tags_loading_finished_clears_generation(
         assert page._remote_tag_loading_account is None
         assert page._remote_tag_loading_generation is None
         assert next_load_calls == [True]
+    finally:
+        page.shutdown()
+
+
+def test_remote_media_loading_ignores_reselected_same_account(
+    qtbot,
+    monkeypatch,
+):
+    """Old media results must not update a picker after A -> B -> A."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+
+    dialog = _open_test_media_dialog(page, account)
+    displayed_media = []
+
+    monkeypatch.setattr(
+        dialog,
+        "show_media",
+        lambda media: displayed_media.append(media),
+    )
+
+    try:
+        # Media loading started during the original A session.
+        original_generation = page._remote_posts_generation
+        page._remote_media_loading_generation = original_generation
+
+        # Simulate leaving A and returning to A.
+        # The account and post IDs are the same, but the
+        # original media request belongs to an older session.
+        page._remote_posts_generation += 2
+
+        page._on_remote_media_loaded(())
+
+        assert displayed_media == []
+    finally:
+        page.shutdown()
+
+
+def test_remote_media_loading_accepts_current_generation(
+    qtbot,
+    monkeypatch,
+):
+    """Current-generation media results must reach the picker."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    displayed_media = []
+    monkeypatch.setattr(
+        dialog,
+        "show_media",
+        lambda media: displayed_media.append(media),
+    )
+
+    try:
+        assert page._remote_media_loading_generation == (
+            page._remote_posts_generation
+        )
+
+        page._on_remote_media_loaded(())
+
+        assert displayed_media == [()]
+    finally:
+        page.shutdown()
+
+def test_remote_media_error_accepts_current_generation(qtbot):
+    """Current-generation media errors must reach the picker."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    try:
+        assert page._remote_media_loading_generation == (
+            page._remote_posts_generation
+        )
+
+        page._on_remote_media_error("WordPress media request failed")
+
+        assert (
+            "WordPress media request failed"
+            in dialog.status_label.text()
+        )
+    finally:
+        page.shutdown()
+
+def test_remote_media_dialog_finished_clears_generation(qtbot):
+    """Closing the picker must discard its request generation."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    try:
+        assert page._remote_media_loading_generation == (
+            page._remote_posts_generation
+        )
+
+        page._on_remote_media_dialog_finished(0)
+
+        assert page._remote_media_dialog is None
+        assert page._remote_media_loading_account is None
+        assert page._remote_media_loading_generation is None
+        assert page._remote_media_selected_post_id is None
     finally:
         page.shutdown()

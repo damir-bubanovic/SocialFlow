@@ -104,6 +104,7 @@ class PostsPage(QWidget):
 
         self._remote_media_dialog: RemoteMediaSelectionDialog | None = None
         self._remote_media_loading_account: Account | None = None
+        self._remote_media_loading_generation: int | None = None
         self._remote_media_selected_post_id: str | None = None
         self._remote_media_loading_shutting_down = False
 
@@ -707,6 +708,9 @@ class PostsPage(QWidget):
 
         self._remote_media_dialog = dialog
         self._remote_media_loading_account = account
+        self._remote_media_loading_generation = (
+            self._remote_posts_generation
+        )
 
         selected_row = self.remote_posts_panel.posts_list.currentRow()
         self._remote_media_selected_post_id = (
@@ -723,13 +727,15 @@ class PostsPage(QWidget):
     def _is_current_remote_media_account(self) -> bool:
         """Check that the picker still belongs to the selected account."""
         return (
-            not self._remote_media_loading_shutting_down
-            and self._remote_media_dialog is not None
-            and self._remote_media_loading_account is not None
-            and self._remote_media_loading_account
-            == self._loaded_remote_posts_account
-            and self._remote_media_loading_account
-            == self._selected_wordpress_account()
+                not self._remote_media_loading_shutting_down
+                and self._remote_media_dialog is not None
+                and self._remote_media_loading_account is not None
+                and self._remote_media_loading_account
+                == self._loaded_remote_posts_account
+                and self._remote_media_loading_account
+                == self._selected_wordpress_account()
+                and self._remote_media_loading_generation
+                == self._remote_posts_generation
         )
 
     def _on_remote_media_loaded(self, media: tuple) -> None:
@@ -754,6 +760,7 @@ class PostsPage(QWidget):
         """Retain the request account while its dialog is open."""
         if self._remote_media_dialog is None:
             self._remote_media_loading_account = None
+            self._remote_media_loading_generation = None
 
     def _on_remote_media_dialog_finished(self, result: int) -> None:
         """Apply media only to the post that opened the picker."""
@@ -770,12 +777,7 @@ class PostsPage(QWidget):
         )
 
         selection_is_current = (
-                not self._remote_media_loading_shutting_down
-                and self._remote_media_loading_account is not None
-                and self._remote_media_loading_account
-                == self._loaded_remote_posts_account
-                and self._remote_media_loading_account
-                == self._selected_wordpress_account()
+                self._is_current_remote_media_account()
                 and self._remote_media_selected_post_id is not None
                 and self._remote_media_selected_post_id == current_post_id
         )
@@ -788,6 +790,7 @@ class PostsPage(QWidget):
 
         self._remote_media_dialog = None
         self._remote_media_loading_account = None
+        self._remote_media_loading_generation = None
         self._remote_media_selected_post_id = None
 
         if (
