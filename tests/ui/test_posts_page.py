@@ -4894,3 +4894,173 @@ def test_new_publishing_operation_clears_previous_retry_state(
         )
     finally:
         page.shutdown()
+
+
+def test_new_request_replaces_retry_context_before_wordpress_preparation(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """A fresh request replaces stale retry data before preparation begins."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    previous_request = Mock()
+    previous_result = Mock()
+
+    new_request = Mock()
+
+    page._last_publish_request = previous_request
+    page._last_publish_results = (previous_result,)
+    page.retry_failed_button.setEnabled(True)
+
+    observed_state = []
+
+    def capture_preparation(request):
+        observed_state.append(
+            (
+                request,
+                page._last_publish_request,
+                page._last_publish_results,
+            )
+        )
+
+    monkeypatch.setattr(
+        page,
+        "_begin_wordpress_tag_preparation",
+        capture_preparation,
+    )
+
+    try:
+        page._handle_publish_request(new_request)
+
+        assert observed_state == [
+            (new_request, new_request, ()),
+        ]
+        assert page._last_publish_request is new_request
+        assert page._last_publish_results == ()
+    finally:
+        page.shutdown()
+
+
+def test_busy_workflow_preserves_existing_retry_context(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """A request rejected during active preparation must not replace state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    existing_request = Mock()
+    existing_result = Mock()
+    rejected_request = Mock()
+
+    page._last_publish_request = existing_request
+    page._last_publish_results = (existing_result,)
+
+    preparation = Mock()
+
+    monkeypatch.setattr(
+        page,
+        "_publishing_workflow_is_busy",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        page,
+        "_begin_wordpress_tag_preparation",
+        preparation,
+    )
+
+    try:
+        page._handle_publish_request(rejected_request)
+
+        assert page._last_publish_request is existing_request
+        assert page._last_publish_results == (existing_result,)
+        preparation.assert_not_called()
+    finally:
+        page.shutdown()
+
+
+def test_retry_replaces_active_context_before_wordpress_preparation(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """Retry preparation receives the new active request, not the old one."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    previous_request = Mock()
+    previous_result = Mock()
+    retry_request = Mock()
+
+    page._last_publish_request = previous_request
+    page._last_publish_results = (previous_result,)
+
+    observed_state = []
+
+    def capture_preparation(request):
+        observed_state.append(
+            (
+                request,
+                page._last_publish_request,
+                page._last_publish_results,
+            )
+        )
+
+    monkeypatch.setattr(
+        page,
+        "_build_failed_retry_request",
+        lambda: retry_request,
+    )
+    monkeypatch.setattr(
+        page,
+        "_begin_wordpress_tag_preparation",
+        capture_preparation,
+    )
+
+    try:
+        page._retry_failed_publications()
+
+        assert observed_state == [
+            (retry_request, retry_request, ()),
+        ]
+        assert page._last_publish_request is retry_request
+        assert page._last_publish_results == ()
+    finally:
+        page.shutdown()
+
+
+def test_retry_without_failed_accounts_preserves_existing_context(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """An unavailable retry must not start preparation or alter state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    previous_request = Mock()
+    previous_result = Mock()
+
+    page._last_publish_request = previous_request
+    page._last_publish_results = (previous_result,)
+
+    preparation = Mock()
+
+    monkeypatch.setattr(
+        page,
+        "_build_failed_retry_request",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        page,
+        "_begin_wordpress_tag_preparation",
+        preparation,
+    )
+
+    try:
+        page._retry_failed_publications()
+
+        assert page._last_publish_request is previous_request
+        assert page._last_publish_results == (previous_result,)
+        preparation.assert_not_called()
+    finally:
+        page.shutdown()
