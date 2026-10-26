@@ -1693,3 +1693,57 @@ The developer reported **1,188 passing tests** after completing the
 WordPress remote-post tag-editing workflow and committing/pushing the changes.
 This documentation update did not execute pytest or perform live WordPress
 integration testing.
+
+## ADR-070 --- Forward Queued Worker Notifications Through Guarded Qt Slots
+
+### Decision
+
+Controllers that can shut down while worker notifications are queued
+must connect worker result/error (and progress, where applicable) signals
+to controller-owned `@Slot` methods. These methods check `_shutting_down`
+before emitting public signals. Keep thread termination and cleanup
+connections independent of result forwarding.
+
+### Context
+
+Phases 21.9.52, 21.9.57, 21.9.58, and 21.9.59 reproduced late
+notifications in the publishing, WordPress tag-preparation,
+WordPress tag-creation, and remote-post-loading controllers. Real Qt
+worker tests failed when queued signals reached listeners after shutdown,
+then passed after guarded forwarding was introduced.
+
+### Consequences
+
+- Queued results/errors after shutdown do not update subscribers.
+- Normal result-before-controller-`finished` ordering remains covered.
+- Do not use `is_running` as a substitute for `_shutting_down`: a valid
+  queued result may arrive after the worker thread has stopped.
+- Thread cleanup must remain safe and idempotent.
+- This does not reverse remote side effects or replace live integration tests.
+
+## ADR-071 --- Bind Asynchronous UI Results to Their Request Context
+
+### Decision
+
+Asynchronous PostsPage callbacks must be associated with the active
+account, request, or dialog generation, and cancelled WordPress
+preparation must not resume an obsolete publish request.
+
+### Context
+
+Phases 21.9.31–21.9.56 extended regression coverage for remote post
+editing/loading, tag loading and creation, featured-media selection,
+publishing/retry state, controller reuse, and WordPress preparation
+cancellation and recovery.
+
+### Consequences
+
+- Late callbacks from a previous account, operation, or picker lifecycle
+  must not overwrite the current UI.
+- Publishing/retry context is retained or reset at explicit workflow
+  boundaries.
+- A fresh publish request may start after preparation cancellation.
+- Regression tests should exercise realistic Qt signal timing when
+  asynchronous delivery is the behavior under test.
+
+**Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.

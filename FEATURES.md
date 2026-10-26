@@ -496,3 +496,27 @@ automatically limit manual retry to transient errors.
 -   [ ] Support remote image and other metadata editing.
 
 **Latest developer-reported full-suite result:** **1,188 tests passing** after Phase 21.9.30, followed by a Git commit/push. This documentation synchronization did not rerun pytest. Network tests with fakes/mocks do not constitute live WordPress verification.
+
+## 27. Qt Callback Ownership and Shutdown Safety (Phases 21.9.31–21.9.59)
+
+- [x] Guard remote post loading, saving, and remote tag-loading callbacks against
+  stale account selections and superseded operations.
+- [x] Guard featured-media picker callbacks and reopening/worker-ordering
+  behavior against stale results.
+- [x] Guard general tag-loading and WordPress tag-creation callbacks across
+  cancellation, shutdown, and account changes.
+- [x] Suppress queued publishing worker progress, results, and errors after
+  controller shutdown.
+- [x] Verify publishing request boundaries, controller reuse, idempotent
+  shutdown, worker signal lifecycle, and completion-callback ordering.
+- [x] Verify PostsPage retry state and request ownership across success,
+  failure, WordPress tag preparation, cancellation, and fresh requests.
+- [x] Suppress queued WordPress tag-preparation plan/error signals after
+  controller shutdown while preserving normal plan-before-finished ordering.
+- [x] Suppress queued WordPress tag-creation result/error signals after
+  controller shutdown while preserving normal result-before-finished ordering.
+- [x] Suppress queued remote-post-loading result/error signals after
+  controller shutdown while preserving normal posts-before-finished ordering.
+- [ ] Validate these workflows against a live WordPress installation.
+
+**Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.

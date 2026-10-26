@@ -348,7 +348,7 @@ HTTPS REST requests:
 - `DELETE /wp-json/wp/v2/media/{id}?force=true` permanently deletes media for best-effort upload rollback.
 
 `WordPressPublisher` validates configuration, credentials, text, and prepared
-image state. It rejects WordPress tags until that feature exists. For each
+image state. It resolves selected WordPress tags to remote numeric IDs, with missing-tag confirmation and creation coordinated by the Posts UI before publishing. For each
 uploaded image, it HTML-escapes the returned URL and appends a Gutenberg
 `wp:image` block to the post content. A successful post creation requires HTTP
 201. An upload failure triggers reverse-order best-effort deletion of previously
@@ -358,7 +358,7 @@ media, so orphan media may require later cleanup.
 
 The `urllib` clients use HTTPS certificate verification and disallow redirect
 following with authorization credentials. Live publishing against a real
-WordPress server has not yet been verified in live integration testing. Remote post retrieval, text updates, and WordPress tag listing/creation are implemented; assigning tags during post publishing is not.
+WordPress server has not yet been verified in live integration testing. Remote post retrieval, text and tag updates, WordPress tag listing/creation, and tag assignment during new-post publishing are implemented.
 
 ------------------------------------------------------------------------
 
@@ -1246,3 +1246,31 @@ name-to-ID resolution workflows are unchanged.
 **Verification.** Developer-reported full suite: **1,188 passing tests** after
 Phase 21.9.30. This documentation update does not rerun tests or validate a
 live WordPress site.
+
+## 41. Asynchronous Controller Ownership and Shutdown (Phases 21.9.31–21.9.59)
+
+The Posts page coordinates several independent Qt worker/controller
+lifecycles: publishing, WordPress tag preparation/creation, remote post
+loading/updating, remote tag loading, and remote media selection. Request
+identity, selected account, dialog lifecycle, and cancellation state are
+checked before applying asynchronous results to UI state.
+
+**Worker-to-controller signals must not bypass shutdown guards.**
+`PublishingController`, `WordPressTagPreparationController`,
+`WordPressTagCreationController`, and `RemotePostLoadingController` use
+controller-owned `@Slot` forwarding methods that check `_shutting_down`
+before emitting public result/error signals (and publishing progress).
+Their thread-finished cleanup remains separate from business-result
+delivery; valid normal results precede the controller's `finished`
+notification. Regression tests exercise real queued Qt delivery after
+shutdown, not only direct synchronous callback invocation.
+
+`PostsPage` also prevents a cancelled WordPress tag-preparation request
+from resuming publishing and accepts a fresh request after cancellation.
+Remote editing, tag catalogs, and featured-media selection reject stale
+callbacks when the selected account or operation changes.
+
+These are local lifecycle guarantees. A shutdown or cancellation does not
+undo WordPress network side effects already performed.
+
+**Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.

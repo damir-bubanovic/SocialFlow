@@ -905,7 +905,7 @@ git diff --check
 ```
 
 **Historical checkpoint:** The developer reported **1081 passing tests** after
-Phase 21.9.21 and pushed those changes; the latest result is **1188 passing** after Phase 21.9.30. Documentation editing does not count as
+Phase 21.9.21 and pushed those changes; a later result is documented in Section 37. Documentation editing does not count as
 a test run. Keep `AGENTS.md` local-only; never stage or push it.
 
 ## 36. Remote WordPress Tag Editing Regression Checks (Phases 21.9.22–21.9.30)
@@ -959,6 +959,39 @@ empty tuples clear tags; checkbox changes update Save state; unknown IDs
 remain selectable; delayed/failed catalog loads preserve assigned IDs;
 account switching clears stale names; failed updates restore editing.
 
-**Latest developer-reported full-suite checkpoint:** **1,188 passing tests**
+**Historical developer-reported full-suite checkpoint:** **1,188 passing tests**
 after Phase 21.9.30, followed by a Git commit/push. The documentation update
 did not rerun tests. Live WordPress integration remains unverified.
+
+## 37. Qt Callback Lifecycle Regression Checks (Phases 21.9.31–21.9.59)
+
+Later Phase 21.9 work strengthened asynchronous ownership and shutdown
+behavior without expanding live platform coverage. In particular, the
+publishing controller, WordPress tag-preparation controller, WordPress
+tag-creation controller, and remote-post-loading controller forward worker
+results/errors through guarded Qt slots. Do not reconnect worker signals
+directly to public `.emit` methods: queued notifications could bypass
+`_shutting_down` after a synchronous shutdown.
+
+The three WordPress/remote loading controller suites each verify that
+queued success and error signals are suppressed after shutdown and that
+normal successful results precede `finished`. Publishing controller tests
+also cover shutdown, callback ordering, request boundaries, and reuse.
+PostsPage tests cover stale account callbacks, media-picker lifecycles,
+publishing/retry state, and WordPress preparation cancellation/recovery.
+
+Run these focused checks when changing those boundaries:
+
+```bash
+python -m pytest -q tests/ui/test_publishing_controller.py tests/ui/test_publishing_worker.py
+python -m pytest -q tests/ui/test_wordpress_tag_preparation_controller.py tests/ui/test_wordpress_tag_creation_controller.py
+python -m pytest -q tests/ui/test_remote_post_loading_controller.py tests/ui/test_posts_page.py
+python -m pytest -q
+git diff --check
+```
+
+For headless Linux Qt runs, prefix pytest with
+`QT_QPA_PLATFORM=offscreen` if needed. Test doubles do not replace
+live-site WordPress integration tests. Do not stage or commit `AGENTS.md`.
+
+**Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.

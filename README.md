@@ -114,7 +114,7 @@ After partial failure, **Retry Failed** targets only failed accounts; editing th
 draft or changing its accounts, images, language, or tags invalidates that retry.
 A failed publisher does not prevent later accounts from being attempted.
 
-**Testing checkpoint:** The developer reported **1,188 passing tests** after
+**Historical testing checkpoint:** The developer reported **1,188 passing tests** after
 Phase 21.9.30 remote-tag-editing regression coverage (October 2026).
 This is a reported full-suite result, not a new test run performed while
 updating these documents. Tests use mocked/fake network dependencies and do
@@ -225,5 +225,29 @@ This selector is separate from the tag selector used when publishing new
 posts. Live WordPress validation, remote media/other metadata editing, and
 Facebook/Instagram integrations are still pending.
 
-**Latest developer-reported test result:** 1,188 passing tests after Phase
+**Historical developer-reported test result:** 1,188 passing tests after Phase
 21.9.30. This is not a fresh test run performed during documentation editing.
+
+## Asynchronous Lifecycle Hardening (Phases 21.9.31–21.9.59)
+
+The subsequent WordPress and publishing work concentrates on **Qt callback
+ownership, request identity, cancellation, and shutdown safety** rather than
+new platform capabilities. Regression tests cover account switching during
+remote post and tag loading; remote post saving; featured-media selection and
+dialog reopening; stale tag creation/loading callbacks; publishing completion,
+retry, and controller reuse; and cancelling WordPress tag preparation before
+starting another publish request.
+
+Publishing worker notifications are forwarded through controller-owned
+`@Slot` methods that check `_shutting_down`, preventing queued progress,
+result, or error notifications from reaching consumers after shutdown.
+The same pattern is implemented for the WordPress tag-preparation,
+tag-creation, and remote-post-loading controllers. Each of those three
+controllers has regression tests for queued success/error notifications
+after shutdown and normal result-before-`finished` delivery.
+
+These safeguards protect the UI from stale asynchronous notifications.
+They do **not** cancel an already completed remote API operation, guarantee
+remote transaction rollback, or establish live WordPress compatibility.
+
+**Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.
