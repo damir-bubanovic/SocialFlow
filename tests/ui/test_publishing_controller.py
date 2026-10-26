@@ -1269,3 +1269,79 @@ def test_normal_publishing_forwards_signals_without_shutdown(qtbot) -> None:
         service.execute.assert_called_once()
     finally:
         controller.shutdown()
+
+
+def test_starting_next_request_from_finished_preserves_signal_boundaries(
+    qtbot,
+) -> None:
+    """Starting B from A's completion must preserve both signal sequences."""
+    service = Mock(spec=PublishPost)
+
+    first_request = create_request()
+    second_request = create_request()
+
+    first_progress = object()
+    second_progress = object()
+
+    first_results = (first_progress,)
+    second_results = (second_progress,)
+
+    def execute(request, *, on_progress):
+        if request is first_request:
+            on_progress(first_progress)
+            return first_results
+
+        if request is second_request:
+            on_progress(second_progress)
+            return second_results
+
+        raise AssertionError("Unexpected publishing request")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+    events = []
+    completed = []
+
+    controller.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    controller.result_ready.connect(
+        lambda results: events.append(("results", results))
+    )
+    controller.error_occurred.connect(
+        lambda message: events.append(("error", message))
+    )
+
+    def on_finished():
+        completed.append(True)
+        events.append(("finished", len(completed)))
+
+        if len(completed) == 1:
+            assert not controller.is_running
+            controller.start(second_request)
+
+    controller.finished.connect(on_finished)
+
+    try:
+        controller.start(first_request)
+
+        qtbot.waitUntil(
+            lambda: len(completed) == 2,
+            timeout=5000,
+        )
+
+        assert events == [
+            ("progress", first_progress),
+            ("results", first_results),
+            ("finished", 1),
+            ("progress", second_progress),
+            ("results", second_results),
+            ("finished", 2),
+        ]
+
+        assert service.execute.call_count == 2
+        assert not controller.is_running
+    finally:
+        controller.shutdown()
+
