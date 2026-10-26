@@ -229,6 +229,8 @@ class PostsPage(QWidget):
             parent=self,
         )
         self._tag_loading_account: Account | None = None
+        self._tags_generation = 0
+        self._tag_loading_generation: int | None = None
         self._pending_tag_accounts: list[Account] = []
         self._tag_loading_shutting_down = False
         self._loaded_tags_by_account: dict[object, tuple[Tag, ...]] = {}
@@ -399,6 +401,9 @@ class PostsPage(QWidget):
         if account not in self.post_editor.selected_accounts():
             return
 
+        if self._tag_loading_generation != self._tags_generation:
+            return
+
         self._loaded_tags_by_account[account.id] = tags
         self._display_loaded_tags()
 
@@ -425,6 +430,7 @@ class PostsPage(QWidget):
     def _on_tag_loading_finished(self) -> None:
         """Continue loading queued accounts after thread cleanup."""
         self._tag_loading_account = None
+        self._tag_loading_generation = None
         self._start_next_tag_loading()
 
     def _start_next_tag_loading(self) -> None:
@@ -446,6 +452,7 @@ class PostsPage(QWidget):
                 continue
 
             self._tag_loading_account = account
+            self._tag_loading_generation = self._tags_generation
             self._tag_loading_controller.start(account)
             return
 
@@ -453,6 +460,8 @@ class PostsPage(QWidget):
         """Load WordPress tags in the background."""
         if self._tag_loading_shutting_down:
             return
+
+        self._tags_generation += 1
 
         selected_accounts = self.post_editor.selected_accounts()
         selected_ids = {account.id for account in selected_accounts}

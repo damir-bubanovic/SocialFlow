@@ -4189,3 +4189,144 @@ def test_remote_media_errors_ignored_after_dialog_closes(
         assert page._remote_media_dialog is None
     finally:
         page.shutdown()
+
+def test_general_tags_ignore_reselected_account_session(qtbot):
+    """An old A request must not populate tags after A -> off -> A."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        checkbox = page.post_editor.destination_selector._checkboxes[0]
+        checkbox.setChecked(True)
+
+        account = page.post_editor.selected_accounts()[0]
+
+        # Simulate a request started in the original account session.
+        page._tag_loading_account = account
+
+        # Leave and re-enter the same account selection.
+        checkbox.setChecked(False)
+        checkbox.setChecked(True)
+
+        page._on_tags_loaded((Tag(name="StaleTag"),))
+
+        assert (
+            Tag(name="StaleTag")
+            not in page.post_editor.tag_selector.available_tags()
+        )
+        assert (
+            account.id not in page._loaded_tags_by_account
+            or Tag(name="StaleTag")
+            not in page._loaded_tags_by_account[account.id]
+        )
+    finally:
+        page.shutdown()
+
+
+def test_general_tags_accept_current_account_session(qtbot):
+    """A valid result must populate tags for the selected account."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        checkbox = page.post_editor.destination_selector._checkboxes[0]
+        checkbox.setChecked(True)
+
+        account = page.post_editor.selected_accounts()[0]
+        page._tag_loading_account = account
+        page._tag_loading_generation = page._tags_generation
+
+        expected_tags = (Tag(name="CurrentTag"),)
+
+        page._on_tags_loaded(expected_tags)
+
+        assert page._loaded_tags_by_account[account.id] == expected_tags
+        assert (
+            Tag(name="CurrentTag")
+            in page.post_editor.tag_selector.available_tags()
+        )
+    finally:
+        page.shutdown()
+
+
+def test_general_tags_ignore_results_after_shutdown(qtbot):
+    """Tag callbacks must not update editor state after shutdown."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    checkbox = page.post_editor.destination_selector._checkboxes[0]
+    checkbox.setChecked(True)
+
+    account = page.post_editor.selected_accounts()[0]
+    page._tag_loading_account = account
+    page._tag_loading_generation = page._tags_generation
+
+    try:
+        page.shutdown()
+
+        page._on_tags_loaded((Tag(name="LateTag"),))
+
+        assert Tag(name="LateTag") not in (
+            page.post_editor.tag_selector.available_tags()
+        )
+        assert Tag(name="LateTag") not in (
+            page._loaded_tags_by_account.get(account.id, ())
+        )
+    finally:
+        page.shutdown()
+
+
+def test_general_tags_finished_clears_loading_generation(qtbot):
+    """Finishing a tag request clears its account and generation."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        page._pending_tag_accounts.clear()
+        page._tag_loading_account = None
+        page._tag_loading_generation = page._tags_generation
+
+        page._on_tag_loading_finished()
+
+        assert page._tag_loading_account is None
+        assert page._tag_loading_generation is None
+    finally:
+        page.shutdown()
+
+
+def test_general_tags_queue_uses_current_generation(qtbot, monkeypatch):
+    """A queued account starts with the latest selection generation."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    try:
+        checkbox = page.post_editor.destination_selector._checkboxes[0]
+        checkbox.setChecked(True)
+
+        account = page.post_editor.selected_accounts()[0]
+
+        # Represent an old request that has become outdated.
+        page._tag_loading_account = account
+        page._tag_loading_generation = page._tags_generation - 1
+
+        # Queue a fresh request for the currently selected account.
+        page._pending_tag_accounts[:] = [account]
+        page._loaded_tags_by_account.pop(account.id, None)
+
+        started_accounts = []
+
+        monkeypatch.setattr(
+            page._tag_loading_controller,
+            "start",
+            lambda selected_account: started_accounts.append(
+                selected_account
+            ),
+        )
+
+        page._on_tag_loading_finished()
+
+        assert started_accounts == [account]
+        assert page._tag_loading_account == account
+        assert page._tag_loading_generation == page._tags_generation
+    finally:
+        page.shutdown()
