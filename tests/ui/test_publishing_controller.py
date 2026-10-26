@@ -776,3 +776,210 @@ def test_controller_can_retry_after_partial_publishing_failure(
 
     finally:
         controller.shutdown()
+
+
+def test_consecutive_requests_preserve_result_finished_order(qtbot):
+    """Each request delivers its result before its finished signal."""
+    service = Mock(spec=PublishPost)
+
+    first_request = create_request()
+    second_request = create_request()
+
+    first_results = (object(),)
+    second_results = (object(),)
+
+    def execute(request, *, on_progress=None):
+        """Return results for the requested publishing operation."""
+        _ = on_progress
+
+        if request is first_request:
+            return first_results
+
+        if request is second_request:
+            return second_results
+
+        raise AssertionError("Unexpected publishing request")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+    events = []
+
+    controller.result_ready.connect(
+        lambda results: events.append(("results", results))
+    )
+    controller.finished.connect(
+        lambda: events.append(("finished", None))
+    )
+
+    try:
+        with qtbot.waitSignals(
+            [controller.result_ready, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(first_request)
+
+        assert not controller.is_running
+
+        with qtbot.waitSignals(
+            [controller.result_ready, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(second_request)
+
+        assert events == [
+            ("results", first_results),
+            ("finished", None),
+            ("results", second_results),
+            ("finished", None),
+        ]
+
+        assert service.execute.call_count == 2
+        assert not controller.is_running
+    finally:
+        controller.shutdown()
+
+
+def test_consecutive_requests_preserve_progress_result_finished_order(qtbot):
+    """Progress and results from each request precede its completion."""
+    service = Mock(spec=PublishPost)
+
+    first_request = create_request()
+    second_request = create_request()
+
+    first_progress = object()
+    second_progress = object()
+
+    first_results = (first_progress,)
+    second_results = (second_progress,)
+
+    def execute(request, *, on_progress):
+        if request is first_request:
+            on_progress(first_progress)
+            return first_results
+
+        if request is second_request:
+            on_progress(second_progress)
+            return second_results
+
+        raise AssertionError("Unexpected publishing request")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+    events = []
+
+    controller.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    controller.result_ready.connect(
+        lambda results: events.append(("results", results))
+    )
+    controller.finished.connect(
+        lambda: events.append(("finished", None))
+    )
+
+    try:
+        with qtbot.waitSignals(
+            [
+                controller.progress,
+                controller.result_ready,
+                controller.finished,
+            ],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(first_request)
+
+        assert not controller.is_running
+
+        with qtbot.waitSignals(
+            [
+                controller.progress,
+                controller.result_ready,
+                controller.finished,
+            ],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(second_request)
+
+        assert events == [
+            ("progress", first_progress),
+            ("results", first_results),
+            ("finished", None),
+            ("progress", second_progress),
+            ("results", second_results),
+            ("finished", None),
+        ]
+
+        assert service.execute.call_count == 2
+    finally:
+        controller.shutdown()
+
+
+def test_failed_request_then_success_preserves_signal_order(qtbot):
+    """A failed request completes before the next request starts."""
+    service = Mock(spec=PublishPost)
+
+    first_request = create_request()
+    second_request = create_request()
+
+    second_results = (object(),)
+
+    def execute(request, *, on_progress):
+        assert callable(on_progress)
+
+        if request is first_request:
+            raise RuntimeError("Simulated publishing failure")
+
+        if request is second_request:
+            return second_results
+
+        raise AssertionError("Unexpected publishing request")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+    events = []
+
+    controller.error_occurred.connect(
+        lambda message: events.append(("error", message))
+    )
+    controller.result_ready.connect(
+        lambda results: events.append(("results", results))
+    )
+    controller.finished.connect(
+        lambda: events.append(("finished", None))
+    )
+
+    try:
+        with qtbot.waitSignals(
+            [controller.error_occurred, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(first_request)
+
+        assert not controller.is_running
+
+        with qtbot.waitSignals(
+            [controller.result_ready, controller.finished],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(second_request)
+
+        assert events == [
+            ("error", "Publishing could not be completed."),
+            ("finished", None),
+            ("results", second_results),
+            ("finished", None),
+        ]
+
+        assert service.execute.call_count == 2
+        assert not controller.is_running
+    finally:
+        controller.shutdown()
