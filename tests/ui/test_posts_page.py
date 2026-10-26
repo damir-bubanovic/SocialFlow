@@ -2891,6 +2891,7 @@ def _create_featured_media_test_page(qtbot):
 
     return page, account, update_remote_post
 
+# noinspection PyProtectedMember
 def _open_test_media_dialog(page, account):
     """Simulate an open picker for the currently selected post."""
     dialog = RemoteMediaSelectionDialog(page)
@@ -3960,7 +3961,7 @@ def test_remote_media_error_accepts_current_generation(qtbot):
 def test_remote_media_dialog_finished_clears_generation(qtbot):
     """Closing the picker must discard its request generation."""
     page, account, _ = _create_featured_media_test_page(qtbot)
-    dialog = _open_test_media_dialog(page, account)
+    _open_test_media_dialog(page, account)
 
     try:
         assert page._remote_media_loading_generation == (
@@ -3973,5 +3974,103 @@ def test_remote_media_dialog_finished_clears_generation(qtbot):
         assert page._remote_media_loading_account is None
         assert page._remote_media_loading_generation is None
         assert page._remote_media_selected_post_id is None
+    finally:
+        page.shutdown()
+
+def test_remote_media_loading_finished_preserves_open_dialog_state(qtbot):
+    """Worker cleanup must not invalidate an open media picker."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    try:
+        original_generation = page._remote_media_loading_generation
+        original_post_id = page._remote_media_selected_post_id
+
+        assert original_generation == page._remote_posts_generation
+        assert page._remote_media_loading_account == account
+
+        page._on_remote_media_loading_finished()
+
+        assert page._remote_media_dialog is dialog
+        assert page._remote_media_loading_account == account
+        assert page._remote_media_loading_generation == original_generation
+        assert page._remote_media_selected_post_id == original_post_id
+    finally:
+        page.shutdown()
+
+def test_remote_media_loading_finished_clears_closed_dialog_state(qtbot):
+    """Late worker completion must not restore a closed picker session."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    _open_test_media_dialog(page, account)
+
+    try:
+        assert page._remote_media_loading_account == account
+        assert page._remote_media_loading_generation is not None
+
+        # The user closes the picker before worker completion.
+        page._on_remote_media_dialog_finished(0)
+
+        assert page._remote_media_dialog is None
+
+        # A delayed worker-finished signal arrives afterward.
+        page._on_remote_media_loading_finished()
+
+        assert page._remote_media_dialog is None
+        assert page._remote_media_loading_account is None
+        assert page._remote_media_loading_generation is None
+        assert page._remote_media_selected_post_id is None
+    finally:
+        page.shutdown()
+
+def test_remote_media_loading_ignores_callback_after_shutdown(
+    qtbot,
+    monkeypatch,
+):
+    """Media results must not update a picker after page shutdown."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    displayed_media = []
+    monkeypatch.setattr(
+        dialog,
+        "show_media",
+        lambda media: displayed_media.append(media),
+    )
+
+    try:
+        page.shutdown()
+
+        # Simulate a delayed worker callback after shutdown.
+        page._on_remote_media_loaded(())
+
+        assert displayed_media == []
+        assert page._remote_media_loading_shutting_down is True
+    finally:
+        page.shutdown()
+
+
+def test_remote_media_error_ignored_after_shutdown(
+    qtbot,
+    monkeypatch,
+):
+    """Media errors must not update a picker after page shutdown."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    displayed_errors = []
+    monkeypatch.setattr(
+        dialog,
+        "show_error",
+        lambda message: displayed_errors.append(message),
+    )
+
+    try:
+        page.shutdown()
+
+        # Simulate a delayed worker error after shutdown.
+        page._on_remote_media_error("WordPress media request failed")
+
+        assert displayed_errors == []
+        assert page._remote_media_loading_shutting_down is True
     finally:
         page.shutdown()
