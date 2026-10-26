@@ -1,5 +1,4 @@
-
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.domain.publishing.publish_request import PublishRequest
@@ -44,9 +43,9 @@ class PublishingController(QObject):
 
         thread.started.connect(worker.run)
 
-        worker.progress.connect(self.progress.emit)
-        worker.finished.connect(self.result_ready.emit)
-        worker.failed.connect(self.error_occurred.emit)
+        worker.progress.connect(self._on_worker_progress)
+        worker.finished.connect(self._on_worker_results)
+        worker.failed.connect(self._on_worker_error)
 
         worker.finished.connect(
             thread.quit,
@@ -61,6 +60,30 @@ class PublishingController(QObject):
         thread.finished.connect(self._on_thread_finished)
 
         thread.start()
+
+    @Slot(object)
+    def _on_worker_progress(self, result: object) -> None:
+        """Forward progress unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.progress.emit(result)
+
+    @Slot(object)
+    def _on_worker_results(self, results: object) -> None:
+        """Forward publishing results unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.result_ready.emit(results)
+
+    @Slot(str)
+    def _on_worker_error(self, message: str) -> None:
+        """Forward publishing errors unless shutdown has begun."""
+        if self._shutting_down:
+            return
+
+        self.error_occurred.emit(message)
 
     def _on_thread_finished(self) -> None:
         """Release resources after the thread has stopped."""

@@ -1115,3 +1115,157 @@ def test_delayed_thread_finished_after_shutdown_is_ignored(qtbot):
         assert not controller.is_running
     finally:
         controller.shutdown()
+
+
+def test_shutdown_suppresses_queued_publishing_signals(qtbot) -> None:
+    """Worker signals queued before shutdown must not reach subscribers afterward."""
+    service = Mock(spec=PublishPost)
+    request = create_request()
+
+    execution_complete = Event()
+    progress_result = object()
+    results = (progress_result,)
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+
+        on_progress(progress_result)
+        execution_complete.set()
+
+        return results
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+
+    progress_listener = Mock()
+    results_listener = Mock()
+    error_listener = Mock()
+
+    controller.progress.connect(progress_listener)
+    controller.result_ready.connect(results_listener)
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        controller.start(request)
+
+        # Wait using a threading event, without pumping Qt events.
+        assert execution_complete.wait(timeout=3)
+
+        # Shutdown before queued cross-thread signals are processed.
+        controller.shutdown()
+
+        assert not controller.is_running
+        assert controller._thread is None
+        assert controller._worker is None
+
+        # Deliver any pending Qt events.
+        qtbot.wait(100)
+
+        progress_listener.assert_not_called()
+        results_listener.assert_not_called()
+        error_listener.assert_not_called()
+
+        service.execute.assert_called_once()
+    finally:
+        controller.shutdown()
+
+def test_shutdown_suppresses_queued_publishing_error(qtbot) -> None:
+    """An error queued before shutdown must not reach subscribers afterward."""
+    service = Mock(spec=PublishPost)
+    request = create_request()
+
+    execution_complete = Event()
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+        assert callable(on_progress)
+
+        execution_complete.set()
+        raise RuntimeError("Simulated publishing failure")
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+
+    progress_listener = Mock()
+    results_listener = Mock()
+    error_listener = Mock()
+
+    controller.progress.connect(progress_listener)
+    controller.result_ready.connect(results_listener)
+    controller.error_occurred.connect(error_listener)
+
+    try:
+        controller.start(request)
+
+        assert execution_complete.wait(timeout=3)
+
+        # Allow the worker to finish without processing queued UI events.
+        controller.shutdown()
+
+        qtbot.wait(100)
+
+        progress_listener.assert_not_called()
+        results_listener.assert_not_called()
+        error_listener.assert_not_called()
+
+        assert not controller.is_running
+        service.execute.assert_called_once()
+    finally:
+        controller.shutdown()
+
+
+def test_normal_publishing_forwards_signals_without_shutdown(qtbot) -> None:
+    """Normal publishing forwards progress and results before completion."""
+    service = Mock(spec=PublishPost)
+    request = create_request()
+
+    progress_result = object()
+    results = (progress_result,)
+
+    def execute(_request, *, on_progress):
+        assert _request is request
+        on_progress(progress_result)
+        return results
+
+    service.execute.side_effect = execute
+
+    controller = PublishingController(service)
+    events = []
+
+    controller.progress.connect(
+        lambda result: events.append(("progress", result))
+    )
+    controller.result_ready.connect(
+        lambda result: events.append(("results", result))
+    )
+    controller.error_occurred.connect(
+        lambda message: events.append(("error", message))
+    )
+    controller.finished.connect(
+        lambda: events.append(("finished", None))
+    )
+
+    try:
+        with qtbot.waitSignals(
+            [
+                controller.progress,
+                controller.result_ready,
+                controller.finished,
+            ],
+            timeout=3000,
+            order="strict",
+        ):
+            controller.start(request)
+
+        assert events == [
+            ("progress", progress_result),
+            ("results", results),
+            ("finished", None),
+        ]
+
+        assert not controller.is_running
+        service.execute.assert_called_once()
+    finally:
+        controller.shutdown()
