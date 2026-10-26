@@ -4074,3 +4074,118 @@ def test_remote_media_error_ignored_after_shutdown(
         assert page._remote_media_loading_shutting_down is True
     finally:
         page.shutdown()
+
+def test_remote_media_picker_cannot_reopen_while_loading(
+    qtbot,
+    monkeypatch,
+):
+    """A closed picker cannot reopen while its worker is running."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    _open_test_media_dialog(page, account)
+
+    class RunningMediaController:
+        is_running = True
+
+    try:
+        # Simulate closing the first picker.
+        page._on_remote_media_dialog_finished(0)
+
+        assert page._remote_media_dialog is None
+
+        # Simulate the original media request still running.
+        monkeypatch.setattr(
+            page,
+            "_remote_media_loading_controller",
+            RunningMediaController(),
+        )
+
+        page._browse_remote_media()
+
+        # No second picker should have been created.
+        assert page._remote_media_dialog is None
+    finally:
+        # Restore the original controller before shutdown.
+        monkeypatch.undo()
+        page.shutdown()
+
+
+def test_remote_media_picker_state_cleared_before_reopening(qtbot):
+    """A completed request must not retain a closed picker session."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    _open_test_media_dialog(page, account)
+
+    try:
+        assert page._remote_media_loading_account == account
+        assert page._remote_media_loading_generation is not None
+
+        # Close the original picker.
+        page._on_remote_media_dialog_finished(0)
+
+        # The original worker finishes afterward.
+        page._on_remote_media_loading_finished()
+
+        assert page._remote_media_dialog is None
+        assert page._remote_media_loading_account is None
+        assert page._remote_media_loading_generation is None
+        assert page._remote_media_selected_post_id is None
+
+        # Simulate starting a new picker session.
+        new_dialog = _open_test_media_dialog(page, account)
+
+        assert page._remote_media_dialog is new_dialog
+        assert page._remote_media_loading_account == account
+        assert page._remote_media_loading_generation == (
+            page._remote_posts_generation
+        )
+    finally:
+        page.shutdown()
+
+
+def test_remote_media_results_ignored_after_dialog_closes(
+    qtbot,
+    monkeypatch,
+):
+    """Results arriving after picker closure must be ignored."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    displayed_media = []
+    monkeypatch.setattr(
+        dialog,
+        "show_media",
+        lambda media: displayed_media.append(media),
+    )
+
+    try:
+        page._on_remote_media_dialog_finished(0)
+        page._on_remote_media_loaded(())
+
+        assert displayed_media == []
+        assert page._remote_media_dialog is None
+    finally:
+        page.shutdown()
+
+
+def test_remote_media_errors_ignored_after_dialog_closes(
+    qtbot,
+    monkeypatch,
+):
+    """Errors arriving after picker closure must be ignored."""
+    page, account, _ = _create_featured_media_test_page(qtbot)
+    dialog = _open_test_media_dialog(page, account)
+
+    displayed_errors = []
+    monkeypatch.setattr(
+        dialog,
+        "show_error",
+        lambda message: displayed_errors.append(message),
+    )
+
+    try:
+        page._on_remote_media_dialog_finished(0)
+        page._on_remote_media_error("Delayed media error")
+
+        assert displayed_errors == []
+        assert page._remote_media_dialog is None
+    finally:
+        page.shutdown()
