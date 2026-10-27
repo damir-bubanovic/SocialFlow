@@ -791,3 +791,5 @@ def test_title_update_rejects_invalid_excerpt():
 
     controller.start.assert_not_called()
     page.remote_posts_panel.restore_editing.assert_called_once()
+
+

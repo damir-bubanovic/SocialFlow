@@ -254,3 +254,34 @@ def test_save_during_trash_does_not_restore_editing():
     page.remote_posts_panel.restore_editing.assert_not_called()
     page.remote_posts_panel.save_button.setEnabled.assert_not_called()
     page.remote_posts_panel.content_editor.setEnabled.assert_not_called()
+
+
+def test_trash_error_ignored_after_account_switch():
+    page, _, _, account = make_trash_page()
+
+    page._remote_post_trashing_account = account
+    page._remote_post_trashing_generation = 3
+
+    # The user selected a different WordPress account.
+    page._loaded_remote_posts_account = Mock()
+
+    PostsPage._on_remote_post_trash_error(
+        page,
+        "HTTP 403",
+    )
+
+    page.remote_posts_panel.status_label.setText.assert_not_called()
+
+
+def test_successful_trash_refreshes_both_post_lists():
+    page, _, _, account = make_trash_page()
+
+    page._remote_post_trashing_account = account
+    page._remote_post_trashing_generation = 3
+    page._remote_post_trashing_succeeded = True
+
+    PostsPage._on_remote_post_trash_finished(page)
+
+    page._refresh_remote_posts.assert_called_once_with()
+    page._refresh_trashed_posts.assert_called_once_with()
+    page.remote_posts_panel.restore_editing.assert_not_called()

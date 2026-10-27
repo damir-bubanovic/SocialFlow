@@ -276,3 +276,44 @@ def test_stale_restore_completion_does_not_unlock_unloaded_trash():
     assert page._remote_post_restoring_account is None
     assert page._remote_post_restoring_generation is None
     assert page._remote_post_restoring_succeeded is False
+
+
+def test_trash_loading_error_preserves_active_restore_state():
+    page, restore_controller, account, _ = make_restore_page()
+
+    page._trashed_post_loading_account = account
+    page._trashed_post_loading_generation = 3
+    page._pending_trashed_post_account = None
+    page._remote_trashed_post_loading_shutting_down = False
+
+    restore_controller.is_running = True
+
+    PostsPage._on_trashed_posts_error(page, "Connection failed")
+
+    assert page._loaded_trashed_posts == ()
+    assert page._loaded_trashed_posts_account is None
+
+    page.remote_trashed_posts_panel.show_error.assert_called_once_with(
+        "Connection failed"
+    )
+    page.remote_trashed_posts_panel.set_restoring.assert_called_once_with(
+        True
+    )
+
+
+def test_trash_loading_error_does_not_lock_panel_without_restore():
+    page, restore_controller, account, _ = make_restore_page()
+
+    page._trashed_post_loading_account = account
+    page._trashed_post_loading_generation = 3
+    page._pending_trashed_post_account = None
+    page._remote_trashed_post_loading_shutting_down = False
+
+    restore_controller.is_running = False
+
+    PostsPage._on_trashed_posts_error(page, "Connection failed")
+
+    page.remote_trashed_posts_panel.show_error.assert_called_once_with(
+        "Connection failed"
+    )
+    page.remote_trashed_posts_panel.set_restoring.assert_not_called()

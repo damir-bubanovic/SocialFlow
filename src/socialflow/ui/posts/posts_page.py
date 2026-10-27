@@ -911,6 +911,14 @@ class PostsPage(QWidget):
         self._loaded_trashed_posts_account = None
         self.remote_trashed_posts_panel.show_error(message)
 
+        restore_controller = self._remote_post_restoring_controller
+
+        if (
+                restore_controller is not None
+                and restore_controller.is_running
+        ):
+            self.remote_trashed_posts_panel.set_restoring(True)
+
     def _on_trashed_post_loading_finished(self) -> None:
         """Continue with the latest queued request after cleanup."""
         self._trashed_post_loading_account = None
