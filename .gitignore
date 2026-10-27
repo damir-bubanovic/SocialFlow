@@ -117,3 +117,6 @@ $RECYCLE.BIN/
 
 # Local AI agent instructions
 AGENTS.md
+
+# Local WordPress integration tests and credentials
+/tests/wordpress_live_test/
