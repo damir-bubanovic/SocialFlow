@@ -1,5 +1,10 @@
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 from socialflow.application.accounts.list_accounts import ListAccounts
@@ -440,16 +445,32 @@ class PostsPage(QWidget):
             self._handle_remote_post_restore
         )
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.new_post_button)
-        layout.addWidget(self.post_editor)
-        layout.addWidget(self.retry_failed_button)
-        layout.addWidget(self.publish_status)
-        layout.addWidget(self.recent_posts_panel)
-        layout.addWidget(self.remote_posts_panel)
-        layout.addWidget(self.remote_trashed_posts_panel)
+        # Keep all Posts page sections inside one vertically
+        # scrollable content area.
+        scroll_content = QWidget(self)
 
-        self.setLayout(layout)
+        content_layout = QVBoxLayout(scroll_content)
+        content_layout.addWidget(self.new_post_button)
+        content_layout.addWidget(self.post_editor)
+        content_layout.addWidget(self.retry_failed_button)
+        content_layout.addWidget(self.publish_status)
+        content_layout.addWidget(self.recent_posts_panel)
+        content_layout.addWidget(self.remote_posts_panel)
+        content_layout.addWidget(self.remote_trashed_posts_panel)
+
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_area.setWidget(scroll_content)
+
+        page_layout = QVBoxLayout(self)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.addWidget(self.scroll_area)
 
         self.post_editor.publish_requested.connect(
             self._handle_publish_request

@@ -4,6 +4,8 @@ from PySide6.QtWidgets import QCheckBox
 
 from PySide6.QtWidgets import QWidget
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QScrollArea
 from socialflow.domain.post.remote_media import RemoteMedia
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.application.accounts.account_repository import AccountRepository
@@ -5230,3 +5232,23 @@ def test_fresh_request_is_accepted_after_cancelled_wordpress_preparation(
         preparation.assert_called_once_with(fresh_request)
     finally:
         page.shutdown()
+
+
+def test_posts_page_has_vertical_scroll_area(qtbot) -> None:
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    scroll_area = page.scroll_area
+
+    assert isinstance(scroll_area, QScrollArea)
+    assert scroll_area.widgetResizable()
+    assert (
+        scroll_area.verticalScrollBarPolicy()
+        == Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
+    assert (
+        scroll_area.horizontalScrollBarPolicy()
+        == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    assert scroll_area.widget() is not None
+    assert scroll_area.widget().layout().count() == 7
