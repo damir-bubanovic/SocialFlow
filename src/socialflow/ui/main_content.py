@@ -1,4 +1,3 @@
-
 from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
 from socialflow.application.accounts.add_account import AddAccount
@@ -84,6 +83,12 @@ from socialflow.infrastructure.wordpress.wordpress_post_provider import (
 )
 from socialflow.application.publishing.update_remote_post import (
     UpdateRemotePost,
+)
+from socialflow.application.publishing.trash_remote_post import (
+    TrashRemotePost,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
+    WordPressPostTrasher,
 )
 from socialflow.infrastructure.wordpress.wordpress_post_updater import (
     WordPressPostUpdater,
@@ -211,6 +216,15 @@ class MainContent(QWidget):
             updater=wordpress_post_updater,
         )
 
+        wordpress_post_trasher = WordPressPostTrasher(
+            client=wordpress_post_client,
+            credential_store=credential_store,
+        )
+
+        trash_remote_post = TrashRemotePost(
+            trasher=wordpress_post_trasher,
+        )
+
         publisher_router = PublisherRouter(
             publishers={
                 PublishingDestination.FACEBOOK: publisher,
@@ -259,6 +273,7 @@ class MainContent(QWidget):
             parent=self,
             list_remote_posts=list_remote_posts,
             update_remote_post=update_remote_post,
+            trash_remote_post=trash_remote_post,
             wordpress_tag_preparation_controller=WordPressTagPreparationController(
                 credential_store=credential_store,
                 tag_client=wordpress_tag_client,

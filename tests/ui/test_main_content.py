@@ -26,6 +26,12 @@ from socialflow.infrastructure.wordpress.wordpress_publisher import (
 from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
+from socialflow.application.publishing.trash_remote_post import (
+    TrashRemotePost,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
+    WordPressPostTrasher,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -357,4 +363,33 @@ def test_main_content_configures_wordpress_publisher_with_tag_client(
     assert isinstance(
         publisher._tag_client,
         UrllibWordPressTagClient,
+    )
+
+
+
+def test_main_content_wires_wordpress_trash_controller(qtbot):
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    controller = (
+        content.posts_page._remote_post_trashing_controller
+    )
+
+    assert controller is not None
+    assert not controller.is_running
+
+
+def test_main_content_trash_controller_uses_wordpress_trasher(qtbot):
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    controller = (
+        content.posts_page._remote_post_trashing_controller
+    )
+    use_case = controller._trash_remote_post
+
+    assert isinstance(use_case, TrashRemotePost)
+    assert isinstance(
+        use_case._trasher,
+        WordPressPostTrasher,
     )

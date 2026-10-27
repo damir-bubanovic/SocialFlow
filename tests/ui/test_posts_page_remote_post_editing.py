@@ -13,6 +13,7 @@ def test_remote_post_save_starts_update_for_selected_post():
     controller.is_running = False
     page._remote_post_updating_controller = controller
     page._remote_post_updating_shutting_down = False
+    page._remote_post_trashing_controller = None
 
     account = Mock()
     account.destination = PublishingDestination.WORDPRESS
@@ -308,6 +309,7 @@ def test_remote_post_save_with_tags_starts_tag_aware_update():
     controller.is_running = False
     page._remote_post_updating_controller = controller
     page._remote_post_updating_shutting_down = False
+    page._remote_post_trashing_controller = None
 
     account = Mock()
     account.destination = PublishingDestination.WORDPRESS
@@ -366,6 +368,7 @@ def test_tag_aware_save_rejection_restores_editing():
 
     page._remote_post_updating_controller = controller
     page._remote_post_updating_shutting_down = False
+    page._remote_post_trashing_controller = None
     controller.is_running = True
 
     page._handle_remote_post_save = (
@@ -410,6 +413,7 @@ def test_rejected_remote_post_save_restores_editing(
         controller if controller_available else None
     )
     page._remote_post_updating_shutting_down = shutting_down
+    page._remote_post_trashing_controller = None
 
     PostsPage._handle_remote_post_save(
         page,
@@ -433,6 +437,7 @@ def make_featured_media_update_page():
 
     page._remote_post_updating_controller = controller
     page._remote_post_updating_shutting_down = False
+    page._remote_post_trashing_controller = None
     page._remote_posts_generation = 1
 
     page._loaded_remote_posts_account = account
@@ -780,7 +785,7 @@ def test_title_update_rejects_invalid_excerpt():
         None,
         None,
         None,
-        123,
+        cast(str | None, 123),
         "Updated title",
     )
 

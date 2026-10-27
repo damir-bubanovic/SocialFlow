@@ -1314,3 +1314,160 @@ def test_update_post_rejects_invalid_wordpress_title(title):
             )
 
         build_opener.assert_not_called()
+
+
+
+def test_trash_post_uses_delete_without_force():
+    response = make_response(status=200)
+    response.read.return_value = json.dumps({
+        "id": 123,
+        "status": "trash",
+    }).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        result = client.trash_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+        )
+
+    assert result == 200
+
+    request = opener.open.call_args.args[0]
+    assert request.get_method() == "DELETE"
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts/123"
+    )
+    assert "force=true" not in request.full_url
+
+    expected_auth = base64.b64encode(
+        b"admin:secret"
+    ).decode("ascii")
+
+    assert request.get_header("Authorization") == (
+        f"Basic {expected_auth}"
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_id",
+    [0, -1, True, "123", None],
+)
+def test_trash_post_rejects_invalid_id(invalid_id):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress post ID",
+        ):
+            client.trash_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=invalid_id,
+            )
+
+        build_opener.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "invalid_url",
+    [
+        "http://example.com",
+        "https://user:password@example.com",
+        "https://example.com?token=secret",
+        "https://example.com#fragment",
+    ],
+)
+def test_trash_post_rejects_invalid_site_url(invalid_url):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="HTTPS WordPress URL",
+        ):
+            client.trash_post(
+                site_url=invalid_url,
+                username="admin",
+                application_password="secret",
+                post_id=123,
+            )
+
+        build_opener.assert_not_called()
+
+
+def test_trash_post_returns_http_error_status():
+    error = HTTPError(
+        url="https://example.com/wp-json/wp/v2/posts/123",
+        code=403,
+        msg="Forbidden",
+        hdrs=Message(),
+        fp=BytesIO(b""),
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.side_effect = error
+
+        client = UrllibWordPressPostClient()
+        result = client.trash_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+        )
+
+    assert result == 403
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"id": 123, "status": "publish"},
+        {"id": 999, "status": "trash"},
+        {"id": 123},
+        [],
+    ],
+)
+def test_trash_post_requires_trash_confirmation(payload):
+    response = make_response(status=200)
+    response.read.return_value = json.dumps(
+        payload
+    ).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="did not confirm",
+        ):
+            client.trash_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=123,
+            )

@@ -362,6 +362,85 @@ class UrllibWordPressPostClient(WordPressPostClient):
         except HTTPError as error:
             return error.code
 
+
+    def trash_post(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            post_id: int,
+    ) -> int:
+        """Move an existing WordPress post to Trash."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+                parsed.scheme.lower() != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+        ):
+            raise ValueError(
+                "A valid HTTPS WordPress URL is required."
+            )
+
+        if type(post_id) is not int or post_id <= 0:
+            raise ValueError(
+                "A valid WordPress post ID is required."
+            )
+
+        endpoint = (
+            site_url.rstrip("/")
+            + f"/wp-json/wp/v2/posts/{post_id}"
+        )
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        request = Request(
+            endpoint,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+            },
+            method="DELETE",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(
+                context=ssl.create_default_context()
+            ),
+            _NoRedirectHandler(),
+        )
+
+        try:
+            with opener.open(
+                    request,
+                    timeout=self._timeout,
+            ) as response:
+                payload = json.load(response)
+
+                if (
+                    not isinstance(payload, dict)
+                    or payload.get("id") != post_id
+                    or payload.get("status") != "trash"
+                ):
+                    raise ValueError(
+                        "WordPress did not confirm the post "
+                        "was moved to Trash."
+                    )
+
+                return response.status
+
+        except HTTPError as error:
+            return error.code
+
+
+
     def upload_media(
         self,
         site_url: str,

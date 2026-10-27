@@ -26,6 +26,7 @@ class RemotePostsPanel(QWidget):
         str, str, object, object, str
     )
     browse_media_requested = Signal()
+    trash_requested = Signal(str)
     save_with_excerpt_requested = Signal(
         str, str, object, object, object, str
     )
@@ -95,6 +96,9 @@ class RemotePostsPanel(QWidget):
 
         self.save_button = QPushButton("Save changes", self)
 
+        self.trash_button = QPushButton("Move to Trash", self)
+        self.trash_button.setEnabled(False)
+
         self.content_editor.setPlaceholderText(
             "Select a WordPress post to edit its content."
         )
@@ -120,6 +124,7 @@ class RemotePostsPanel(QWidget):
         layout.addWidget(self.featured_media_input)
         layout.addWidget(self.browse_media_button)
         layout.addWidget(self.save_button)
+        layout.addWidget(self.trash_button)
 
         self.posts_list.currentRowChanged.connect(
             self._on_post_selected
@@ -147,6 +152,9 @@ class RemotePostsPanel(QWidget):
         )
         self.save_button.clicked.connect(
             self._request_save
+        )
+        self.trash_button.clicked.connect(
+            self._request_trash
         )
         self.browse_media_button.clicked.connect(
             self.browse_media_requested.emit
@@ -213,6 +221,7 @@ class RemotePostsPanel(QWidget):
 
         self._reset_featured_media()
         self.save_button.setEnabled(False)
+        self.trash_button.setEnabled(False)
 
     def show_loading(self) -> None:
         """Display a loading indicator."""
@@ -255,6 +264,7 @@ class RemotePostsPanel(QWidget):
     def _on_post_selected(self, row: int) -> None:
         """Load the selected post into the editing fields."""
         if not 0 <= row < len(self._posts):
+            self.trash_button.setEnabled(False)
             self.post_title_editor.clear()
             self.post_title_editor.setEnabled(False)
             self.content_editor.clear()
@@ -274,6 +284,7 @@ class RemotePostsPanel(QWidget):
             return
 
         post = self._posts[row]
+        self.trash_button.setEnabled(True)
 
         self.post_title_editor.setPlainText(post.title)
         self.post_title_editor.setEnabled(True)
@@ -308,6 +319,7 @@ class RemotePostsPanel(QWidget):
         )
 
         self.posts_list.setEnabled(bool(self._posts))
+        self.trash_button.setEnabled(has_selection)
         self.content_editor.setEnabled(has_selection)
         self.post_title_editor.setEnabled(has_selection)
         self.excerpt_editor.setEnabled(has_selection)
@@ -379,6 +391,37 @@ class RemotePostsPanel(QWidget):
             or status_changed
         )
 
+
+    def _request_trash(self) -> None:
+        """Request moving the selected WordPress post to Trash."""
+        if not self.trash_button.isEnabled():
+            return
+
+        row = self.posts_list.currentRow()
+
+        if not 0 <= row < len(self._posts):
+            return
+
+        self.trash_requested.emit(self._posts[row].remote_id)
+
+    def set_trashing(self, trashing: bool) -> None:
+        """Prevent conflicting edits while a Trash operation runs."""
+        if trashing:
+            self.posts_list.setEnabled(False)
+            self.post_title_editor.setEnabled(False)
+            self.content_editor.setEnabled(False)
+            self.excerpt_editor.setEnabled(False)
+            self.post_status_selector.setEnabled(False)
+            self.remote_tag_selector.tags_list.setEnabled(False)
+            self.featured_media_checkbox.setEnabled(False)
+            self.featured_media_input.setEnabled(False)
+            self.browse_media_button.setEnabled(False)
+            self.save_button.setEnabled(False)
+            self.trash_button.setEnabled(False)
+        else:
+            self.restore_editing()
+
+
     def _request_save(self) -> None:
         """Request saving changed post fields."""
         if not self.save_button.isEnabled():
@@ -426,6 +469,7 @@ class RemotePostsPanel(QWidget):
             return
 
         self.save_button.setEnabled(False)
+        self.trash_button.setEnabled(False)
         self.posts_list.setEnabled(False)
         self.content_editor.setEnabled(False)
         self.post_title_editor.setEnabled(False)

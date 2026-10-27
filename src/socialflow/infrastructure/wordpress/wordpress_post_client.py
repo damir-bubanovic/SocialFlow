@@ -56,6 +56,15 @@ class WordPressPostClient(ABC):
     ) -> int:
         """Update post content and optional WordPress metadata."""
 
+    @abstractmethod
+    def trash_post(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            post_id: int,
+    ) -> int:
+        """Move a WordPress post to Trash and return the HTTP status."""
 
     @abstractmethod
     def upload_media(
