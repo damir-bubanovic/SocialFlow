@@ -101,6 +101,87 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
         return payload
 
+
+    def list_trashed_posts(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            limit: int = 50,
+    ) -> list[dict]:
+        """Retrieve trashed WordPress posts with edit context."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+                parsed.scheme.lower() != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+        ):
+            raise ValueError(
+                "A valid HTTPS WordPress URL is required."
+            )
+
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError(
+                "Post limit must be between 1 and 100."
+            )
+
+        endpoint = (
+                site_url.rstrip("/")
+                + "/wp-json/wp/v2/posts"
+                + f"?status=trash&context=edit&per_page={limit}"
+                + "&orderby=date&order=desc"
+        )
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        request = Request(
+            endpoint,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+            },
+            method="GET",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(
+                context=ssl.create_default_context()
+            ),
+            _NoRedirectHandler(),
+        )
+
+        with opener.open(
+                request,
+                timeout=self._timeout,
+        ) as response:
+            payload = json.load(response)
+
+        if not isinstance(payload, list):
+            raise ValueError(
+                "Invalid WordPress trashed posts response."
+            )
+
+        if not all(
+                isinstance(post, dict)
+                and post.get("status") == "trash"
+                for post in payload
+        ):
+            raise ValueError(
+                "Invalid WordPress trashed post entry."
+            )
+
+        return payload
+
+
+
     def list_media(
         self,
         site_url: str,
@@ -440,6 +521,87 @@ class UrllibWordPressPostClient(WordPressPostClient):
             return error.code
 
 
+    def restore_post(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            post_id: int,
+    ) -> int:
+        """Restore a trashed WordPress post to draft status."""
+
+        parsed = urlsplit(site_url)
+
+        if (
+                parsed.scheme.lower() != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+        ):
+            raise ValueError(
+                "A valid HTTPS WordPress URL is required."
+            )
+
+        if type(post_id) is not int or post_id <= 0:
+            raise ValueError(
+                "A valid WordPress post ID is required."
+            )
+
+        endpoint = (
+            site_url.rstrip("/")
+            + f"/wp-json/wp/v2/posts/{post_id}"
+        )
+
+        credentials = f"{username}:{application_password}"
+        encoded = base64.b64encode(
+            credentials.encode("utf-8")
+        ).decode("ascii")
+
+        payload = json.dumps({
+            "status": "draft",
+        }).encode("utf-8")
+
+        request = Request(
+            endpoint,
+            data=payload,
+            headers={
+                "Authorization": f"Basic {encoded}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        opener = build_opener(
+            HTTPSHandler(
+                context=ssl.create_default_context()
+            ),
+            _NoRedirectHandler(),
+        )
+
+        try:
+            with opener.open(
+                    request,
+                    timeout=self._timeout,
+            ) as response:
+                result = json.load(response)
+
+                if (
+                        not isinstance(result, dict)
+                        or result.get("id") != post_id
+                        or result.get("status") != "draft"
+                ):
+                    raise ValueError(
+                        "WordPress did not confirm the post "
+                        "was restored as a draft."
+                    )
+
+                return response.status
+
+        except HTTPError as error:
+            return error.code
 
     def upload_media(
         self,

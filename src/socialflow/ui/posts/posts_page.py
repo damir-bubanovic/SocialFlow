@@ -9,6 +9,12 @@ from socialflow.application.publishing.list_recent_publications import (
 from socialflow.application.publishing.list_remote_posts import (
     ListRemotePosts,
 )
+from socialflow.application.publishing.list_trashed_remote_posts import (
+    ListTrashedRemotePosts,
+)
+from socialflow.application.publishing.restore_remote_post import (
+    RestoreRemotePost,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
@@ -21,6 +27,9 @@ from socialflow.ui.posts.post_editor import PostEditor
 from socialflow.ui.posts.publish_status import PublishStatus
 from socialflow.ui.posts.recent_posts_panel import RecentPostsPanel
 from socialflow.ui.posts.remote_posts_panel import RemotePostsPanel
+from socialflow.ui.posts.remote_trashed_posts_panel import (
+    RemoteTrashedPostsPanel,
+)
 from socialflow.ui.posts.publishing_controller import PublishingController
 from socialflow.application.publishing.publish_result import PublishResult
 from socialflow.application.publishing.build_retry_request import (
@@ -41,6 +50,12 @@ from socialflow.application.publishing.trash_remote_post import (
 )
 from socialflow.ui.workers.remote_post_trashing_controller import (
     RemotePostTrashingController,
+)
+from socialflow.ui.workers.remote_post_restoring_controller import (
+    RemotePostRestoringController,
+)
+from socialflow.ui.workers.remote_trashed_post_loading_controller import (
+    RemoteTrashedPostLoadingController,
 )
 from socialflow.ui.workers.remote_post_updating_controller import (
     RemotePostUpdatingController,
@@ -93,6 +108,8 @@ class PostsPage(QWidget):
         list_remote_posts: ListRemotePosts | None = None,
         update_remote_post: UpdateRemotePost | None = None,
         trash_remote_post: TrashRemotePost | None = None,
+        list_trashed_remote_posts: ListTrashedRemotePosts | None = None,
+        restore_remote_post: RestoreRemotePost | None = None,
         list_remote_tags: ListRemoteTags | None = None,
         wordpress_tag_preparation_controller: WordPressTagPreparationController | None = None,
         wordpress_tag_creation_controller: WordPressTagCreationController | None = None,
@@ -272,6 +289,60 @@ class PostsPage(QWidget):
             if trash_remote_post is not None
             else None
         )
+
+        self._remote_trashed_post_loading_controller = (
+            RemoteTrashedPostLoadingController(
+                list_trashed_remote_posts=list_trashed_remote_posts,
+                parent=self,
+            )
+            if list_trashed_remote_posts is not None
+            else None
+        )
+
+        self._remote_post_restoring_controller = (
+            RemotePostRestoringController(
+                restore_remote_post=restore_remote_post,
+                parent=self,
+            )
+            if restore_remote_post is not None
+            else None
+        )
+
+        self._remote_trashed_post_loading_shutting_down = False
+        self._remote_post_restoring_shutting_down = False
+        self._remote_post_restoring_account: Account | None = None
+        self._remote_post_restoring_generation: int | None = None
+        self._remote_post_restoring_succeeded = False
+
+        if self._remote_post_restoring_controller is not None:
+            self._remote_post_restoring_controller.post_restored.connect(
+                self._on_remote_post_restored
+            )
+            self._remote_post_restoring_controller.error_occurred.connect(
+                self._on_remote_post_restore_error
+            )
+            self._remote_post_restoring_controller.finished.connect(
+                self._on_remote_post_restore_finished
+            )
+
+        self._trashed_posts_generation = 0
+        self._trashed_post_loading_account: Account | None = None
+        self._trashed_post_loading_generation: int | None = None
+        self._pending_trashed_post_account: Account | None = None
+        self._loaded_trashed_posts: tuple[RemotePost, ...] = ()
+        self._loaded_trashed_posts_account: Account | None = None
+
+        if self._remote_trashed_post_loading_controller is not None:
+            self._remote_trashed_post_loading_controller.posts_ready.connect(
+                self._on_trashed_posts_loaded
+            )
+            self._remote_trashed_post_loading_controller.error_occurred.connect(
+                self._on_trashed_posts_error
+            )
+            self._remote_trashed_post_loading_controller.finished.connect(
+                self._on_trashed_post_loading_finished
+            )
+
         self._remote_post_trashing_shutting_down = False
         self._remote_post_trashing_account: Account | None = None
         self._remote_post_trashing_generation: int | None = None
@@ -361,6 +432,14 @@ class PostsPage(QWidget):
             self._handle_remote_post_trash
         )
 
+        self.remote_trashed_posts_panel = RemoteTrashedPostsPanel(self)
+        self.remote_trashed_posts_panel.refresh_requested.connect(
+            self._refresh_trashed_posts
+        )
+        self.remote_trashed_posts_panel.restore_requested.connect(
+            self._handle_remote_post_restore
+        )
+
         layout = QVBoxLayout()
         layout.addWidget(self.new_post_button)
         layout.addWidget(self.post_editor)
@@ -368,8 +447,7 @@ class PostsPage(QWidget):
         layout.addWidget(self.publish_status)
         layout.addWidget(self.recent_posts_panel)
         layout.addWidget(self.remote_posts_panel)
-
-
+        layout.addWidget(self.remote_trashed_posts_panel)
 
         self.setLayout(layout)
 
@@ -386,6 +464,9 @@ class PostsPage(QWidget):
         )
         self.post_editor.account_selection_changed.connect(
             self._refresh_remote_posts
+        )
+        self.post_editor.account_selection_changed.connect(
+            self._refresh_trashed_posts
         )
         self.post_editor.account_selection_changed.connect(
             self._refresh_remote_tags
@@ -420,6 +501,7 @@ class PostsPage(QWidget):
         )
 
         self.refresh_accounts()
+        self._refresh_trashed_posts()
 
     def refresh_accounts(self) -> None:
         """Refresh the accounts available for publishing."""
@@ -729,6 +811,260 @@ class PostsPage(QWidget):
         self._remote_post_loading_generation = None
         self._start_remote_post_loading()
 
+    def _refresh_trashed_posts(self) -> None:
+        """Queue Trash retrieval for the selected WordPress account."""
+        if self._remote_trashed_post_loading_shutting_down:
+            return
+
+        controller = self._remote_trashed_post_loading_controller
+        if controller is None:
+            return
+
+        self._trashed_posts_generation += 1
+        account = self._selected_wordpress_account()
+
+        self._loaded_trashed_posts = ()
+        self._loaded_trashed_posts_account = None
+        self._pending_trashed_post_account = account
+
+        if account is None:
+            self.remote_trashed_posts_panel.show_empty()
+        else:
+            self.remote_trashed_posts_panel.show_loading()
+
+        restore_controller = self._remote_post_restoring_controller
+        if (
+                restore_controller is not None
+                and restore_controller.is_running
+        ):
+            self.remote_trashed_posts_panel.set_restoring(True)
+
+        self._start_trashed_post_loading()
+
+    def _start_trashed_post_loading(self) -> None:
+        """Start the latest Trash request when its controller is idle."""
+        controller = self._remote_trashed_post_loading_controller
+
+        if (
+            controller is None
+            or self._remote_trashed_post_loading_shutting_down
+            or controller.is_running
+        ):
+            return
+
+        account = self._pending_trashed_post_account
+        self._pending_trashed_post_account = None
+
+        if account is None:
+            return
+
+        self._trashed_post_loading_account = account
+        self._trashed_post_loading_generation = (
+            self._trashed_posts_generation
+        )
+        controller.start(account)
+
+    def _is_current_trashed_post_account(self) -> bool:
+        """Reject Trash results from an outdated account selection."""
+        account = self._trashed_post_loading_account
+
+        if (
+            account is None
+            or self._remote_trashed_post_loading_shutting_down
+        ):
+            return False
+
+        return (
+            account == self._selected_wordpress_account()
+            and self._pending_trashed_post_account is None
+            and self._trashed_post_loading_generation
+            == self._trashed_posts_generation
+        )
+
+    def _on_trashed_posts_loaded(
+        self,
+        posts: tuple[RemotePost, ...],
+    ) -> None:
+        """Display Trash results only for the current account."""
+        if not self._is_current_trashed_post_account():
+            return
+
+        self._loaded_trashed_posts = posts
+        self._loaded_trashed_posts_account = (
+            self._trashed_post_loading_account
+        )
+        self.remote_trashed_posts_panel.show_posts(posts)
+
+        restore_controller = self._remote_post_restoring_controller
+        if (
+                restore_controller is not None
+                and restore_controller.is_running
+        ):
+            self.remote_trashed_posts_panel.set_restoring(True)
+
+    def _on_trashed_posts_error(self, message: str) -> None:
+        """Display a Trash retrieval error for the current account."""
+        if not self._is_current_trashed_post_account():
+            return
+
+        self._loaded_trashed_posts = ()
+        self._loaded_trashed_posts_account = None
+        self.remote_trashed_posts_panel.show_error(message)
+
+    def _on_trashed_post_loading_finished(self) -> None:
+        """Continue with the latest queued request after cleanup."""
+        self._trashed_post_loading_account = None
+        self._trashed_post_loading_generation = None
+        self._start_trashed_post_loading()
+
+    def _handle_remote_post_restore(self, remote_id: str) -> None:
+        """Confirm restoring a trashed WordPress post as a draft."""
+        controller = self._remote_post_restoring_controller
+        trash_controller = self._remote_post_trashing_controller
+        update_controller = self._remote_post_updating_controller
+
+        if (
+            controller is None
+            or self._remote_post_restoring_shutting_down
+            or controller.is_running
+            or (
+                trash_controller is not None
+                and trash_controller.is_running
+            )
+            or (
+                update_controller is not None
+                and update_controller.is_running
+            )
+        ):
+            return
+
+        account = self._selected_wordpress_account()
+
+        if (
+            account is None
+            or account != self._loaded_trashed_posts_account
+        ):
+            return
+
+        post = self.remote_trashed_posts_panel.selected_post()
+
+        if (
+            post is None
+            or post.remote_id != remote_id
+            or post not in self._loaded_trashed_posts
+        ):
+            return
+
+        try:
+            post_id = int(remote_id)
+        except (TypeError, ValueError):
+            return
+
+        if post_id <= 0:
+            return
+
+        confirmation = QMessageBox.question(
+            self,
+            "Restore WordPress post",
+            (
+                "Restore this WordPress post from Trash?\n\n"
+                f"Title: {post.title or '(Untitled)'}\n"
+                f"Post ID: {post_id}\n\n"
+                "The post will be restored as a Draft. "
+                "It will not be published automatically."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if confirmation != QMessageBox.StandardButton.Yes:
+            return
+
+        # Revalidate after the modal dialog.
+        if (
+            self._remote_post_restoring_shutting_down
+            or controller.is_running
+            or (
+                trash_controller is not None
+                and trash_controller.is_running
+            )
+            or (
+                update_controller is not None
+                and update_controller.is_running
+            )
+            or account != self._selected_wordpress_account()
+            or account != self._loaded_trashed_posts_account
+            or self.remote_trashed_posts_panel.selected_post() != post
+            or post not in self._loaded_trashed_posts
+        ):
+            return
+
+        self._remote_post_restoring_account = account
+        self._remote_post_restoring_generation = (
+            self._trashed_posts_generation
+        )
+        self._remote_post_restoring_succeeded = False
+
+        self.remote_trashed_posts_panel.set_restoring(True)
+        self.remote_trashed_posts_panel.status_label.setText(
+            "Restoring WordPress post as Draft..."
+        )
+
+        controller.start(
+            account=account,
+            post_id=post_id,
+        )
+
+    def _on_remote_post_restored(self) -> None:
+        """Record a confirmed successful Restore operation."""
+        if not self._remote_post_restoring_shutting_down:
+            self._remote_post_restoring_succeeded = True
+
+    def _on_remote_post_restore_error(self, message: str) -> None:
+        """Report Restore failure for the current account."""
+        if self._remote_post_restoring_shutting_down:
+            return
+
+        if (
+            self._remote_post_restoring_account
+            != self._loaded_trashed_posts_account
+            or self._remote_post_restoring_generation
+            != self._trashed_posts_generation
+        ):
+            return
+
+        self.remote_trashed_posts_panel.status_label.setText(
+            f"Unable to restore WordPress post: {message}"
+        )
+
+    def _on_remote_post_restore_finished(self) -> None:
+        """Refresh both lists after a successful Restore operation."""
+        if self._remote_post_restoring_shutting_down:
+            return
+
+        account = self._remote_post_restoring_account
+        generation = self._remote_post_restoring_generation
+        succeeded = self._remote_post_restoring_succeeded
+
+        self._remote_post_restoring_account = None
+        self._remote_post_restoring_generation = None
+        self._remote_post_restoring_succeeded = False
+
+        if (
+                account is None
+                or account != self._selected_wordpress_account()
+                or generation != self._trashed_posts_generation
+        ):
+            if self._loaded_trashed_posts_account is not None:
+                self.remote_trashed_posts_panel.set_restoring(False)
+            return
+
+        if succeeded:
+            self._refresh_trashed_posts()
+            self._refresh_remote_posts()
+        else:
+            self.remote_trashed_posts_panel.set_restoring(False)
 
     def _browse_remote_media(self) -> None:
         """Open the media picker and start loading WordPress images."""
@@ -863,13 +1199,21 @@ class PostsPage(QWidget):
         """Save an existing WordPress post asynchronously."""
         controller = self._remote_post_updating_controller
         trash_controller = self._remote_post_trashing_controller
+        restore_controller = vars(self).get(
+            "_remote_post_restoring_controller"
+        )
 
         if (
                 trash_controller is not None
                 and trash_controller.is_running
         ):
             return
-
+        if (
+                restore_controller is not None
+                and restore_controller.is_running
+        ):
+            self.remote_posts_panel.restore_editing()
+            return
         if (
                 controller is None
                 or self._remote_post_updating_shutting_down
@@ -1207,6 +1551,9 @@ class PostsPage(QWidget):
         """Confirm and start moving a selected post to Trash."""
         controller = self._remote_post_trashing_controller
         update_controller = self._remote_post_updating_controller
+        restore_controller = vars(self).get(
+            "_remote_post_restoring_controller"
+        )
 
         if (
             controller is None
@@ -1215,6 +1562,10 @@ class PostsPage(QWidget):
             or (
                 update_controller is not None
                 and update_controller.is_running
+            )
+            or (
+                restore_controller is not None
+                and restore_controller.is_running
             )
         ):
             return
@@ -1266,11 +1617,15 @@ class PostsPage(QWidget):
         if (
             self._remote_post_trashing_shutting_down
             or controller.is_running
-            or (
+                or (
                 update_controller is not None
                 and update_controller.is_running
             )
-            or account != self._selected_wordpress_account()
+                or (
+                restore_controller is not None
+                and restore_controller.is_running
+            )
+                or account != self._selected_wordpress_account()
             or account != self._loaded_remote_posts_account
             or self.remote_posts_panel.posts_list.currentRow() != row
             or row >= len(self._loaded_remote_posts)
@@ -1341,6 +1696,7 @@ class PostsPage(QWidget):
                 "WordPress post moved to Trash successfully."
             )
             self._refresh_remote_posts()
+            self._refresh_trashed_posts()
         else:
             self.remote_posts_panel.restore_editing()
 
@@ -1828,7 +2184,10 @@ class PostsPage(QWidget):
         self._remote_post_loading_shutting_down = True
         self._remote_post_updating_shutting_down = True
         self._remote_post_trashing_shutting_down = True
+        self._remote_trashed_post_loading_shutting_down = True
+        self._remote_post_restoring_shutting_down = True
         self._pending_remote_post_account = None
+        self._pending_trashed_post_account = None
 
         self._remote_media_loading_shutting_down = True
 
@@ -1856,6 +2215,12 @@ class PostsPage(QWidget):
 
         if self._remote_post_trashing_controller is not None:
             self._remote_post_trashing_controller.shutdown()
+
+        if self._remote_trashed_post_loading_controller is not None:
+            self._remote_trashed_post_loading_controller.shutdown()
+
+        if self._remote_post_restoring_controller is not None:
+            self._remote_post_restoring_controller.shutdown()
 
         self._wordpress_preparation_shutting_down = True
         self._pending_publish_request = None

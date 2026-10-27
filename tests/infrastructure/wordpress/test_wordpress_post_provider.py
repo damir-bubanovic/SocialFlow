@@ -172,3 +172,113 @@ def test_converts_wordpress_posts_to_remote_posts():
     )
 
     assert isinstance(provider, RemotePostProvider)
+
+
+
+def test_retrieves_trashed_posts_using_stored_credentials():
+    from datetime import datetime
+
+    from socialflow.domain.connections.wordpress_connection_config import (
+        WordPressConnectionConfig,
+    )
+    from socialflow.infrastructure.wordpress.wordpress_post import (
+        WordPressPost,
+    )
+    from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
+        WordPressCredentialKeys,
+    )
+
+    account = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    retriever = Mock()
+    retriever.list_trashed_posts.return_value = (
+        WordPressPost(
+            id=42,
+            content="<p>Trashed content</p>",
+            published_at=datetime(2026, 10, 14, 10, 30),
+            status="trash",
+            title="Trashed title",
+        ),
+    )
+
+    credential_store = Mock()
+    credential_store.get.return_value = "test-password"
+
+    provider = WordPressPostProvider(
+        retriever=retriever,
+        credential_store=credential_store,
+    )
+
+    posts = provider.list_trashed_posts(account, limit=25)
+
+    assert len(posts) == 1
+    assert posts[0].remote_id == "42"
+    assert posts[0].status == "trash"
+    assert posts[0].title == "Trashed title"
+
+    credential_store.get.assert_called_once_with(
+        WordPressCredentialKeys.application_password(account)
+    )
+    retriever.list_trashed_posts.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        limit=25,
+    )
+
+
+def test_trashed_posts_reject_non_wordpress_account():
+    account = Account(
+        name="Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    retriever = Mock()
+    credential_store = Mock()
+
+    provider = WordPressPostProvider(
+        retriever=retriever,
+        credential_store=credential_store,
+    )
+
+    with pytest.raises(ValueError, match="WordPress account"):
+        provider.list_trashed_posts(account)
+
+    retriever.list_trashed_posts.assert_not_called()
+    credential_store.get.assert_not_called()
+
+
+def test_trashed_posts_reject_missing_password():
+    from socialflow.domain.connections.wordpress_connection_config import (
+        WordPressConnectionConfig,
+    )
+
+    account = Account(
+        name="WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    retriever = Mock()
+    credential_store = Mock()
+    credential_store.get.return_value = None
+
+    provider = WordPressPostProvider(
+        retriever=retriever,
+        credential_store=credential_store,
+    )
+
+    with pytest.raises(ValueError, match="password is missing"):
+        provider.list_trashed_posts(account)
+
+    retriever.list_trashed_posts.assert_not_called()

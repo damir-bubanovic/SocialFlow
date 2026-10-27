@@ -22,6 +22,12 @@ from socialflow.application.publishing.list_recent_publications import (
 from socialflow.application.publishing.list_remote_posts import (
     ListRemotePosts,
 )
+from socialflow.application.publishing.list_trashed_remote_posts import (
+    ListTrashedRemotePosts,
+)
+from socialflow.application.publishing.restore_remote_post import (
+    RestoreRemotePost,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.publishing.unconfigured_publisher import (
@@ -89,6 +95,9 @@ from socialflow.application.publishing.trash_remote_post import (
 )
 from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
     WordPressPostTrasher,
+)
+from socialflow.infrastructure.wordpress.wordpress_post_restorer import (
+    WordPressPostRestorer,
 )
 from socialflow.infrastructure.wordpress.wordpress_post_updater import (
     WordPressPostUpdater,
@@ -199,6 +208,10 @@ class MainContent(QWidget):
         list_remote_posts = ListRemotePosts(
             provider=wordpress_post_provider,
         )
+
+        list_trashed_remote_posts = ListTrashedRemotePosts(
+            provider=wordpress_post_provider,
+        )
         wordpress_media_provider = WordPressMediaProvider(
             client=wordpress_post_client,
             credential_store=credential_store,
@@ -223,6 +236,15 @@ class MainContent(QWidget):
 
         trash_remote_post = TrashRemotePost(
             trasher=wordpress_post_trasher,
+        )
+
+        wordpress_post_restorer = WordPressPostRestorer(
+            client=wordpress_post_client,
+            credential_store=credential_store,
+        )
+
+        restore_remote_post = RestoreRemotePost(
+            restorer=wordpress_post_restorer,
         )
 
         publisher_router = PublisherRouter(
@@ -262,8 +284,6 @@ class MainContent(QWidget):
         )
 
         # Posts page.
-
-        # Posts page.
         self.posts_page = PostsPage(
             publish_post=publish_post,
             list_accounts=list_accounts,
@@ -274,6 +294,8 @@ class MainContent(QWidget):
             list_remote_posts=list_remote_posts,
             update_remote_post=update_remote_post,
             trash_remote_post=trash_remote_post,
+            list_trashed_remote_posts=list_trashed_remote_posts,
+            restore_remote_post=restore_remote_post,
             wordpress_tag_preparation_controller=WordPressTagPreparationController(
                 credential_store=credential_store,
                 tag_client=wordpress_tag_client,

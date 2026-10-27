@@ -1471,3 +1471,286 @@ def test_trash_post_requires_trash_confirmation(payload):
                 application_password="secret",
                 post_id=123,
             )
+
+
+
+def test_restore_post_sets_draft_status():
+    response = make_response(status=200)
+    response.read.return_value = b'{"id":42,"status":"draft"}'
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        status = client.restore_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=42,
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts/42"
+    )
+    assert request.get_method() == "POST"
+    assert json.loads(request.data.decode("utf-8")) == {
+        "status": "draft",
+    }
+    assert request.get_header("Content-type") == (
+        "application/json"
+    )
+
+
+@pytest.mark.parametrize("post_id", [
+    0, -1, True, "42", None,
+])
+def test_restore_post_rejects_invalid_id(post_id):
+    client = UrllibWordPressPostClient()
+
+    with pytest.raises(ValueError):
+        client.restore_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=post_id,
+        )
+
+
+@pytest.mark.parametrize("site_url", [
+    "http://example.com",
+    "https://",
+    "https://admin:secret@example.com",
+    "https://example.com?token=secret",
+    "https://example.com#fragment",
+])
+def test_restore_post_rejects_invalid_site_url(site_url):
+    client = UrllibWordPressPostClient()
+
+    with pytest.raises(ValueError):
+        client.restore_post(
+            site_url=site_url,
+            username="admin",
+            application_password="secret",
+            post_id=42,
+        )
+
+
+def test_restore_post_returns_http_error_status():
+    error = HTTPError(
+        url="https://example.com/wp-json/wp/v2/posts/42",
+        code=403,
+        msg="Forbidden",
+        hdrs=Message(),
+        fp=BytesIO(b""),
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.side_effect = error
+
+        client = UrllibWordPressPostClient()
+        status = client.restore_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=42,
+        )
+
+    assert status == 403
+
+
+@pytest.mark.parametrize("payload", [
+    {"id": 42, "status": "trash"},
+    {"id": 99, "status": "draft"},
+    {"id": 42},
+    [],
+])
+def test_restore_post_requires_draft_confirmation(payload):
+    response = make_response(status=200)
+    response.read.return_value = json.dumps(payload).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(ValueError, match="restored as a draft"):
+            client.restore_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=42,
+            )
+
+
+
+def test_list_trashed_posts_uses_authenticated_edit_context():
+    posts = [
+        {"id": 42, "status": "trash"},
+        {"id": 99, "status": "trash"},
+    ]
+
+    response = make_response(status=200)
+    response.read.return_value = json.dumps(posts).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        result = client.list_trashed_posts(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            limit=25,
+        )
+
+    assert result == posts
+
+    request = opener.open.call_args.args[0]
+
+    assert request.get_method() == "GET"
+    assert request.full_url == (
+        "https://example.com/wp-json/wp/v2/posts"
+        "?status=trash&context=edit&per_page=25"
+        "&orderby=date&order=desc"
+    )
+
+    expected_auth = base64.b64encode(
+        b"admin:secret"
+    ).decode("ascii")
+
+    assert request.get_header("Authorization") == (
+        f"Basic {expected_auth}"
+    )
+    assert request.get_header("Accept") == "application/json"
+
+
+@pytest.mark.parametrize(
+    "invalid_limit",
+    [0, -1, 101, True, False, "25", None, 1.5],
+)
+def test_list_trashed_posts_rejects_invalid_limit(invalid_limit):
+    client = UrllibWordPressPostClient()
+
+    with pytest.raises(ValueError, match="Post limit"):
+        client.list_trashed_posts(
+            "https://example.com",
+            "admin",
+            "secret",
+            limit=invalid_limit,
+        )
+
+
+@pytest.mark.parametrize(
+    "site_url",
+    [
+        "http://example.com",
+        "https://",
+        "https://admin:secret@example.com",
+        "https://example.com?token=secret",
+        "https://example.com#fragment",
+    ],
+)
+def test_list_trashed_posts_rejects_invalid_site_url(site_url):
+    client = UrllibWordPressPostClient()
+
+    with pytest.raises(ValueError, match="HTTPS WordPress URL"):
+        client.list_trashed_posts(
+            site_url,
+            "admin",
+            "secret",
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        None,
+        "invalid",
+        [42],
+        [{"id": 42, "status": "publish"}],
+        [{"id": 42}],
+    ],
+)
+def test_list_trashed_posts_rejects_invalid_response(payload):
+    response = make_response(status=200)
+    response.read.return_value = json.dumps(payload).encode("utf-8")
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(ValueError, match="trashed"):
+            client.list_trashed_posts(
+                "https://example.com",
+                "admin",
+                "secret",
+            )
+
+
+def test_list_trashed_posts_accepts_empty_trash():
+    response = make_response(status=200)
+    response.read.return_value = b"[]"
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+
+        assert client.list_trashed_posts(
+            "https://example.com",
+            "admin",
+            "secret",
+        ) == []
+
+
+def test_list_trashed_posts_propagates_http_failure():
+    error = HTTPError(
+        url="https://example.com/wp-json/wp/v2/posts",
+        code=403,
+        msg="Forbidden",
+        hdrs=Message(),
+        fp=BytesIO(b""),
+    )
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.side_effect = error
+
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(HTTPError) as raised:
+            client.list_trashed_posts(
+                "https://example.com",
+                "admin",
+                "secret",
+            )
+
+    assert raised.value.code == 403

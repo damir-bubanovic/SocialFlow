@@ -70,3 +70,57 @@ def test_returns_empty_tuple_when_wordpress_has_no_posts():
     )
 
     assert posts == ()
+
+
+
+def test_retrieves_and_parses_trashed_posts():
+    client = Mock()
+    client.list_trashed_posts.return_value = [
+        {
+            "id": 42,
+            "date": "2026-10-14T10:30:00",
+            "content": {"rendered": "<p>Deleted content</p>"},
+            "status": "trash",
+            "title": {"raw": "Trashed title"},
+        }
+    ]
+
+    retriever = WordPressPostRetriever(
+        client=client,
+        parser=WordPressPostParser(),
+    )
+
+    posts = retriever.list_trashed_posts(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+        limit=25,
+    )
+
+    assert len(posts) == 1
+    assert posts[0].id == 42
+    assert posts[0].status == "trash"
+    assert posts[0].title == "Trashed title"
+
+    client.list_trashed_posts.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+        limit=25,
+    )
+
+
+def test_returns_empty_tuple_for_empty_trash():
+    client = Mock()
+    client.list_trashed_posts.return_value = []
+
+    retriever = WordPressPostRetriever(
+        client=client,
+        parser=WordPressPostParser(),
+    )
+
+    assert retriever.list_trashed_posts(
+        "https://example.com",
+        "admin",
+        "secret",
+    ) == ()

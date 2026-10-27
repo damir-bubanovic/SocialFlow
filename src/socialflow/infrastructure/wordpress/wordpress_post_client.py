@@ -20,6 +20,16 @@ class WordPressPostClient(ABC):
         """Retrieve recent WordPress posts, newest first."""
 
     @abstractmethod
+    def list_trashed_posts(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            limit: int = 50,
+    ) -> list[dict]:
+        """Retrieve WordPress posts currently in Trash."""
+
+    @abstractmethod
     def list_media(
         self,
         site_url: str,
@@ -65,6 +75,16 @@ class WordPressPostClient(ABC):
             post_id: int,
     ) -> int:
         """Move a WordPress post to Trash and return the HTTP status."""
+
+    @abstractmethod
+    def restore_post(
+            self,
+            site_url: str,
+            username: str,
+            application_password: str,
+            post_id: int,
+    ) -> int:
+        """Restore a trashed WordPress post as a draft."""
 
     @abstractmethod
     def upload_media(

@@ -20,6 +20,26 @@ class WordPressPostRetriever:
         self._client = client
         self._parser = parser
 
+    def list_trashed_posts(
+        self,
+        site_url: str,
+        username: str,
+        application_password: str,
+        limit: int = 50,
+    ) -> tuple[WordPressPost, ...]:
+        """Retrieve and parse trashed WordPress posts."""
+        raw_posts = self._client.list_trashed_posts(
+            site_url=site_url,
+            username=username,
+            application_password=application_password,
+            limit=limit,
+        )
+
+        return tuple(
+            self._parser.parse(post)
+            for post in raw_posts
+        )
+
     def list_recent_posts(
         self,
         site_url: str,
