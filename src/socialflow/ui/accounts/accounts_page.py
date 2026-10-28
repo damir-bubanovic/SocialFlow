@@ -86,7 +86,7 @@ class AccountsPage(QWidget):
         self.account_list = AccountList(self)
         self.account_status = AccountStatus(self)
 
-        self.update_button = QPushButton("Update account", self)
+        self.update_button = QPushButton("Save changes", self)
         self.update_button.setEnabled(False)
 
         self.remove_button = QPushButton("Remove account", self)
@@ -108,6 +108,12 @@ class AccountsPage(QWidget):
 
         accounts_layout.addWidget(self.accounts_heading)
         accounts_layout.addWidget(self.account_list, 1)
+
+        self.new_account_button = QPushButton(
+            "+ New account",
+            self.accounts_panel,
+        )
+        accounts_layout.addWidget(self.new_account_button)
 
         # Right panel: selected account details and actions.
         self.details_panel = QWidget(self)
@@ -175,6 +181,9 @@ class AccountsPage(QWidget):
 
         self.accounts_splitter.setSizes([350, 650])
 
+        self.new_account_button.clicked.connect(
+            self._enter_new_account_mode
+        )
         self.account_form.add_button.clicked.connect(
             self._handle_add_account
         )
@@ -188,10 +197,7 @@ class AccountsPage(QWidget):
             self._handle_verify_connection
         )
         self.account_list.itemSelectionChanged.connect(
-            self._update_account_buttons
-        )
-        self.account_list.itemSelectionChanged.connect(
-            self._load_selected_account
+            self._handle_account_selection_changed
         )
 
         if self._verification_controller is not None:
@@ -209,6 +215,44 @@ class AccountsPage(QWidget):
             )
 
         self._refresh_accounts()
+
+    def _enter_new_account_mode(self) -> None:
+        """Show a blank form for creating an account."""
+        self.account_list.clearSelection()
+        self.account_list.setCurrentRow(-1)
+        self.account_form.clear()
+
+        self.details_heading.setText("New account")
+        self.account_form.add_button.setVisible(True)
+        self.update_button.setVisible(False)
+        self.remove_button.setVisible(False)
+        self.verify_button.setVisible(False)
+
+        self._update_account_buttons()
+
+    def _enter_edit_account_mode(self) -> None:
+        """Show the selected account and its available actions."""
+        account = self.account_list.selected_account()
+
+        if account is None:
+            self._enter_new_account_mode()
+            return
+
+        self.details_heading.setText("Edit account")
+        self.account_form.add_button.setVisible(False)
+        self.update_button.setVisible(True)
+        self.remove_button.setVisible(True)
+        self.verify_button.setVisible(True)
+
+        self._load_selected_account()
+        self._update_account_buttons()
+
+    def _handle_account_selection_changed(self) -> None:
+        """Switch modes when the account selection changes."""
+        if self.account_list.selected_account() is None:
+            self._enter_new_account_mode()
+        else:
+            self._enter_edit_account_mode()
 
     def _handle_add_account(self) -> None:
         """Add an account and then save its WordPress credentials."""
@@ -405,14 +449,11 @@ class AccountsPage(QWidget):
         )
 
     def _refresh_accounts(self) -> None:
-        """Refresh the account list with no account selected."""
+        """Refresh accounts and return to New account mode."""
         self.account_list.set_accounts(
             self._list_accounts.execute()
         )
-        self.account_list.clearSelection()
-        self.account_list.setCurrentRow(-1)
-        self.account_form.clear()
-        self._update_account_buttons()
+        self._enter_new_account_mode()
 
     @property
     def verification_is_running(self) -> bool:

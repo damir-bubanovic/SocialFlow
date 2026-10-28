@@ -72,7 +72,7 @@ class AccountForm(QWidget):
             self.password_visibility_button
         )
 
-        self.add_button = QPushButton("Add account", self)
+        self.add_button = QPushButton("Create account", self)
 
         layout = QFormLayout()
         layout.addRow("Name", self.name_input)

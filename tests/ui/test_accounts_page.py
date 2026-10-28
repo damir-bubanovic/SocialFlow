@@ -273,7 +273,7 @@ def test_accounts_page_contains_update_button(qtbot) -> None:
     qtbot.addWidget(page)
 
     assert isinstance(page.update_button, QPushButton)
-    assert page.update_button.text() == "Update account"
+    assert page.update_button.text() == "Save changes"
 
 
 def test_update_button_is_disabled_without_selection(qtbot) -> None:
@@ -1720,7 +1720,7 @@ def test_accounts_page_places_details_in_right_panel(qtbot) -> None:
     assert page.update_button.parentWidget() is page.details_panel
     assert page.remove_button.parentWidget() is page.details_panel
 
-    assert page.details_heading.text() == "Account details"
+    assert page.details_heading.text() == "New account"
 
 
 def test_accounts_page_splitter_does_not_collapse_panels(qtbot) -> None:
@@ -1742,3 +1742,79 @@ def test_accounts_page_requires_platform_before_adding(qtbot) -> None:
     assert page.account_list.count() == 0
     assert page.account_status.property("status") == "error"
     assert page.account_form.selected_destination() is None
+
+
+def test_accounts_page_starts_in_new_account_mode(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert page.details_heading.text() == "New account"
+    assert page.account_list.selected_account() is None
+    assert page.account_form.add_button.isVisibleTo(page)
+    assert page.update_button.isHidden()
+    assert page.remove_button.isHidden()
+    assert page.verify_button.isHidden()
+
+
+def test_accounts_page_enters_edit_mode_when_account_selected(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("Main Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.details_heading.text() == "Edit account"
+    assert page.account_form.name_input.text() == "Main Facebook"
+    assert page.account_form.selected_destination() == PublishingDestination.FACEBOOK
+    assert page.account_form.add_button.isHidden()
+    assert not page.update_button.isHidden()
+    assert not page.remove_button.isHidden()
+    assert not page.verify_button.isHidden()
+
+
+def test_new_account_button_clears_selected_account(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("Main Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    assert page.details_heading.text() == "Edit account"
+
+    page.new_account_button.click()
+
+    assert page.account_list.selected_account() is None
+    assert page.details_heading.text() == "New account"
+    assert page.account_form.name_input.text() == ""
+    assert page.account_form.selected_destination() is None
+    assert not page.account_form.add_button.isHidden()
+    assert page.update_button.isHidden()
+    assert page.remove_button.isHidden()
+    assert page.verify_button.isHidden()
+
+
+def test_accounts_page_can_switch_between_new_and_edit_modes(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("Main Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
+    page.account_form.add_button.click()
+
+    page.account_list.setCurrentRow(0)
+    assert page.details_heading.text() == "Edit account"
+
+    page.new_account_button.click()
+    assert page.details_heading.text() == "New account"
+
+    page.account_list.setCurrentRow(0)
+
+    assert page.details_heading.text() == "Edit account"
+    assert page.account_form.name_input.text() == "Main Facebook"
+    assert page.account_form.selected_destination() == PublishingDestination.FACEBOOK
+    assert page.account_form.add_button.isHidden()
