@@ -2,6 +2,8 @@ from PySide6.QtWidgets import QPushButton
 from unittest.mock import Mock
 import pytest
 from PySide6.QtWidgets import QLineEdit
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QSplitter
 
 
 from socialflow.application.credentials.get_wordpress_credentials import (
@@ -66,6 +68,15 @@ def create_accounts_page() -> AccountsPage:
         update_account=UpdateAccount(repository),
     )
 
+def select_platform(
+    page: AccountsPage,
+    destination: PublishingDestination,
+) -> None:
+    """Select a platform using its value, not a hard-coded index."""
+    index = page.account_form.destination_input.findData(destination)
+    assert index >= 0
+    page.account_form.destination_input.setCurrentIndex(index)
+
 
 def test_accounts_page_contains_form_and_list(qtbot) -> None:
     page = create_accounts_page()
@@ -80,6 +91,7 @@ def test_accounts_page_adds_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     assert page.account_list.count() == 1
@@ -100,6 +112,7 @@ def test_accounts_page_shows_success_after_adding_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     assert page.account_status.text() == "Account added."
@@ -122,14 +135,15 @@ def test_accounts_page_clears_form_after_adding_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Instagram")
-    page.account_form.destination_input.setCurrentIndex(1)
+    select_platform(page, PublishingDestination.INSTAGRAM)
 
     page.account_form.add_button.click()
 
     assert page.account_form.name_input.text() == ""
+    assert page.account_form.selected_destination() is None
     assert (
-        page.account_form.selected_destination()
-        == PublishingDestination.FACEBOOK
+        page.account_form.destination_input.currentText()
+        == "Select platform..."
     )
 
 def test_accounts_page_rejects_duplicate_account(qtbot) -> None:
@@ -137,9 +151,11 @@ def test_accounts_page_rejects_duplicate_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     assert page.account_list.count() == 1
@@ -159,6 +175,7 @@ def test_accounts_page_removes_selected_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -187,6 +204,7 @@ def test_remove_button_is_enabled_when_account_is_selected(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -198,6 +216,7 @@ def test_accounts_page_shows_status_after_removing_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -238,7 +257,7 @@ def test_accounts_page_loads_selected_account_into_form(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow WordPress")
-    page.account_form.destination_input.setCurrentIndex(2)
+    select_platform(page, PublishingDestination.WORDPRESS)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -269,6 +288,7 @@ def test_update_button_is_enabled_when_account_is_selected(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -280,6 +300,7 @@ def test_accounts_page_updates_selected_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -295,6 +316,7 @@ def test_accounts_page_shows_status_after_updating_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -336,6 +358,7 @@ def test_accounts_page_clears_form_after_updating_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -355,6 +378,7 @@ def test_accounts_page_clears_form_after_removing_account(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("SocialFlow Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -371,6 +395,7 @@ def test_accounts_page_emits_accounts_changed_after_add(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("Main Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
 
     with qtbot.waitSignal(page.accounts_changed):
         page.account_form.add_button.click()
@@ -381,6 +406,7 @@ def test_accounts_page_emits_accounts_changed_after_update(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("Main Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -395,6 +421,7 @@ def test_accounts_page_emits_accounts_changed_after_remove(qtbot) -> None:
     qtbot.addWidget(page)
 
     page.account_form.name_input.setText("Main Facebook")
+    select_platform(page, PublishingDestination.FACEBOOK)
     page.account_form.add_button.click()
 
     page.account_list.setCurrentRow(0)
@@ -1659,3 +1686,59 @@ def test_accounts_page_handles_saved_password_read_failure(qtbot) -> None:
         == ""
     )
     assert page.account_status.property("status") == "error"
+
+
+def test_accounts_page_uses_horizontal_splitter(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert isinstance(page.accounts_splitter, QSplitter)
+    assert (
+        page.accounts_splitter.orientation()
+        == Qt.Orientation.Horizontal
+    )
+
+    assert page.accounts_splitter.widget(0) is page.accounts_panel
+    assert page.accounts_splitter.widget(1) is page.details_panel
+
+
+def test_accounts_page_places_list_in_left_panel(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert page.account_list.parentWidget() is page.accounts_panel
+    assert page.accounts_heading.text() == "Accounts"
+
+
+def test_accounts_page_places_details_in_right_panel(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert page.account_form.parentWidget() is page.details_panel
+    assert page.verify_button.parentWidget() is page.details_panel
+    assert page.account_status.parentWidget() is page.details_panel
+    assert page.update_button.parentWidget() is page.details_panel
+    assert page.remove_button.parentWidget() is page.details_panel
+
+    assert page.details_heading.text() == "Account details"
+
+
+def test_accounts_page_splitter_does_not_collapse_panels(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    assert not page.accounts_splitter.childrenCollapsible()
+    assert page.accounts_panel.minimumWidth() == 220
+    assert page.details_panel.minimumWidth() == 400
+
+
+def test_accounts_page_requires_platform_before_adding(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    page.account_form.name_input.setText("No Platform")
+    page.account_form.add_button.click()
+
+    assert page.account_list.count() == 0
+    assert page.account_status.property("status") == "error"
+    assert page.account_form.selected_destination() is None

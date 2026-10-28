@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QWidget,
+    QLabel,
 )
 from PySide6.QtCore import Qt
 from socialflow.domain.account.account import Account
@@ -26,6 +27,7 @@ class AccountForm(QWidget):
         self.name_input.setPlaceholderText("Account name")
 
         self.destination_input = QComboBox(self)
+        self.destination_input.addItem("Select platform...", None)
         self._add_destination(PublishingDestination.FACEBOOK)
         self._add_destination(PublishingDestination.INSTAGRAM)
         self._add_destination(PublishingDestination.WORDPRESS)
@@ -74,17 +76,24 @@ class AccountForm(QWidget):
 
         layout = QFormLayout()
         layout.addRow("Name", self.name_input)
-        layout.addRow("Destination", self.destination_input)
+        layout.addRow("Platform", self.destination_input)
+
+        self.wordpress_site_url_label = QLabel("Site URL", self)
+        self.wordpress_username_label = QLabel("Username", self)
+        self.wordpress_password_label = QLabel(
+            "Application password", self
+        )
+
         layout.addRow(
-            "WordPress site URL",
+            self.wordpress_site_url_label,
             self.wordpress_site_url_input,
         )
         layout.addRow(
-            "WordPress username",
+            self.wordpress_username_label,
             self.wordpress_username_input,
         )
         layout.addRow(
-            "WordPress application password",
+            self.wordpress_password_label,
             self.wordpress_password_layout,
         )
         layout.addRow(self.add_button)
@@ -123,11 +132,14 @@ class AccountForm(QWidget):
             ),
         )
 
-    def selected_destination(self) -> PublishingDestination:
-        """Return the currently selected destination."""
-        return PublishingDestination(
-            self.destination_input.currentData()
-        )
+    def selected_destination(self) -> PublishingDestination | None:
+        """Return the selected platform, or None if not selected."""
+        value = self.destination_input.currentData()
+
+        if value is None:
+            return None
+
+        return PublishingDestination(value)
 
     def _add_destination(
         self,
@@ -189,15 +201,18 @@ class AccountForm(QWidget):
         self.password_visibility_button.setToolTip("Show password")
 
     def _update_wordpress_fields(self) -> None:
-        """Show WordPress settings only for WordPress accounts."""
+        """Show WordPress-specific fields only for WordPress accounts."""
         is_wordpress = (
-            self.selected_destination()
-            == PublishingDestination.WORDPRESS
+                self.selected_destination()
+                == PublishingDestination.WORDPRESS
         )
 
         for widget in (
+                self.wordpress_site_url_label,
                 self.wordpress_site_url_input,
+                self.wordpress_username_label,
                 self.wordpress_username_input,
+                self.wordpress_password_label,
                 self.wordpress_application_password_input,
                 self.password_visibility_button,
         ):

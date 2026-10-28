@@ -15,11 +15,12 @@ def test_account_form_contains_expected_controls(qtbot) -> None:
     assert isinstance(form.add_button, QPushButton)
 
 
-def test_account_form_defaults_to_facebook(qtbot) -> None:
+def test_account_form_defaults_to_no_platform(qtbot) -> None:
     form = AccountForm()
     qtbot.addWidget(form)
 
-    assert form.selected_destination() == PublishingDestination.FACEBOOK
+    assert form.selected_destination() is None
+    assert form.destination_input.currentText() == "Select platform..."
 
 
 def test_account_form_returns_account(qtbot) -> None:
@@ -27,7 +28,9 @@ def test_account_form_returns_account(qtbot) -> None:
     qtbot.addWidget(form)
 
     form.name_input.setText("SocialFlow Instagram")
-    form.destination_input.setCurrentIndex(1)
+    form.destination_input.setCurrentIndex(
+        form.destination_input.findData(PublishingDestination.INSTAGRAM)
+    )
 
     account = form.account()
 
@@ -45,7 +48,8 @@ def test_account_form_can_be_cleared(qtbot) -> None:
     form.clear()
 
     assert form.name_input.text() == ""
-    assert form.selected_destination() == PublishingDestination.FACEBOOK
+    assert form.selected_destination() is None
+    assert form.destination_input.currentText() == "Select platform..."
 
 def test_account_form_can_load_account(qtbot) -> None:
     form = AccountForm()

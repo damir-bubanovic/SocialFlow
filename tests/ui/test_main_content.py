@@ -120,6 +120,11 @@ def test_adding_account_refreshes_posts_page_accounts(qtbot) -> None:
     content.accounts_page.account_form.name_input.setText(
         "Main Facebook"
     )
+    content.accounts_page.account_form.destination_input.setCurrentIndex(
+        content.accounts_page.account_form.destination_input.findData(
+            PublishingDestination.FACEBOOK
+        )
+    )
     content.accounts_page.account_form.add_button.click()
 
     checkboxes = (
@@ -135,6 +140,11 @@ def test_updating_account_refreshes_posts_page_accounts(qtbot) -> None:
 
     content.accounts_page.account_form.name_input.setText(
         "Main Facebook"
+    )
+    content.accounts_page.account_form.destination_input.setCurrentIndex(
+        content.accounts_page.account_form.destination_input.findData(
+            PublishingDestination.FACEBOOK
+        )
     )
     content.accounts_page.account_form.add_button.click()
 

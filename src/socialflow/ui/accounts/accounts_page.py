@@ -1,5 +1,13 @@
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 from socialflow.application.accounts.add_account import AddAccount
 from socialflow.application.accounts.errors import (
@@ -87,15 +95,85 @@ class AccountsPage(QWidget):
         self.verify_button = QPushButton("Verify connection", self)
         self.verify_button.setEnabled(False)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.account_form)
-        layout.addWidget(self.account_status)
-        layout.addWidget(self.account_list)
-        layout.addWidget(self.update_button)
-        layout.addWidget(self.verify_button)
-        layout.addWidget(self.remove_button)
+        # Left panel: account selection.
+        self.accounts_panel = QWidget(self)
+        accounts_layout = QVBoxLayout(self.accounts_panel)
+        accounts_layout.setContentsMargins(12, 12, 12, 12)
+        accounts_layout.setSpacing(10)
 
-        self.setLayout(layout)
+        self.accounts_heading = QLabel("Accounts", self.accounts_panel)
+        self.accounts_heading.setStyleSheet(
+            "font-size: 16px; font-weight: 600;"
+        )
+
+        accounts_layout.addWidget(self.accounts_heading)
+        accounts_layout.addWidget(self.account_list, 1)
+
+        # Right panel: selected account details and actions.
+        self.details_panel = QWidget(self)
+        details_layout = QVBoxLayout(self.details_panel)
+        details_layout.setContentsMargins(16, 12, 16, 12)
+        details_layout.setSpacing(12)
+
+        self.details_heading = QLabel(
+            "Account details",
+            self.details_panel,
+        )
+        self.details_heading.setStyleSheet(
+            "font-size: 16px; font-weight: 600;"
+        )
+
+        details_layout.addWidget(self.details_heading)
+        details_layout.addWidget(self.account_form)
+
+        # Connection verification stays close to the credentials.
+        details_layout.addWidget(self.verify_button)
+        details_layout.addWidget(self.account_status)
+
+        # Unused vertical space remains below the account information.
+        details_layout.addStretch(1)
+
+        # Account management actions.
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(10)
+
+        self.update_button.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+
+        self.remove_button.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+
+        actions_layout.addWidget(self.update_button, 1)
+        actions_layout.addWidget(self.remove_button)
+
+        details_layout.addLayout(actions_layout)
+
+        # Resizable master-detail layout.
+        self.accounts_splitter = QSplitter(
+            Qt.Orientation.Horizontal,
+            self,
+        )
+        self.accounts_splitter.setChildrenCollapsible(False)
+        self.accounts_splitter.setHandleWidth(6)
+
+        self.accounts_splitter.addWidget(self.accounts_panel)
+        self.accounts_splitter.addWidget(self.details_panel)
+
+        self.accounts_splitter.setStretchFactor(0, 35)
+        self.accounts_splitter.setStretchFactor(1, 65)
+
+        self.accounts_panel.setMinimumWidth(220)
+        self.details_panel.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.addWidget(self.accounts_splitter)
+
+        self.accounts_splitter.setSizes([350, 650])
 
         self.account_form.add_button.clicked.connect(
             self._handle_add_account
@@ -134,6 +212,10 @@ class AccountsPage(QWidget):
 
     def _handle_add_account(self) -> None:
         """Add an account and then save its WordPress credentials."""
+        if self.account_form.selected_destination() is None:
+            self.account_status.show_error()
+            return
+
         account = self.account_form.account()
         password = self.account_form.wordpress_application_password()
 
