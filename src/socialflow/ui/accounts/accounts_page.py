@@ -16,6 +16,9 @@ from socialflow.application.connections.connection_verifier import (
 from socialflow.application.credentials.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
+from socialflow.application.credentials.get_wordpress_credentials import (
+    GetWordPressCredentials,
+)
 from socialflow.application.credentials.errors import (
     CredentialStorageError,
 )
@@ -50,6 +53,7 @@ class AccountsPage(QWidget):
         wordpress_connection_verifier: ConnectionVerifier | None = None,
         save_wordpress_credentials: SaveWordPressCredentials | None = None,
         delete_wordpress_credentials: DeleteWordPressCredentials | None = None,
+        get_wordpress_credentials: GetWordPressCredentials | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -60,6 +64,7 @@ class AccountsPage(QWidget):
         self._wordpress_connection_verifier = wordpress_connection_verifier
         self._save_wordpress_credentials = save_wordpress_credentials
         self._delete_wordpress_credentials = delete_wordpress_credentials
+        self._get_wordpress_credentials = get_wordpress_credentials
         self._verification_controller = (
             WordPressVerificationController(
                 wordpress_connection_verifier,
@@ -276,13 +281,31 @@ class AccountsPage(QWidget):
         controller.start(account)
 
     def _load_selected_account(self) -> None:
-        """Load the selected account into the account form."""
+        """Load the selected account and its saved WordPress password."""
         account = self.account_list.selected_account()
 
         if account is None:
+            self.account_form.clear()
             return
 
         self.account_form.set_account(account)
+
+        if (
+                account.destination != PublishingDestination.WORDPRESS
+                or self._get_wordpress_credentials is None
+        ):
+            return
+
+        try:
+            password = self._get_wordpress_credentials.execute(account)
+        except CredentialStorageError:
+            self.account_status.show_error()
+            return
+
+        if password is not None:
+            self.account_form.wordpress_application_password_input.setText(
+                password
+            )
 
     def _update_account_buttons(self) -> None:
         """Synchronize account action buttons with selection."""

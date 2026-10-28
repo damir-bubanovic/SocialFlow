@@ -117,6 +117,9 @@ from socialflow.application.publishing.list_remote_media import (
 from socialflow.infrastructure.wordpress.wordpress_media_provider import (
     WordPressMediaProvider,
 )
+from socialflow.application.credentials.get_wordpress_credentials import (
+    GetWordPressCredentials,
+)
 
 
 
@@ -132,6 +135,9 @@ class MainContent(QWidget):
         credential_store = KeyringCredentialStore()
 
         save_wordpress_credentials = SaveWordPressCredentials(
+            credential_store=credential_store,
+        )
+        get_wordpress_credentials = GetWordPressCredentials(
             credential_store=credential_store,
         )
         delete_wordpress_credentials = DeleteWordPressCredentials(
@@ -319,6 +325,7 @@ class MainContent(QWidget):
             wordpress_connection_verifier=self.wordpress_connection_verifier,
             save_wordpress_credentials=save_wordpress_credentials,
             delete_wordpress_credentials=delete_wordpress_credentials,
+            get_wordpress_credentials=get_wordpress_credentials,
         )
 
         self.accounts_page.accounts_changed.connect(

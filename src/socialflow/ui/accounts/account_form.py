@@ -1,12 +1,12 @@
-
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
+    QHBoxLayout,
     QLineEdit,
     QPushButton,
     QWidget,
 )
-
+from PySide6.QtCore import Qt
 from socialflow.domain.account.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
@@ -48,6 +48,28 @@ class AccountForm(QWidget):
             QLineEdit.EchoMode.Password
         )
 
+        self.password_visibility_button = QPushButton("Show", self)
+        self.password_visibility_button.setToolTip("Show password")
+        self.password_visibility_button.setFixedWidth(65)
+        self.password_visibility_button.setFocusPolicy(
+            Qt.FocusPolicy.NoFocus
+        )
+
+        self.password_visibility_button.clicked.connect(
+            self._toggle_password_visibility
+        )
+
+        self.wordpress_password_layout = QHBoxLayout()
+        self.wordpress_password_layout.setContentsMargins(0, 0, 0, 0)
+        self.wordpress_password_layout.setSpacing(6)
+
+        self.wordpress_password_layout.addWidget(
+            self.wordpress_application_password_input
+        )
+        self.wordpress_password_layout.addWidget(
+            self.password_visibility_button
+        )
+
         self.add_button = QPushButton("Add account", self)
 
         layout = QFormLayout()
@@ -63,7 +85,7 @@ class AccountForm(QWidget):
         )
         layout.addRow(
             "WordPress application password",
-            self.wordpress_application_password_input,
+            self.wordpress_password_layout,
         )
         layout.addRow(self.add_button)
 
@@ -73,6 +95,19 @@ class AccountForm(QWidget):
             self._update_wordpress_fields
         )
         self._update_wordpress_fields()
+
+    def _toggle_password_visibility(self) -> None:
+        """Toggle the WordPress password between masked and visible."""
+        password_input = self.wordpress_application_password_input
+
+        if password_input.echoMode() == QLineEdit.EchoMode.Password:
+            password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.password_visibility_button.setText("Hide")
+            self.password_visibility_button.setToolTip("Hide password")
+        else:
+            password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.password_visibility_button.setText("Show")
+            self.password_visibility_button.setToolTip("Show password")
 
     def account(self) -> Account:
         """Return the account represented by the form."""
@@ -133,6 +168,11 @@ class AccountForm(QWidget):
 
         # Never retain a password when switching accounts.
         self.wordpress_application_password_input.clear()
+        self.wordpress_application_password_input.setEchoMode(
+            QLineEdit.EchoMode.Password
+        )
+        self.password_visibility_button.setText("Show")
+        self.password_visibility_button.setToolTip("Show password")
 
     def clear(self) -> None:
         """Reset the account form."""
@@ -142,6 +182,11 @@ class AccountForm(QWidget):
         self.wordpress_site_url_input.clear()
         self.wordpress_username_input.clear()
         self.wordpress_application_password_input.clear()
+        self.wordpress_application_password_input.setEchoMode(
+            QLineEdit.EchoMode.Password
+        )
+        self.password_visibility_button.setText("Show")
+        self.password_visibility_button.setToolTip("Show password")
 
     def _update_wordpress_fields(self) -> None:
         """Show WordPress settings only for WordPress accounts."""
@@ -151,9 +196,10 @@ class AccountForm(QWidget):
         )
 
         for widget in (
-            self.wordpress_site_url_input,
-            self.wordpress_username_input,
-            self.wordpress_application_password_input,
+                self.wordpress_site_url_input,
+                self.wordpress_username_input,
+                self.wordpress_application_password_input,
+                self.password_visibility_button,
         ):
             widget.setVisible(is_wordpress)
 

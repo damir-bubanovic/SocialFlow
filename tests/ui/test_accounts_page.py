@@ -1,7 +1,12 @@
 from PySide6.QtWidgets import QPushButton
 from unittest.mock import Mock
 import pytest
+from PySide6.QtWidgets import QLineEdit
 
+
+from socialflow.application.credentials.get_wordpress_credentials import (
+    GetWordPressCredentials,
+)
 from socialflow.application.connections.connection_verifier import (
     ConnectionVerifier,
 )
@@ -1574,3 +1579,83 @@ def test_accounts_page_closes_during_active_wordpress_verification(
     )
 
     verifier.verify.assert_called_once_with(account)
+
+
+def test_accounts_page_loads_saved_wordpress_password(qtbot) -> None:
+    repository = InMemoryAccountRepository()
+    account = Account(
+        name="WordPress Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    credentials = Mock(spec=GetWordPressCredentials)
+    credentials.execute.return_value = "saved-test-password"
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        get_wordpress_credentials=credentials,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    password_input = page.account_form.wordpress_application_password_input
+
+    credentials.execute.assert_called_once_with(account)
+    assert password_input.text() == "saved-test-password"
+    assert password_input.echoMode() == QLineEdit.EchoMode.Password
+
+
+def test_accounts_page_password_show_hide(qtbot) -> None:
+    page = create_accounts_page()
+    qtbot.addWidget(page)
+
+    password_input = page.account_form.wordpress_application_password_input
+    password_input.setText("example-password")
+
+    assert password_input.echoMode() == QLineEdit.EchoMode.Password
+
+    page.account_form.password_visibility_button.click()
+
+    assert password_input.echoMode() == QLineEdit.EchoMode.Normal
+    assert password_input.text() == "example-password"
+
+    page.account_form.password_visibility_button.click()
+
+    assert password_input.echoMode() == QLineEdit.EchoMode.Password
+    assert password_input.text() == "example-password"
+
+
+def test_accounts_page_handles_saved_password_read_failure(qtbot) -> None:
+    repository = InMemoryAccountRepository()
+    account = Account(
+        name="WordPress Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    credentials = Mock(spec=GetWordPressCredentials)
+    credentials.execute.side_effect = CredentialStorageError(
+        "Credential store unavailable."
+    )
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        get_wordpress_credentials=credentials,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    assert (
+        page.account_form.wordpress_application_password_input.text()
+        == ""
+    )
+    assert page.account_status.property("status") == "error"
