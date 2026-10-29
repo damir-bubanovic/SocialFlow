@@ -748,3 +748,50 @@ def test_mixed_language_post_preserves_selected_publishing_language(qtbot) -> No
         editor.post_language_classification()
         is PostLanguageClassification.MIXED
     )
+
+
+def test_wordpress_title_is_required_for_publishing(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="WordPress Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+    editor.text_editor.setPlainText("Post content")
+
+    assert editor.title_editor.isHidden() is False
+    assert editor.publish_button.isEnabled() is False
+
+    editor.title_editor.setText("My WordPress Title")
+
+    assert editor.publish_button.isEnabled() is True
+    assert editor.post().title == "My WordPress Title"
+
+
+def test_facebook_post_does_not_require_title(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+    editor.text_editor.setPlainText("Facebook content")
+
+    assert editor.title_editor.isHidden() is True
+    assert editor.publish_button.isEnabled() is True
+
+
+def test_new_post_clears_wordpress_title(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.title_editor.setText("Previous title")
+    editor.text_editor.setPlainText("Previous content")
+
+    editor.new_post()
+
+    assert editor.title_editor.text() == ""
+    assert editor.post().title == ""

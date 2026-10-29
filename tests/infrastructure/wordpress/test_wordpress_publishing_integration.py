@@ -150,6 +150,7 @@ def test_account_routed_wordpress_publisher_sends_selected_tag_ids():
                 Tag("SocialFlow"),
                 Tag("Python"),
             ),
+            title="WordPress Test Title",
         ),
     )
 
@@ -168,4 +169,5 @@ def test_account_routed_wordpress_publisher_sends_selected_tag_ids():
         application_password="secret",
         content="Publishing with WordPress tags",
         tags=(202, 101),
+        title="WordPress Test Title",
     )

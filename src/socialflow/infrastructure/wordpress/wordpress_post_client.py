@@ -47,6 +47,7 @@ class WordPressPostClient(ABC):
             application_password: str,
             content: str,
             tags: tuple[int, ...] = (),
+            title: str = "",
     ) -> int:
         """Return the HTTP status code from the create-post request."""
 

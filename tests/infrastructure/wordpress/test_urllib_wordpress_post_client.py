@@ -40,9 +40,10 @@ def test_creates_wordpress_post():
             username="admin",
             application_password="secret",
             content="Hello WordPress",
+            title="WordPress Test Title",
         )
 
-    assert status == 201
+        assert status == 201
 
     request = opener.open.call_args.args[0]
 
@@ -54,6 +55,7 @@ def test_creates_wordpress_post():
     payload = json.loads(request.data.decode("utf-8"))
 
     assert payload == {
+        "title": "WordPress Test Title",
         "content": "Hello WordPress",
         "status": "publish",
     }
@@ -65,6 +67,29 @@ def test_creates_wordpress_post():
     assert request.get_header("Authorization") == (
         f"Basic {expected_auth}"
     )
+
+
+@pytest.mark.parametrize("title", ["", " ", "   \t\n"])
+def test_create_post_rejects_missing_title(title):
+    client = UrllibWordPressPostClient()
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        with pytest.raises(
+            ValueError,
+            match="WordPress post title must be a non-empty string",
+        ):
+            client.create_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                content="Hello WordPress",
+                title=title,
+            )
+
+        build_opener.return_value.open.assert_not_called()
 
 
 def test_returns_http_error_status():
@@ -89,6 +114,7 @@ def test_returns_http_error_status():
             "admin",
             "wrong-password",
             "Test",
+            title="WordPress Test Title",
         )
 
     assert status == 401
@@ -138,6 +164,7 @@ def test_preserves_unicode_content():
             "admin",
             "secret",
             "Č, ć, ž, š, đ — Hrvatski tekst",
+            title="Hrvatski naslov",
         )
 
     request = opener.open.call_args.args[0]
@@ -146,6 +173,7 @@ def test_preserves_unicode_content():
     assert payload["content"] == (
         "Č, ć, ž, š, đ — Hrvatski tekst"
     )
+    assert payload["title"] == "Hrvatski naslov"
 
 
 def test_uses_configured_timeout():
@@ -165,6 +193,7 @@ def test_uses_configured_timeout():
             "admin",
             "secret",
             "Test",
+            title="WordPress Test Title",
         )
 
     assert opener.open.call_args.kwargs["timeout"] == 5.0
@@ -703,6 +732,7 @@ def test_create_post_includes_wordpress_tag_ids():
             application_password="secret",
             content="Hello WordPress",
             tags=(12, 34),
+            title="WordPress Test Title",
         )
 
     assert status == 201
@@ -711,6 +741,7 @@ def test_create_post_includes_wordpress_tag_ids():
     payload = json.loads(request.data.decode("utf-8"))
 
     assert payload == {
+        "title": "WordPress Test Title",
         "content": "Hello WordPress",
         "status": "publish",
         "tags": [12, 34],

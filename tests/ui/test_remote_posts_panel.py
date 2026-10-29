@@ -34,6 +34,7 @@ def test_panel_displays_remote_posts(qtbot):
         remote_id="123",
         destination=PublishingDestination.WORDPRESS,
         content="Example WordPress post",
+        title="Example WordPress title",
         published_at=datetime(2026, 10, 15, 12, 0),
         status="publish",
     )
@@ -41,7 +42,7 @@ def test_panel_displays_remote_posts(qtbot):
     panel.show_posts((post,))
 
     assert panel.posts_list.count() == 1
-    assert "Example WordPress post" in panel.posts_list.item(0).text()
+    assert "Example WordPress title" in panel.posts_list.item(0).text()
     assert "1 remote posts loaded" == panel.status_label.text()
 
 

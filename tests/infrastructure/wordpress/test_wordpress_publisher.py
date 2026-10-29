@@ -39,6 +39,7 @@ def make_post(text: str = "Hello WordPress") -> PreparedPost:
     post = Post(
         text=text,
         language=Language.ENGLISH,
+        title="WordPress Test Title",
     )
 
     return PreparedPost(source=post)
@@ -77,8 +78,47 @@ def test_successful_wordpress_publication():
         application_password="secret",
         content="Hello WordPress",
         tags=(),
+        title="WordPress Test Title",
     )
 
+@pytest.mark.parametrize("title", ["", " ", "   \t\n"])
+def test_rejects_missing_wordpress_title(title):
+    publisher, credentials, client = make_publisher()
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            title=title,
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="WordPress post title is required",
+    ):
+        publisher.publish(post)
+
+    client.create_post.assert_not_called()
+
+
+def test_trims_wordpress_title_before_publishing():
+    publisher, credentials, client = make_publisher()
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            title="  WordPress Test Title  ",
+        )
+    )
+
+    publisher.publish(post)
+
+    assert (
+        client.create_post.call_args.kwargs["title"]
+        == "WordPress Test Title"
+    )
 
 def test_missing_application_password():
     publisher, credentials, client = make_publisher(password=None)
@@ -114,6 +154,7 @@ def test_rejects_unprepared_images():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             images=(Mock(),),
         ),
         images=(),
@@ -147,6 +188,7 @@ def test_publishes_wordpress_post_with_image():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -191,6 +233,7 @@ def test_publishes_wordpress_post_with_multiple_images():
         source=Post(
             text="Two WordPress images",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(first_image, second_image),
     )
@@ -239,6 +282,7 @@ def test_publishes_wordpress_image_with_escaped_url():
         source=Post(
             text="WordPress image",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -275,6 +319,7 @@ def test_does_not_create_post_when_media_upload_fails():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -305,6 +350,7 @@ def test_does_not_create_post_when_second_image_upload_fails():
         source=Post(
             text="Two WordPress images",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(first_image, second_image),
     )
@@ -348,6 +394,7 @@ def test_cleans_up_uploaded_media_when_second_upload_fails():
         source=Post(
             text="WordPress media cleanup",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(first_image, second_image),
     )
@@ -388,6 +435,7 @@ def test_preserves_upload_error_when_media_cleanup_fails():
         source=Post(
             text="WordPress cleanup failure",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(first_image, second_image),
     )
@@ -428,6 +476,7 @@ def test_cleans_up_multiple_uploaded_images_in_reverse_order():
         source=Post(
             text="WordPress multiple image cleanup",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=tuple(images),
     )
@@ -474,6 +523,7 @@ def test_continues_media_cleanup_when_one_deletion_fails():
         source=Post(
             text="WordPress cleanup resilience",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=tuple(images),
     )
@@ -523,6 +573,7 @@ def test_does_not_delete_media_after_successful_publishing():
         source=Post(
             text="WordPress successful publishing",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=tuple(images),
     )
@@ -563,6 +614,7 @@ def test_does_not_delete_media_when_post_creation_raises():
         source=Post(
             text="WordPress post creation failure",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -602,6 +654,7 @@ def test_does_not_delete_media_when_post_creation_returns_error(
         source=Post(
             text="WordPress unsuccessful publishing",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -630,6 +683,7 @@ def test_publishes_text_only_post_without_media_operations():
         source=Post(
             text="WordPress text-only post",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(),
     )
@@ -658,6 +712,7 @@ def test_does_not_upload_images_when_post_text_is_empty():
         source=Post(
             text="   ",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -682,6 +737,7 @@ def test_does_not_upload_images_without_tag_client():
         source=Post(
             text="WordPress post with unsupported tags",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             tags=(Tag(name="technology"),),
         ),
         images=(image,),
@@ -707,6 +763,7 @@ def test_does_not_upload_images_when_application_password_is_missing():
         source=Post(
             text="WordPress post with missing credentials",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -745,6 +802,7 @@ def test_does_not_upload_images_when_wordpress_url_is_invalid(site_url):
         source=Post(
             text="WordPress invalid URL test",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(image,),
     )
@@ -773,6 +831,7 @@ def test_logs_media_cleanup_failure_and_preserves_upload_error(caplog):
         source=Post(
             text="WordPress cleanup logging",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
         ),
         images=(first_image, second_image),
     )
@@ -817,6 +876,7 @@ def test_publisher_resolves_and_sends_wordpress_tags():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             tags=(
                 Tag(name="SocialFlow"),
                 Tag(name="Python"),
@@ -839,6 +899,7 @@ def test_publisher_resolves_and_sends_wordpress_tags():
         application_password="secret",
         content="Hello WordPress",
         tags=(34, 12),
+        title="WordPress Test Title",
     )
 
 def test_publisher_rejects_missing_wordpress_tag():
@@ -855,6 +916,7 @@ def test_publisher_rejects_missing_wordpress_tag():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             tags=(Tag(name="Missing"),),
         ),
         images=(),
@@ -889,6 +951,7 @@ def test_publisher_stops_when_wordpress_tag_lookup_fails():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             tags=(Tag(name="Python"),),
         ),
         images=(),
@@ -924,6 +987,7 @@ def test_publisher_rejects_ambiguous_wordpress_tags():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             tags=(Tag(name="Python"),),
         ),
         images=(),
@@ -965,6 +1029,7 @@ def test_publisher_sends_tags_with_uploaded_images():
         source=Post(
             text="Hello WordPress",
             language=Language.ENGLISH,
+            title="WordPress Test Title",
             tags=(Tag(name="Python"),),
         ),
         images=(image,),

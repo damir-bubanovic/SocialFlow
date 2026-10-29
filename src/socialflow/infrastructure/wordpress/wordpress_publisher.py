@@ -68,6 +68,9 @@ class WordPressPublisher(Publisher):
         if not post.source.text.strip():
             raise ValueError("WordPress post text is required.")
 
+        if not post.source.title.strip():
+            raise ValueError("WordPress post title is required.")
+
         password = self._credential_store.get(
             WordPressCredentialKeys.application_password(self._account)
         )
@@ -139,6 +142,7 @@ class WordPressPublisher(Publisher):
             application_password=password,
             content=content,
             tags=tag_ids,
+            title=post.source.title.strip(),
         )
 
         if status != 201:

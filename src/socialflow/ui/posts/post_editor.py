@@ -1,13 +1,16 @@
-
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
+    QSplitter,
     QVBoxLayout,
     QWidget,
+    QLineEdit,
 )
 
+
+from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.application.language.language_detector import LanguageDetector
 from socialflow.application.language.paragraph_language_detector import (
     ParagraphLanguageDetector,
@@ -62,6 +65,8 @@ class PostEditor(QWidget):
 
         self.text_editor = QPlainTextEdit(self)
         self.text_editor.setPlaceholderText("Write your post...")
+        self.text_editor.setMinimumHeight(180)
+        self.text_editor.setMaximumHeight(280)
         self._paragraph_highlighter = ParagraphLanguageHighlighter(
             self.text_editor.document(),
             self._language_detector,
@@ -75,25 +80,99 @@ class PostEditor(QWidget):
         self.tag_selector = TagSelector(self)
         self.publish_button = PublishButton(self)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.language_controls)
+        self.title_editor = QLineEdit(self)
+        self.title_editor.setPlaceholderText(
+            "Enter WordPress post title..."
+        )
+        self.title_heading = QLabel(
+            "WordPress title *",
+            self,
+        )
+        self.title_heading.setStyleSheet("font-weight: bold;")
+        self.title_heading.hide()
+        self.title_editor.hide()
+
+        # Left: shared post content.
+        self.composer_panel = QWidget(self)
+        composer_layout = QVBoxLayout(self.composer_panel)
+        composer_layout.setContentsMargins(8, 8, 8, 8)
+        composer_layout.setSpacing(8)
+
+        self.content_heading = QLabel("Post content", self.composer_panel)
+        self.images_heading = QLabel("Images", self.composer_panel)
+        self.tags_heading = QLabel("Tags", self.composer_panel)
+
+        for heading in (
+                self.content_heading,
+                self.images_heading,
+                self.tags_heading,
+        ):
+            font = heading.font()
+            font.setBold(True)
+            heading.setFont(font)
+
+        composer_layout.addWidget(self.title_heading)
+        composer_layout.addWidget(self.title_editor)
+
+        composer_layout.addWidget(self.content_heading)
+        composer_layout.addWidget(self.text_editor)
+
+        composer_layout.addWidget(self.images_heading)
+        composer_layout.addWidget(self.image_selector)
+
+        composer_layout.addWidget(self.tags_heading)
+        composer_layout.addWidget(self.tag_selector)
+
+        # Keep the composer sections grouped near the top.
+        composer_layout.addStretch()
+
+        # Right: destination and publishing controls.
+        self.publishing_panel = QWidget(self)
+        publishing_layout = QVBoxLayout(self.publishing_panel)
+        publishing_layout.setContentsMargins(8, 8, 8, 8)
+        publishing_layout.setSpacing(12)
+
+        self.publishing_heading = QLabel(
+            "Publishing",
+            self.publishing_panel,
+        )
+        font = self.publishing_heading.font()
+        font.setBold(True)
+        self.publishing_heading.setFont(font)
+
+        publishing_layout.addWidget(self.publishing_heading)
+        publishing_layout.addWidget(self.destination_selector)
+        publishing_layout.addWidget(self.language_controls)
+
         content_language_layout = QHBoxLayout()
         content_language_layout.setContentsMargins(0, 0, 0, 0)
         content_language_layout.setSpacing(8)
-
         content_language_layout.addWidget(self.content_language_label)
-        content_language_layout.addWidget(self.content_language_indicator)
+        content_language_layout.addWidget(
+            self.content_language_indicator
+        )
         content_language_layout.addStretch()
 
-        layout.addLayout(content_language_layout)
-        layout.addWidget(self.destination_selector)
-        layout.addWidget(self.text_editor)
-        layout.addWidget(self.image_selector)
-        layout.addWidget(self.tag_selector)
-        layout.addWidget(self.publish_button)
+        publishing_layout.addLayout(content_language_layout)
+        publishing_layout.addWidget(self.publish_button)
+        publishing_layout.addStretch()
 
-        self.setLayout(layout)
+        # Resizable two-column desktop layout.
+        self.editor_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.editor_splitter.setChildrenCollapsible(False)
+        self.editor_splitter.addWidget(self.composer_panel)
+        self.editor_splitter.addWidget(self.publishing_panel)
+        self.editor_splitter.setStretchFactor(0, 7)
+        self.editor_splitter.setStretchFactor(1, 3)
+        self.editor_splitter.setSizes([700, 300])
 
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.editor_splitter)
+
+        self.title_editor.textChanged.connect(
+            self._update_publish_button
+        )
         self.text_editor.textChanged.connect(
             self._update_publish_button
         )
@@ -152,12 +231,14 @@ class PostEditor(QWidget):
             language=self.language_controls.selected_language(),
             images=self.image_selector.selected_images(),
             tags=self.tag_selector.selected_tags(),
+            title=self.title_editor.text().strip(),
         )
 
     def new_post(self) -> None:
         """Clear the current draft and restore automatic language detection."""
         self._manual_language_override = False
 
+        self.title_editor.clear()
         self.text_editor.clear()
         self.image_selector.set_selected_images(())
         self.tag_selector.set_selected_tags(())
@@ -170,6 +251,7 @@ class PostEditor(QWidget):
 
     def load_post(self, post: Post) -> None:
         """Load an existing post into the editor."""
+        self.title_editor.setText(post.title)
         self.text_editor.setPlainText(post.text)
         self.language_controls.set_language(post.language)
         self.image_selector.set_selected_images(post.images)
@@ -252,11 +334,29 @@ class PostEditor(QWidget):
                 detected_language
             )
 
+    def _wordpress_selected(self) -> bool:
+        """Return whether a selected destination is WordPress."""
+        return any(
+            account.destination is PublishingDestination.WORDPRESS
+            for account in self.selected_accounts()
+        )
+
     def _update_publish_button(self) -> None:
         """Synchronize the publish button with the current post state."""
+        wordpress_selected = self._wordpress_selected()
+
+        self.title_heading.setVisible(wordpress_selected)
+        self.title_editor.setVisible(wordpress_selected)
+
+        title_valid = (
+                not wordpress_selected
+                or bool(self.title_editor.text().strip())
+        )
+
         available = (
-            self.post().has_content()
-            and bool(self.selected_accounts())
+                self.post().has_content()
+                and bool(self.selected_accounts())
+                and title_valid
         )
 
         self.publish_button.set_post_available(available)
@@ -273,5 +373,14 @@ class PostEditor(QWidget):
         """Emit the current publishing request."""
         request = self.publish_request()
 
-        if request.post.has_content() and request.accounts:
+        title_valid = (
+                not self._wordpress_selected()
+                or bool(request.post.title.strip())
+        )
+
+        if (
+                request.post.has_content()
+                and request.accounts
+                and title_valid
+        ):
             self.publish_requested.emit(request)

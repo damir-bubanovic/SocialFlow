@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QHBoxLayout,
 )
 
 from socialflow.domain.post.tag import Tag
@@ -34,16 +35,35 @@ class TagSelector(QWidget):
         self.selected_tags_label = QLabel("", self)
         self.selected_tags_label.setWordWrap(True)
 
-        layout = QVBoxLayout()
+        input_layout = QHBoxLayout()
+        input_layout.setContentsMargins(0, 0, 0, 0)
+        input_layout.setSpacing(8)
+        input_layout.addWidget(self.tag_input, 1)
+        input_layout.addWidget(self.add_button)
+
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(8)
+        status_layout.addWidget(self.status_label)
+        status_layout.addStretch()
+        status_layout.addWidget(self.clear_button)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
         self.available_tags_layout = QVBoxLayout()
+        self.available_tags_layout.setSpacing(4)
+
         layout.addLayout(self.available_tags_layout)
-        layout.addWidget(self.tag_input)
-        layout.addWidget(self.add_button)
-        layout.addWidget(self.clear_button)
-        layout.addWidget(self.status_label)
+        layout.addLayout(input_layout)
+        layout.addLayout(status_layout)
         layout.addWidget(self.selected_tags_label)
 
-        self.setLayout(layout)
+        self.setSizePolicy(
+            self.sizePolicy().horizontalPolicy(),
+            self.sizePolicy().Policy.Maximum,
+        )
 
         self.add_button.clicked.connect(self._add_tag)
         self.clear_button.clicked.connect(self._clear_tags)

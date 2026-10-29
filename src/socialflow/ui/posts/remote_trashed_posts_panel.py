@@ -1,8 +1,10 @@
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
+    QPlainTextEdit,
     QPushButton,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -41,12 +43,46 @@ class RemoteTrashedPostsPanel(QWidget):
         self.refresh_button.setEnabled(False)
         self.restore_button.setEnabled(False)
 
+        # Left column: WordPress Trash list and refresh action.
+        self.list_panel = QWidget(self)
+        list_layout = QVBoxLayout(self.list_panel)
+        list_layout.addWidget(self.title)
+        list_layout.addWidget(self.status_label)
+        list_layout.addWidget(self.posts_list, 1)
+        list_layout.addWidget(self.refresh_button)
+
+        # Right column: selected post details and restore action.
+        self.details_panel = QWidget(self)
+        details_layout = QVBoxLayout(self.details_panel)
+
+        self.details_heading = QLabel(
+            "Selected trashed post",
+            self.details_panel,
+        )
+        details_layout.addWidget(self.details_heading)
+
+        self.details_text = QPlainTextEdit(self.details_panel)
+        self.details_text.setReadOnly(True)
+        self.details_text.setPlaceholderText(
+            "Select a trashed WordPress post to view its details."
+        )
+
+        details_layout.addWidget(self.details_text, 1)
+        details_layout.addWidget(self.restore_button)
+
+        # Resizable two-column layout.
+        self.splitter = QSplitter(
+            Qt.Orientation.Horizontal,
+            self,
+        )
+        self.splitter.addWidget(self.list_panel)
+        self.splitter.addWidget(self.details_panel)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 7)
+        self.splitter.setSizes([300, 700])
+
         layout = QVBoxLayout(self)
-        layout.addWidget(self.title)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.posts_list)
-        layout.addWidget(self.refresh_button)
-        layout.addWidget(self.restore_button)
+        layout.addWidget(self.splitter)
 
         self.posts_list.currentRowChanged.connect(
             self._update_restore_button
@@ -65,6 +101,7 @@ class RemoteTrashedPostsPanel(QWidget):
         self._can_refresh = False
 
         self.posts_list.clear()
+        self.details_text.clear()
         self.posts_list.setEnabled(False)
 
         self.status_label.setText(
@@ -80,6 +117,7 @@ class RemoteTrashedPostsPanel(QWidget):
         self._can_refresh = False
 
         self.posts_list.clear()
+        self.details_text.clear()
         self.posts_list.setEnabled(False)
 
         self.status_label.setText("Loading WordPress Trash...")
@@ -93,6 +131,7 @@ class RemoteTrashedPostsPanel(QWidget):
         self._can_refresh = True
 
         self.posts_list.clear()
+        self.details_text.clear()
 
         for post in posts:
             title = post.title.strip() or "(Untitled)"
@@ -121,6 +160,7 @@ class RemoteTrashedPostsPanel(QWidget):
         self._can_refresh = True
 
         self.posts_list.clear()
+        self.details_text.clear()
         self.posts_list.setEnabled(False)
 
         self.status_label.setText(
@@ -150,8 +190,35 @@ class RemoteTrashedPostsPanel(QWidget):
 
         return None
 
+    def _update_selected_details(self) -> None:
+        """Display read-only details for the selected trashed post."""
+        post = self.selected_post()
+
+        if post is None:
+            self.details_text.clear()
+            return
+
+        title = post.title.strip() or "(Untitled)"
+        tags = (
+            ", ".join(str(tag_id) for tag_id in post.tag_ids)
+            if post.tag_ids
+            else "None"
+        )
+
+        self.details_text.setPlainText(
+            f"Title: {title}\n"
+            f"Post ID: {post.remote_id}\n"
+            f"Status: {post.status}\n"
+            f"Date: {post.published_at:%Y-%m-%d %H:%M}\n"
+            f"Tags (IDs): {tags}\n"
+            f"Featured media ID: {post.featured_media_id or 'None'}\n"
+            f"\nContent:\n{post.content}"
+        )
+
     def _update_restore_button(self, *_args: object) -> None:
         """Enable Restore only for a valid, idle selection."""
+        self._update_selected_details()
+
         self.restore_button.setEnabled(
             not self._busy
             and self.posts_list.isEnabled()

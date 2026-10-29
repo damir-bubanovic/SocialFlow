@@ -1486,8 +1486,13 @@ def test_title_only_change_emits_title_save_signal(qtbot):
     qtbot.addWidget(panel)
     panel.show()
 
+    original_html = (
+        '<p>Hello <strong>WordPress</strong>!</p>'
+        '<p><a href="https://example.com">Read more</a></p>'
+    )
+
     post = replace(
-        make_post(),
+        make_post(content=original_html),
         title="Original title",
         excerpt="Original excerpt",
     )
@@ -1512,7 +1517,7 @@ def test_title_only_change_emits_title_save_signal(qtbot):
 
     assert signal.args == [
         "123",
-        "Original content",
+        original_html,
         None,
         None,
         None,
@@ -1669,3 +1674,331 @@ def test_unchanged_title_uses_existing_content_signal(qtbot):
         "123",
         "Updated content",
     ]
+
+
+def test_tag_only_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        '<p>Original <strong>formatted</strong> content.</p>'
+        '<ul><li>First item</li><li>Second item</li></ul>'
+    )
+
+    post = replace(
+        make_post(content=original_html),
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_tag_selector.set_selected_ids((12, 56))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        original_html,
+        (12, 56),
+    ]
+
+
+def test_status_only_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        '<h2>WordPress heading</h2>'
+        '<p>Some <em>formatted</em> content.</p>'
+    )
+
+    panel.show_posts((
+        make_post(content=original_html),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    draft_index = panel.post_status_selector.findData("draft")
+    assert draft_index >= 0
+
+    panel.post_status_selector.setCurrentIndex(draft_index)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        original_html,
+        None,
+        None,
+        "draft",
+    ]
+
+
+def test_html_content_displays_without_visible_tags(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        "<h2>Welcome</h2>"
+        "<p>Hello <strong>WordPress</strong>!</p>"
+    )
+
+    panel.show_posts((make_post(content=original_html),))
+    panel.posts_list.setCurrentRow(0)
+
+    visible_text = panel.content_editor.toPlainText()
+
+    assert "Welcome" in visible_text
+    assert "Hello WordPress!" in visible_text
+    assert "<h2>" not in visible_text
+    assert "<strong>" not in visible_text
+    assert panel.content_editor.isReadOnly()
+    assert not panel.save_button.isEnabled()
+
+
+def test_html_post_title_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        '<p>Hello <a href="https://example.com">'
+        "WordPress</a>!</p>"
+    )
+
+    post = replace(
+        make_post(content=original_html),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Updated title")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        original_html,
+        None,
+        None,
+        None,
+        None,
+        "Updated title",
+    ]
+
+
+def test_plain_text_content_remains_editable(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(content="Original plain text"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.content_editor.isReadOnly()
+
+    panel.content_editor.setPlainText("Updated plain text")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Updated plain text",
+    ]
+
+
+def test_html_excerpt_displays_without_tags(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        excerpt="<p>Hello <strong>WordPress</strong>!</p>",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.excerpt_editor.toPlainText().strip() == (
+        "Hello WordPress!"
+    )
+    assert panel.excerpt_editor.isReadOnly()
+    assert not panel.save_button.isEnabled()
+
+
+def test_html_excerpt_title_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_excerpt = (
+        '<p>Read <a href="https://example.com">'
+        "the full article</a>.</p>"
+    )
+
+    post = replace(
+        make_post(),
+        title="Original title",
+        excerpt=original_excerpt,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Updated title")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        None,
+        "Updated title",
+    ]
+
+
+def test_plain_text_excerpt_remains_editable(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.excerpt_editor.isReadOnly()
+
+    panel.excerpt_editor.setPlainText("Updated excerpt")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        "Updated excerpt",
+    ]
+
+
+def test_switching_posts_resets_excerpt_read_only_state(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    html_post = replace(
+        make_post(remote_id="123"),
+        excerpt="<p>Formatted excerpt</p>",
+    )
+    plain_post = replace(
+        make_post(remote_id="456"),
+        excerpt="Plain excerpt",
+    )
+
+    panel.show_posts((html_post, plain_post))
+
+    panel.posts_list.setCurrentRow(0)
+    assert panel.excerpt_editor.isReadOnly()
+
+    panel.posts_list.setCurrentRow(1)
+
+    assert not panel.excerpt_editor.isReadOnly()
+    assert panel.excerpt_editor.toPlainText() == "Plain excerpt"
+    assert not panel.save_button.isEnabled()
+
+
+def test_remote_posts_list_displays_title_instead_of_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(
+            content="<p>Private HTML content</p>"
+        ),
+        title="My WordPress article",
+    )
+
+    panel.show_posts((post,))
+
+    label = panel.posts_list.item(0).text()
+
+    assert "My WordPress article" in label
+    assert "Private HTML content" not in label
+    assert "<p>" not in label
+    assert "publish" in label
+
+
+def test_remote_posts_list_uses_untitled_fallback(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(content="<p>Some content</p>"),
+    ))
+
+    assert "(Untitled)" in panel.posts_list.item(0).text()
+
+
+def test_remote_posts_list_selection_uses_original_post(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    first = replace(
+        make_post(remote_id="123"),
+        title="A very long WordPress title " * 10,
+    )
+    second = replace(
+        make_post(remote_id="456"),
+        title="Second article",
+    )
+
+    panel.show_posts((first, second))
+    panel.posts_list.setCurrentRow(1)
+
+    assert panel.post_title_editor.toPlainText() == "Second article"
+    assert panel.content_editor.toPlainText() == "Original content"
+    assert not panel.save_button.isEnabled()

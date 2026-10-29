@@ -13,6 +13,7 @@ class Post:
     language: Language
     images: tuple[ImageAttachment, ...] = ()
     tags: tuple[Tag, ...] = ()
+    title: str = ""
 
     def has_content(self) -> bool:
         """Return whether the post contains text or image content."""

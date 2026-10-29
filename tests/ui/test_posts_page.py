@@ -4,8 +4,6 @@ from PySide6.QtWidgets import QCheckBox
 
 from PySide6.QtWidgets import QWidget
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QScrollArea
 from socialflow.domain.post.remote_media import RemoteMedia
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.application.accounts.account_repository import AccountRepository
@@ -482,9 +480,12 @@ def test_posts_page_shows_result_for_each_destination_when_one_fails(
     page.post_editor.text_editor.setPlainText(
         "Hello from SocialFlow"
     )
+    page.post_editor.title_editor.setText(
+        "WordPress Test Title"
+    )
 
     for checkbox in (
-        page.post_editor.destination_selector._checkboxes
+            page.post_editor.destination_selector._checkboxes
     ):
         checkbox.setChecked(True)
 
@@ -544,6 +545,9 @@ def test_posts_page_updates_progress_for_each_account(qtbot) -> None:
 
     page.post_editor.text_editor.setPlainText(
         "Publishing progress test"
+    )
+    page.post_editor.title_editor.setText(
+        "WordPress Test Title"
     )
 
     for checkbox in page.post_editor.destination_selector._checkboxes:
@@ -894,6 +898,9 @@ def test_posts_page_stores_original_request_and_results(qtbot) -> None:
     page.post_editor.text_editor.setPlainText(
         "Selective retry state test"
     )
+    page.post_editor.title_editor.setText(
+        "WordPress Test Title"
+    )
 
     for checkbox in page.post_editor.destination_selector._checkboxes:
         checkbox.setChecked(True)
@@ -1090,6 +1097,9 @@ def test_retry_failed_publishes_only_failed_accounts(qtbot) -> None:
     page.post_editor.text_editor.setPlainText(
         "Selective retry integration test"
     )
+    page.post_editor.title_editor.setText(
+        "WordPress Test Title"
+    )
 
     for checkbox in page.post_editor.destination_selector._checkboxes:
         checkbox.setChecked(True)
@@ -1217,6 +1227,9 @@ def test_selective_retry_recovers_failed_account_without_republishing_successful
     page.post_editor.text_editor.setPlainText(
         "Multi-account retry recovery test"
     )
+    page.post_editor.title_editor.setText(
+        "WordPress Test Title"
+    )
 
     for checkbox in page.post_editor.destination_selector._checkboxes:
         checkbox.setChecked(True)
@@ -1286,6 +1299,41 @@ def test_editing_post_text_invalidates_retry(qtbot) -> None:
     page.retry_failed_button.setEnabled(True)
 
     page.post_editor.text_editor.setPlainText("Edited text")
+
+    assert page._last_publish_request is None
+    assert page._last_publish_results == ()
+    assert not page.retry_failed_button.isEnabled()
+
+def test_changing_wordpress_title_invalidates_retry(qtbot) -> None:
+    """Editing the WordPress title must discard previous retry state."""
+    page = create_posts_page()
+    qtbot.addWidget(page)
+
+    account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    page._last_publish_request = PublishRequest(
+        post=Post(
+            text="Original text",
+            language=Language.ENGLISH,
+            title="Original WordPress Title",
+        ),
+        accounts=(account,),
+    )
+    page._last_publish_results = (
+        PublishResult(
+            account=account,
+            succeeded=False,
+            error=PublishingError("Publishing failed."),
+        ),
+    )
+    page.retry_failed_button.setEnabled(True)
+
+    page.post_editor.title_editor.setText(
+        "Updated WordPress Title"
+    )
 
     assert page._last_publish_request is None
     assert page._last_publish_results == ()
@@ -2181,6 +2229,7 @@ def test_posts_page_loads_remote_wordpress_posts(qtbot):
         remote_id="123",
         destination=PublishingDestination.WORDPRESS,
         content="Remote WordPress test post",
+        title="Remote WordPress test title",
         published_at=datetime(2026, 10, 15, 12, 0),
         status="publish",
     )
@@ -2216,8 +2265,8 @@ def test_posts_page_loads_remote_wordpress_posts(qtbot):
         )
 
         assert (
-            "Remote WordPress test post"
-            in page.remote_posts_panel.posts_list.item(0).text()
+                "Remote WordPress test title"
+                in page.remote_posts_panel.posts_list.item(0).text()
         )
 
         list_remote_posts.execute.assert_called_once_with(
@@ -2258,6 +2307,7 @@ def test_posts_page_ignores_outdated_remote_posts(qtbot):
                     remote_id="101",
                     destination=PublishingDestination.WORDPRESS,
                     content="Outdated first account post",
+                    title="Outdated first account title",
                     published_at=datetime(2026, 10, 15, 12, 0),
                     status="publish",
                 ),
@@ -2268,6 +2318,7 @@ def test_posts_page_ignores_outdated_remote_posts(qtbot):
                 remote_id="202",
                 destination=PublishingDestination.WORDPRESS,
                 content="Current second account post",
+                title="Current second account title",
                 published_at=datetime(2026, 10, 15, 13, 0),
                 status="publish",
             ),
@@ -2316,13 +2367,13 @@ def test_posts_page_ignores_outdated_remote_posts(qtbot):
         qtbot.waitUntil(
             lambda: (
                 page.remote_posts_panel.posts_list.count() == 1
-                and "Current second account post"
+                and "Current second account title"
                 in page.remote_posts_panel.posts_list.item(0).text()
             ),
             timeout=5000,
         )
 
-        assert "Outdated first account post" not in (
+        assert "Outdated first account title" not in (
             page.remote_posts_panel.posts_list.item(0).text()
         )
     finally:
@@ -5234,21 +5285,18 @@ def test_fresh_request_is_accepted_after_cancelled_wordpress_preparation(
         page.shutdown()
 
 
-def test_posts_page_has_vertical_scroll_area(qtbot) -> None:
+def test_posts_page_has_three_sub_tabs(qtbot) -> None:
     page = create_posts_page()
     qtbot.addWidget(page)
 
-    scroll_area = page.scroll_area
+    assert page.posts_tabs.count() == 3
 
-    assert isinstance(scroll_area, QScrollArea)
-    assert scroll_area.widgetResizable()
-    assert (
-        scroll_area.verticalScrollBarPolicy()
-        == Qt.ScrollBarPolicy.ScrollBarAsNeeded
-    )
-    assert (
-        scroll_area.horizontalScrollBarPolicy()
-        == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    )
-    assert scroll_area.widget() is not None
-    assert scroll_area.widget().layout().count() == 7
+    assert page.posts_tabs.tabText(0) == "Create Post"
+    assert page.posts_tabs.tabText(1) == "My Posts"
+    assert page.posts_tabs.tabText(2) == "Trash"
+
+    assert page.posts_tabs.widget(0) is page.create_post_view
+    assert page.posts_tabs.widget(1) is page.my_posts_view
+    assert page.posts_tabs.widget(2) is page.trash_view
+
+    assert page.posts_tabs.currentWidget() is page.create_post_view

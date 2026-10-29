@@ -1,3 +1,4 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidget, QListWidgetItem
 
 from socialflow.domain.publishing.publication import Publication
@@ -10,6 +11,13 @@ class RecentPostsList(QListWidget):
         super().__init__(parent)
 
         self._publications: tuple[Publication, ...] = ()
+
+        self.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.setTextElideMode(
+            Qt.TextElideMode.ElideRight
+        )
 
     def set_publications(
         self,
@@ -36,14 +44,22 @@ class RecentPostsList(QListWidget):
 
     @staticmethod
     def _format_publication(publication: Publication) -> str:
-        """Return display text for a publication."""
+        """Return a compact, readable publication label."""
         published_at = publication.published_at.strftime(
             "%d %b %Y %H:%M"
         )
 
         destination = publication.account.destination.value.title()
 
+        preview = " ".join(publication.post.text.split())
+
+        if len(preview) > 80:
+            preview = preview[:79].rstrip() + "…"
+
+        if not preview:
+            preview = "(No text)"
+
         return (
             f"{published_at} · {destination}\n"
-            f"{publication.account.name} — {publication.post.text}"
+            f"{publication.account.name} — {preview}"
         )

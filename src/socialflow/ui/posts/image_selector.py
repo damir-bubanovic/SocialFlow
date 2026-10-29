@@ -34,15 +34,31 @@ class ImageSelector(QWidget):
         self.filenames_label.setWordWrap(True)
         self.preview_layout = QHBoxLayout()
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.select_button)
-        layout.addWidget(self.clear_button)
+        button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(8)
+        button_layout.addWidget(self.select_button)
+        button_layout.addWidget(self.clear_button)
+        button_layout.addStretch()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        layout.addLayout(button_layout)
         layout.addWidget(self.status_label)
         layout.addWidget(self.error_label)
         layout.addWidget(self.filenames_label)
         layout.addLayout(self.preview_layout)
 
-        self.setLayout(layout)
+        self.preview_layout.setAlignment(
+            Qt.AlignmentFlag.AlignLeft
+        )
+
+        self.setSizePolicy(
+            self.sizePolicy().horizontalPolicy(),
+            self.sizePolicy().Policy.Maximum,
+        )
 
         self.select_button.clicked.connect(self._select_images)
         self.clear_button.clicked.connect(self._clear_images)

@@ -1,4 +1,8 @@
+import re
+
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QTextDocument
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QLabel,
@@ -9,11 +13,34 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QComboBox,
+    QSplitter,
+    QScrollArea,
 )
 
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.domain.post.remote_tag import RemoteTag
 from socialflow.ui.posts.remote_tag_selector import RemoteTagSelector
+
+
+
+_HTML_TAG_PATTERN = re.compile(
+    r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^<>]*?)?\s*/?>"
+)
+
+
+def _contains_html(value: str) -> bool:
+    """Identify HTML markup in retrieved WordPress content."""
+    return bool(_HTML_TAG_PATTERN.search(value))
+
+
+def _readable_content(value: str) -> str:
+    """Convert HTML to readable text without changing stored content."""
+    if not _contains_html(value):
+        return value
+
+    document = QTextDocument()
+    document.setHtml(value)
+    return document.toPlainText()
 
 
 class RemotePostsPanel(QWidget):
@@ -42,6 +69,12 @@ class RemotePostsPanel(QWidget):
         self.title = QLabel("Remote WordPress posts", self)
         self.status_label = QLabel(self)
         self.posts_list = QListWidget(self)
+        self.posts_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.posts_list.setTextElideMode(
+            Qt.TextElideMode.ElideRight
+        )
 
         self.edit_label = QLabel("Edit selected post", self)
 
@@ -54,12 +87,15 @@ class RemotePostsPanel(QWidget):
         self.post_title_editor.setEnabled(False)
 
         self.content_editor = QPlainTextEdit(self)
+        self.content_editor.setFixedHeight(110)
+
         self.excerpt_label = QLabel("WordPress excerpt", self)
         self.excerpt_editor = QPlainTextEdit(self)
         self.excerpt_editor.setPlaceholderText(
             "Optional short summary of this WordPress post."
         )
         self.excerpt_editor.setEnabled(False)
+        self.excerpt_editor.setFixedHeight(65)
 
         self.post_status_label = QLabel("WordPress post status", self)
 
@@ -73,6 +109,7 @@ class RemotePostsPanel(QWidget):
         self.tags_label = QLabel("WordPress tags", self)
         self.remote_tag_selector = RemoteTagSelector(self)
         self.remote_tag_selector.tags_list.setEnabled(False)
+        self.remote_tag_selector.setFixedHeight(85)
 
         self.featured_media_label = QLabel(
             "Featured image media ID", self
@@ -105,26 +142,67 @@ class RemotePostsPanel(QWidget):
         self.content_editor.setEnabled(False)
         self.save_button.setEnabled(False)
 
+        # Left column: remote WordPress post selection.
+        self.list_panel = QWidget(self)
+        list_layout = QVBoxLayout(self.list_panel)
+        list_layout.addWidget(self.title)
+        list_layout.addWidget(self.status_label)
+        list_layout.addWidget(self.posts_list)
+
+        # Right column: selected WordPress post editor.
+        self.editor_panel = QWidget(self)
+        editor_layout = QVBoxLayout(self.editor_panel)
+        editor_layout.setSpacing(5)
+        editor_layout.addWidget(self.edit_label)
+        editor_layout.addWidget(self.post_title_label)
+        editor_layout.addWidget(self.post_title_editor)
+        editor_layout.addWidget(self.content_editor)
+        editor_layout.addWidget(self.excerpt_label)
+        editor_layout.addWidget(self.excerpt_editor)
+        editor_layout.addWidget(self.post_status_label)
+        editor_layout.addWidget(self.post_status_selector)
+        editor_layout.addWidget(self.tags_label)
+        editor_layout.addWidget(self.remote_tag_selector)
+        editor_layout.addWidget(self.featured_media_label)
+        editor_layout.addWidget(self.featured_media_checkbox)
+        editor_layout.addWidget(self.featured_media_input)
+        editor_layout.addWidget(self.browse_media_button)
+        editor_layout.addStretch()
+
+        # Keep the editor accessible in smaller windows.
+        self.editor_scroll = QScrollArea(self)
+        self.editor_scroll.setWidgetResizable(True)
+        self.editor_scroll.setFrameShape(
+            QScrollArea.Shape.NoFrame
+        )
+        self.editor_scroll.setWidget(self.editor_panel)
+        self.editor_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        # Keep the editing actions visible below the scroll area.
+        self.editor_column = QWidget(self)
+        editor_column_layout = QVBoxLayout(self.editor_column)
+        editor_column_layout.setContentsMargins(0, 0, 0, 0)
+        editor_column_layout.setSpacing(5)
+
+        editor_column_layout.addWidget(self.editor_scroll, 1)
+        editor_column_layout.addWidget(self.save_button)
+        editor_column_layout.addWidget(self.trash_button)
+
+        # Resizable two-column layout.
+        self.splitter = QSplitter(
+            Qt.Orientation.Horizontal,
+            self,
+        )
+        self.splitter.addWidget(self.list_panel)
+        self.splitter.addWidget(self.editor_column)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 7)
+        self.splitter.setSizes([300, 700])
+
         layout = QVBoxLayout(self)
-        layout.addWidget(self.title)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.posts_list)
-        layout.addWidget(self.edit_label)
-        layout.addWidget(self.post_title_label)
-        layout.addWidget(self.post_title_editor)
-        layout.addWidget(self.content_editor)
-        layout.addWidget(self.excerpt_label)
-        layout.addWidget(self.excerpt_editor)
-        layout.addWidget(self.post_status_label)
-        layout.addWidget(self.post_status_selector)
-        layout.addWidget(self.tags_label)
-        layout.addWidget(self.remote_tag_selector)
-        layout.addWidget(self.featured_media_label)
-        layout.addWidget(self.featured_media_checkbox)
-        layout.addWidget(self.featured_media_input)
-        layout.addWidget(self.browse_media_button)
-        layout.addWidget(self.save_button)
-        layout.addWidget(self.trash_button)
+        layout.addWidget(self.splitter)
 
         self.posts_list.currentRowChanged.connect(
             self._on_post_selected
@@ -210,8 +288,10 @@ class RemotePostsPanel(QWidget):
         self.post_title_editor.clear()
         self.post_title_editor.setEnabled(False)
         self.content_editor.clear()
+        self.content_editor.setReadOnly(False)
         self.content_editor.setEnabled(False)
         self.excerpt_editor.clear()
+        self.excerpt_editor.setReadOnly(False)
         self.excerpt_editor.setEnabled(False)
         self.post_status_selector.setCurrentIndex(0)
         self.post_status_selector.setEnabled(False)
@@ -234,11 +314,11 @@ class RemotePostsPanel(QWidget):
         self._posts = posts
 
         for post in posts:
-            preview = " ".join(post.content.split())[:100]
+            post_title = " ".join(post.title.split()) or "(Untitled)"
 
             self.posts_list.addItem(
                 f"{post.published_at:%Y-%m-%d} | "
-                f"{post.status} | {preview}"
+                f"{post.status} | {post_title}"
             )
 
         self.status_label.setText(
@@ -268,12 +348,14 @@ class RemotePostsPanel(QWidget):
             self.post_title_editor.clear()
             self.post_title_editor.setEnabled(False)
             self.content_editor.clear()
+            self.content_editor.setReadOnly(False)
             self.content_editor.setEnabled(False)
 
             self.post_status_selector.setCurrentIndex(0)
             self.post_status_selector.setEnabled(False)
 
             self.excerpt_editor.clear()
+            self.excerpt_editor.setReadOnly(False)
             self.excerpt_editor.setEnabled(False)
 
             self.remote_tag_selector.set_selected_ids(())
@@ -289,9 +371,20 @@ class RemotePostsPanel(QWidget):
         self.post_title_editor.setPlainText(post.title)
         self.post_title_editor.setEnabled(True)
 
+        has_html_content = _contains_html(post.content)
+
+        self.content_editor.setPlainText(
+            _readable_content(post.content)
+        )
+        self.content_editor.setReadOnly(has_html_content)
         self.content_editor.setEnabled(True)
-        self.content_editor.setPlainText(post.content)
-        self.excerpt_editor.setPlainText(post.excerpt)
+
+        has_html_excerpt = _contains_html(post.excerpt)
+
+        self.excerpt_editor.setPlainText(
+            _readable_content(post.excerpt)
+        )
+        self.excerpt_editor.setReadOnly(has_html_excerpt)
         self.excerpt_editor.setEnabled(True)
 
         status_index = self.post_status_selector.findData(post.status)
@@ -352,7 +445,11 @@ class RemotePostsPanel(QWidget):
             return
 
         post = self._posts[row]
-        updated_content = self.content_editor.toPlainText()
+        updated_content = (
+            post.content
+            if self.content_editor.isReadOnly()
+            else self.content_editor.toPlainText()
+        )
 
         if not updated_content.strip():
             self.save_button.setEnabled(False)
@@ -369,7 +466,8 @@ class RemotePostsPanel(QWidget):
 
         content_changed = updated_content != post.content
         excerpt_changed = (
-                self.excerpt_editor.toPlainText() != post.excerpt
+                not self.excerpt_editor.isReadOnly()
+                and self.excerpt_editor.toPlainText() != post.excerpt
         )
         status_changed = (
                 self.post_status_selector.isEnabled()
@@ -433,7 +531,11 @@ class RemotePostsPanel(QWidget):
             return
 
         post = self._posts[row]
-        updated_content = self.content_editor.toPlainText()
+        updated_content = (
+            post.content
+            if self.content_editor.isReadOnly()
+            else self.content_editor.toPlainText()
+        )
 
         if not updated_content.strip():
             return
@@ -455,7 +557,11 @@ class RemotePostsPanel(QWidget):
             and self.featured_media_input.value()
             != post.featured_media_id
         )
-        updated_excerpt = self.excerpt_editor.toPlainText()
+        updated_excerpt = (
+            post.excerpt
+            if self.excerpt_editor.isReadOnly()
+            else self.excerpt_editor.toPlainText()
+        )
         excerpt_changed = updated_excerpt != post.excerpt
 
         if (

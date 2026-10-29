@@ -1634,6 +1634,7 @@ def test_wordpress_tag_resolution_failure_preserves_other_publications() -> None
         text="Publishing with selected tags",
         language=Language.ENGLISH,
         tags=(Tag("MissingTag"),),
+        title="WordPress Test Title",
     )
 
     results = service.execute(

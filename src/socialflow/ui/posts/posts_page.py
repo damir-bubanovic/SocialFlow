@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QPushButton,
-    QScrollArea,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -94,6 +94,9 @@ from socialflow.ui.posts.remote_media_selection_dialog import (
 from socialflow.ui.workers.remote_media_loading_controller import (
     RemoteMediaLoadingController,
 )
+from socialflow.ui.posts.create_post_view import CreatePostView
+from socialflow.ui.posts.my_posts_view import MyPostsView
+from socialflow.ui.posts.trash_view import TrashView
 
 
 
@@ -445,32 +448,63 @@ class PostsPage(QWidget):
             self._handle_remote_post_restore
         )
 
-        # Keep all Posts page sections inside one vertically
-        # scrollable content area.
-        scroll_content = QWidget(self)
+        self.create_post_view = CreatePostView(self)
+        self.my_posts_view = MyPostsView(self)
+        self.trash_view = TrashView(self)
 
-        content_layout = QVBoxLayout(scroll_content)
-        content_layout.addWidget(self.new_post_button)
-        content_layout.addWidget(self.post_editor)
-        content_layout.addWidget(self.retry_failed_button)
-        content_layout.addWidget(self.publish_status)
-        content_layout.addWidget(self.recent_posts_panel)
-        content_layout.addWidget(self.remote_posts_panel)
-        content_layout.addWidget(self.remote_trashed_posts_panel)
+        self.create_post_view.content_layout.addWidget(
+            self.post_editor
+        )
 
-        self.scroll_area = QScrollArea(self)
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        # Place New Post at the top-right of the composer.
+        self.post_editor.composer_panel.layout().insertWidget(
+            0,
+            self.new_post_button,
+            0,
+            Qt.AlignmentFlag.AlignRight,
         )
-        self.scroll_area.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        # Keep retry actions directly below Publish.
+        publishing_layout = self.post_editor.publishing_panel.layout()
+        publishing_layout.insertWidget(
+            publishing_layout.count() - 1,
+            self.retry_failed_button,
         )
-        self.scroll_area.setWidget(scroll_content)
+
+        self.create_post_view.content_layout.addWidget(
+            self.publish_status
+        )
+
+        # Keep WordPress posts and local history in the left column.
+        self.remote_posts_panel.list_panel.layout().addWidget(
+            self.recent_posts_panel
+        )
+
+        # The remote posts panel owns the two-column splitter.
+        self.my_posts_view.content_layout.addWidget(
+            self.remote_posts_panel
+        )
+
+        self.trash_view.content_layout.addWidget(
+            self.remote_trashed_posts_panel
+        )
+
+        self.posts_tabs = QTabWidget(self)
+        self.posts_tabs.addTab(
+            self.create_post_view,
+            "Create Post",
+        )
+        self.posts_tabs.addTab(
+            self.my_posts_view,
+            "My Posts",
+        )
+        self.posts_tabs.addTab(
+            self.trash_view,
+            "Trash",
+        )
 
         page_layout = QVBoxLayout(self)
         page_layout.setContentsMargins(0, 0, 0, 0)
-        page_layout.addWidget(self.scroll_area)
+        page_layout.addWidget(self.posts_tabs)
 
         self.post_editor.publish_requested.connect(
             self._handle_publish_request
@@ -501,6 +535,9 @@ class PostsPage(QWidget):
             self._load_publication
         )
         self.post_editor.text_editor.textChanged.connect(
+            self._invalidate_retry
+        )
+        self.post_editor.title_editor.textChanged.connect(
             self._invalidate_retry
         )
         self.post_editor.language_controls.selector.currentIndexChanged.connect(

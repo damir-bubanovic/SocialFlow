@@ -253,6 +253,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
             application_password: str,
             content: str,
             tags: tuple[int, ...] = (),
+            title: str = "",
     ) -> int:
         parsed = urlsplit(site_url)
 
@@ -284,7 +285,13 @@ class UrllibWordPressPostClient(WordPressPostClient):
                 "WordPress tag IDs must be positive integers."
             )
 
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError(
+                "WordPress post title must be a non-empty string."
+            )
+
         post_data = {
+            "title": title.strip(),
             "content": content,
             "status": "publish",
         }
