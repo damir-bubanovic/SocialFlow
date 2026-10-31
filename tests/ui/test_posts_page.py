@@ -1,8 +1,10 @@
+import pytest
 from datetime import datetime
 from uuid import UUID
 from PySide6.QtWidgets import QCheckBox
 
 from PySide6.QtWidgets import QWidget
+from typing import Any
 
 from socialflow.domain.post.remote_media import RemoteMedia
 from socialflow.domain.post.image_attachment import ImageAttachment
@@ -5922,3 +5924,397 @@ def test_shared_wordpress_account_selection_preserves_first_account():
 
     assert PostsPage._selected_wordpress_account(page) == first
     assert PostsPage._selected_category_wordpress_account(page) is None
+
+
+
+
+def test_category_load_updates_my_posts_without_changing_selection(
+    qtbot,
+):
+    from PySide6.QtWidgets import QPushButton
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    create_selector = RemoteCategorySelector()
+    my_posts_selector = RemoteCategorySelector()
+    button = QPushButton()
+
+    for widget in (create_selector, my_posts_selector, button):
+        qtbot.addWidget(widget)
+
+    my_posts_selector.set_selected_ids((10, 20))
+
+    page = Mock()
+    page.post_editor.category_selector = create_selector
+    page.post_editor.add_category_button = button
+    page._is_current_remote_category_account.return_value = True
+    page._pending_created_category_id = None
+    page._category_creation_shutting_down = False
+    page._wordpress_category_creation_controller.is_running = False
+
+    categories = (
+        RemoteCategory(10, "Technology"),
+        RemoteCategory(20, "Python", parent_id=10),
+    )
+
+    page.remote_posts_panel.set_available_remote_categories.side_effect = (
+        my_posts_selector.set_available_categories
+    )
+
+    PostsPage._on_remote_categories_loaded(page, categories)
+
+    assert create_selector.available_categories() == categories
+    assert my_posts_selector.available_categories() == categories
+    assert my_posts_selector.selected_ids() == (10, 20)
+
+
+def test_category_load_error_clears_my_posts_names(qtbot):
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    create_selector = RemoteCategorySelector()
+    my_posts_selector = RemoteCategorySelector()
+
+    qtbot.addWidget(create_selector)
+    qtbot.addWidget(my_posts_selector)
+
+    categories = (RemoteCategory(10, "Technology"),)
+
+    create_selector.set_available_categories(categories)
+    my_posts_selector.set_available_categories(categories)
+    my_posts_selector.set_selected_ids((10,))
+
+    page = Mock()
+    page.post_editor.category_selector = create_selector
+    page._is_current_remote_category_account.return_value = True
+
+    page.remote_posts_panel.set_available_remote_categories.side_effect = (
+        my_posts_selector.set_available_categories
+    )
+
+    PostsPage._on_remote_categories_error(
+        page,
+        "WordPress request failed",
+    )
+
+    assert create_selector.available_categories() == ()
+    assert my_posts_selector.available_categories() == ()
+    assert my_posts_selector.selected_ids() == (10,)
+
+
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [(10, 20), ()],
+)
+def test_category_save_handler_forwards_changes(categories):
+    page = Mock()
+
+    PostsPage._handle_remote_post_save_with_categories(
+        page,
+        "123",
+        "Updated content",
+        None,
+        None,
+        None,
+        None,
+        None,
+        categories,
+    )
+
+    page._handle_remote_post_save.assert_called_once_with(
+        "123",
+        "Updated content",
+        tags=None,
+        featured_media_id=None,
+        status=None,
+        excerpt=None,
+        title=None,
+        categories=categories,
+    )
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [(0,), (-1,), (True,), ("10",), [10], "10"],
+)
+def test_category_save_handler_rejects_invalid_ids(
+    categories: Any,
+):
+    page = Mock()
+
+    PostsPage._handle_remote_post_save_with_categories(
+        page,
+        "123",
+        "Updated content",
+        None,
+        None,
+        None,
+        None,
+        None,
+        categories,
+    )
+
+    page._handle_remote_post_save.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once_with()
+    page.remote_posts_panel.status_label.setText.assert_called_once_with(
+        "WordPress category IDs must be positive integers."
+    )
+
+
+
+
+@pytest.mark.parametrize(
+    (
+        "categories_loaded",
+        "posts_loaded",
+        "same_account",
+        "expected_editable",
+    ),
+    [
+        (True, True, True, True),
+        (True, False, True, False),
+        (False, True, True, False),
+        (False, False, True, False),
+        (True, True, False, False),
+    ],
+    ids=[
+        "both-loaded",
+        "categories-before-posts",
+        "posts-before-categories",
+        "neither-loaded",
+        "different-wordpress-accounts",
+    ],
+)
+def test_my_posts_category_editing_requires_matching_loaded_accounts(
+    categories_loaded,
+    posts_loaded,
+    same_account,
+    expected_editable,
+):
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    account_a = object()
+    account_b = object()
+
+    page._selected_category_wordpress_account.return_value = account_a
+    page._loaded_remote_categories_account = (
+        account_a if categories_loaded else None
+    )
+    page._loaded_remote_posts_account = (
+        (account_a if same_account else account_b)
+        if posts_loaded
+        else None
+    )
+    page._remote_post_updating_account = None
+    page._remote_category_loading_shutting_down = False
+    page._remote_post_loading_shutting_down = False
+
+    PostsPage._sync_remote_category_editing(page)
+
+    page.remote_posts_panel.set_remote_categories_editable.assert_called_once_with(
+        expected_editable
+    )
+
+
+def test_empty_wordpress_category_catalog_counts_as_loaded():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    account = object()
+
+    page._is_current_remote_category_account.return_value = True
+    page._remote_category_loading_account = account
+    page._loaded_remote_categories_account = None
+    page._pending_created_category_id = None
+    page._wordpress_category_creation_controller = None
+
+    PostsPage._on_remote_categories_loaded(page, ())
+
+    page.post_editor.category_selector.set_available_categories.assert_called_once_with(
+        ()
+    )
+    page.remote_posts_panel.set_available_remote_categories.assert_called_once_with(
+        ()
+    )
+    assert page._loaded_remote_categories_account is account
+    page._sync_remote_category_editing.assert_called_once_with()
+
+
+def test_wordpress_category_loading_failure_revokes_editing():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    page._is_current_remote_category_account.return_value = True
+    page._loaded_remote_categories_account = object()
+
+    PostsPage._on_remote_categories_error(
+        page,
+        "WordPress request failed",
+    )
+
+    assert page._loaded_remote_categories_account is None
+    page.remote_posts_panel.set_remote_categories_editable.assert_called_once_with(
+        False
+    )
+    page.remote_posts_panel.set_available_remote_categories.assert_called_once_with(
+        ()
+    )
+    page.post_editor.category_selector.setEnabled.assert_called_once_with(
+        False
+    )
+
+
+def test_stale_wordpress_category_result_is_ignored():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    page._is_current_remote_category_account.return_value = False
+    page._loaded_remote_categories_account = None
+
+    PostsPage._on_remote_categories_loaded(page, ())
+
+    assert page._loaded_remote_categories_account is None
+    page.remote_posts_panel.set_available_remote_categories.assert_not_called()
+    page._sync_remote_category_editing.assert_not_called()
+
+
+def test_wordpress_category_editing_stays_disabled_during_shutdown():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    account = object()
+
+    page._selected_category_wordpress_account.return_value = account
+    page._loaded_remote_categories_account = account
+    page._loaded_remote_posts_account = account
+    page._remote_post_updating_account = None
+    page._remote_category_loading_shutting_down = True
+    page._remote_post_loading_shutting_down = False
+
+    PostsPage._sync_remote_category_editing(page)
+
+    page.remote_posts_panel.set_remote_categories_editable.assert_called_once_with(
+        False
+    )
+
+
+
+
+def test_remote_post_loading_error_revokes_category_editing():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    page._is_current_remote_post_account.return_value = True
+    page._loaded_remote_posts = (object(),)
+    page._loaded_remote_posts_account = object()
+    page._remote_posts_error = None
+
+    PostsPage._on_remote_posts_error(
+        page, "WordPress connection failed"
+    )
+
+    assert page._loaded_remote_posts == ()
+    assert page._loaded_remote_posts_account is None
+    assert page._remote_posts_error == "WordPress connection failed"
+    page.remote_posts_panel.set_remote_categories_editable.assert_called_once_with(
+        False
+    )
+    page.remote_posts_panel.show_error.assert_called_once_with(
+        "WordPress connection failed"
+    )
+
+
+def test_stale_post_loading_error_does_not_clear_new_account():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    page._is_current_remote_post_account.return_value = False
+    account = object()
+    posts = (object(),)
+    page._loaded_remote_posts_account = account
+    page._loaded_remote_posts = posts
+
+    PostsPage._on_remote_posts_error(
+        page, "Old account request failed"
+    )
+
+    assert page._loaded_remote_posts_account is account
+    assert page._loaded_remote_posts is posts
+    page.remote_posts_panel.show_error.assert_not_called()
+    page.remote_posts_panel.set_remote_categories_editable.assert_not_called()
+
+
+def test_failed_post_update_resynchronizes_category_editing():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    account = object()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = account
+    page._remote_post_updating_generation = 4
+    page._remote_posts_generation = 4
+    page._loaded_remote_posts_account = account
+    page._remote_post_update_succeeded = False
+
+    PostsPage._on_remote_post_update_finished(page)
+
+    page._sync_remote_category_editing.assert_called_once_with()
+    page.remote_posts_panel.restore_editing.assert_called_once_with()
+    page._refresh_remote_posts.assert_not_called()
+
+
+def test_stale_post_update_does_not_restore_category_editing():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_post_updating_account = object()
+    page._remote_post_updating_generation = 3
+    page._remote_posts_generation = 4
+    page._loaded_remote_posts_account = object()
+    page._remote_post_update_succeeded = False
+
+    PostsPage._on_remote_post_update_finished(page)
+
+    page._sync_remote_category_editing.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+    page._refresh_remote_posts.assert_not_called()
+
+
+def test_category_refresh_during_save_keeps_editing_disabled():
+    from unittest.mock import Mock
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    page = Mock()
+    account = object()
+
+    page._selected_category_wordpress_account.return_value = account
+    page._loaded_remote_categories_account = account
+    page._loaded_remote_posts_account = account
+    page._remote_post_updating_account = account
+    page._remote_category_loading_shutting_down = False
+    page._remote_post_loading_shutting_down = False
+
+    PostsPage._sync_remote_category_editing(page)
+
+    page.remote_posts_panel.set_remote_categories_editable.assert_called_once_with(
+        False
+    )

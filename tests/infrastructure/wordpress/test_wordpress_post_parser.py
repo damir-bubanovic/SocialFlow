@@ -314,3 +314,60 @@ def test_parser_rejects_invalid_wordpress_title(
                 "title": invalid_title,
             }
         )
+
+
+
+def test_parser_preserves_wordpress_categories():
+    post = WordPressPostParser.parse(
+        {
+            "id": 42,
+            "date": "2026-10-31T10:30:00",
+            "content": {"rendered": "<p>Content</p>"},
+            "status": "publish",
+            "categories": [10, 20],
+        }
+    )
+
+    assert post.category_ids == (10, 20)
+
+
+def test_parser_defaults_missing_categories_to_empty_tuple():
+    post = WordPressPostParser.parse(
+        {
+            "id": 42,
+            "date": "2026-10-31T10:30:00",
+            "content": {"rendered": "<p>Content</p>"},
+            "status": "publish",
+        }
+    )
+
+    assert post.category_ids == ()
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        None,
+        "10",
+        [0],
+        [-1],
+        [True],
+        ["10"],
+        [10.5],
+        [None],
+    ],
+)
+def test_parser_rejects_invalid_wordpress_categories(categories):
+    with pytest.raises(
+        ValueError,
+        match="WordPress post categories must be positive integer IDs",
+    ):
+        WordPressPostParser.parse(
+            {
+                "id": 42,
+                "date": "2026-10-31T10:30:00",
+                "content": {"rendered": "<p>Content</p>"},
+                "status": "publish",
+                "categories": categories,
+            }
+        )

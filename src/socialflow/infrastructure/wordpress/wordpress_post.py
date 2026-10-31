@@ -14,3 +14,4 @@ class WordPressPost:
     featured_media_id: int = 0
     excerpt: str = ""
     title: str = ""
+    category_ids: tuple[int, ...] = ()

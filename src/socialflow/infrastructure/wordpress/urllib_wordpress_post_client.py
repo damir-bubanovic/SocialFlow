@@ -350,6 +350,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> int:
         """Update an existing WordPress post and return its HTTP status."""
 
@@ -422,6 +423,17 @@ class UrllibWordPressPostClient(WordPressPostClient):
                 )
 
             body["tags"] = list(tags)
+
+        if categories is not None:
+            if not isinstance(categories, tuple) or any(
+                    type(category_id) is not int or category_id <= 0
+                    for category_id in categories
+            ):
+                raise ValueError(
+                    "WordPress category IDs must be positive integers."
+                )
+
+            body["categories"] = list(categories)
 
         if featured_media_id is not None:
             body["featured_media"] = featured_media_id

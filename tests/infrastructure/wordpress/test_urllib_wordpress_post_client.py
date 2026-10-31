@@ -1864,3 +1864,131 @@ def test_create_post_rejects_invalid_category_ids(categories):
             )
 
         build_opener.assert_not_called()
+
+
+
+def test_update_post_includes_selected_categories():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            categories=(10, 20),
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "categories": [10, 20],
+    }
+
+
+def test_update_post_can_remove_all_categories():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+            categories=(),
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+        "categories": [],
+    }
+
+
+def test_update_post_preserves_categories_when_omitted():
+    response = make_response(status=200)
+
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        opener = build_opener.return_value
+        opener.open.return_value = response
+
+        client = UrllibWordPressPostClient()
+        status = client.update_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            post_id=123,
+            content="Updated content",
+        )
+
+    assert status == 200
+
+    request = opener.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload == {
+        "content": "Updated content",
+    }
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (0,),
+        (-1,),
+        (True,),
+        ("10",),
+        (10.5,),
+        (None,),
+        [10],
+        "10",
+    ],
+)
+def test_update_post_rejects_invalid_categories(categories):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress category IDs must be positive integers",
+        ):
+            client.update_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                post_id=123,
+                content="Updated content",
+                categories=cast(tuple[int, ...], categories),
+            )
+
+        build_opener.assert_not_called()

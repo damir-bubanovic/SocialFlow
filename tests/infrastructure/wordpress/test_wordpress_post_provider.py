@@ -145,6 +145,7 @@ def test_converts_wordpress_posts_to_remote_posts():
             tag_ids=(12, 34),
             excerpt="Sažetak članka čćžšđ",
             title="Naslov članka čćžšđ",
+            category_ids=(10, 20),
         ),
     )
 
@@ -168,6 +169,7 @@ def test_converts_wordpress_posts_to_remote_posts():
             tag_ids=(12, 34),
             excerpt="Sažetak članka čćžšđ",
             title="Naslov članka čćžšđ",
+            category_ids=(10, 20),
         ),
     )
 
@@ -205,6 +207,7 @@ def test_retrieves_trashed_posts_using_stored_credentials():
             published_at=datetime(2026, 10, 14, 10, 30),
             status="trash",
             title="Trashed title",
+            category_ids=(30, 40),
         ),
     )
 
@@ -222,6 +225,7 @@ def test_retrieves_trashed_posts_using_stored_credentials():
     assert posts[0].remote_id == "42"
     assert posts[0].status == "trash"
     assert posts[0].title == "Trashed title"
+    assert posts[0].category_ids == (30, 40)
 
     credential_store.get.assert_called_once_with(
         WordPressCredentialKeys.application_password(account)
@@ -282,3 +286,81 @@ def test_trashed_posts_reject_missing_password():
         provider.list_trashed_posts(account)
 
     retriever.list_trashed_posts.assert_not_called()
+
+
+
+
+def test_recent_posts_preserve_empty_category_ids():
+    from datetime import datetime
+    from socialflow.domain.connections.wordpress_connection_config import (
+        WordPressConnectionConfig,
+    )
+    from socialflow.infrastructure.wordpress.wordpress_post import WordPressPost
+
+    account = Account(
+        name="WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    retriever = Mock()
+    retriever.list_recent_posts.return_value = (
+        WordPressPost(
+            id=42,
+            content="Content",
+            published_at=datetime(2026, 10, 31),
+            status="publish",
+            category_ids=(),
+        ),
+    )
+
+    credentials = Mock()
+    credentials.get.return_value = "test-password"
+
+    provider = WordPressPostProvider(retriever, credentials)
+
+    posts = provider.list_recent_posts(account)
+
+    assert len(posts) == 1
+    assert posts[0].category_ids == ()
+
+
+def test_trashed_posts_preserve_empty_category_ids():
+    from datetime import datetime
+    from socialflow.domain.connections.wordpress_connection_config import (
+        WordPressConnectionConfig,
+    )
+    from socialflow.infrastructure.wordpress.wordpress_post import WordPressPost
+
+    account = Account(
+        name="WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    retriever = Mock()
+    retriever.list_trashed_posts.return_value = (
+        WordPressPost(
+            id=42,
+            content="Content",
+            published_at=datetime(2026, 10, 31),
+            status="trash",
+            category_ids=(),
+        ),
+    )
+
+    credentials = Mock()
+    credentials.get.return_value = "test-password"
+
+    provider = WordPressPostProvider(retriever, credentials)
+
+    posts = provider.list_trashed_posts(account)
+
+    assert len(posts) == 1
+    assert posts[0].category_ids == ()

@@ -37,6 +37,7 @@ class WordPressPostUpdater(RemotePostUpdater):
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> None:
         if account.destination != PublishingDestination.WORDPRESS:
             raise ValueError("A WordPress account is required.")
@@ -61,6 +62,15 @@ class WordPressPostUpdater(RemotePostUpdater):
             ):
                 raise ValueError(
                     "WordPress tag IDs must be positive integers."
+                )
+
+        if categories is not None:
+            if not isinstance(categories, tuple) or any(
+                    type(category_id) is not int or category_id <= 0
+                    for category_id in categories
+            ):
+                raise ValueError(
+                    "WordPress category IDs must be positive integers."
                 )
 
         if featured_media_id is not None:
@@ -134,6 +144,9 @@ class WordPressPostUpdater(RemotePostUpdater):
 
         if title is not None:
             update_kwargs["title"] = title
+
+        if categories is not None:
+            update_kwargs["categories"] = categories
 
         status = self._client.update_post(**update_kwargs)
 

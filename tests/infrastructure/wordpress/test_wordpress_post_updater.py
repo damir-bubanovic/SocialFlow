@@ -547,3 +547,84 @@ def test_wordpress_updater_combines_title_and_excerpt():
         excerpt="Novi sažetak",
         title="Novi naslov",
     )
+
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (10, 20),
+        (),
+    ],
+)
+def test_updater_forwards_category_changes(categories):
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        categories=categories,
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        categories=categories,
+    )
+
+
+def test_updater_omits_categories_on_unrelated_edit():
+    account = make_account()
+    updater, client, store = make_updater()
+
+    updater.update_post(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        title="Updated title",
+    )
+
+    client.update_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="test-password",
+        post_id=123,
+        content="Updated content",
+        title="Updated title",
+    )
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (0,),
+        (-1,),
+        (True,),
+        ("10",),
+        (10.5,),
+        (None,),
+        [10],
+        "10",
+    ],
+)
+def test_updater_rejects_invalid_categories(categories):
+    updater, client, store = make_updater()
+
+    with pytest.raises(
+        ValueError,
+        match="WordPress category IDs must be positive integers",
+    ):
+        updater.update_post(
+            account=make_account(),
+            post_id=123,
+            content="Updated content",
+            categories=categories,
+        )
+
+    client.update_post.assert_not_called()
+    store.get.assert_not_called()

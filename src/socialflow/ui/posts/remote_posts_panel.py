@@ -20,6 +20,10 @@ from PySide6.QtWidgets import (
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.domain.post.remote_tag import RemoteTag
 from socialflow.ui.posts.remote_tag_selector import RemoteTagSelector
+from socialflow.ui.posts.remote_category_selector import (
+    RemoteCategorySelector,
+)
+from socialflow.domain.post.remote_category import RemoteCategory
 
 
 
@@ -47,6 +51,9 @@ class RemotePostsPanel(QWidget):
     """Display and edit posts retrieved from a remote platform."""
 
     save_requested = Signal(str, str)
+    save_with_categories_requested = Signal(
+        str, str, object, object, object, object, object, object
+    )
     save_with_tags_requested = Signal(str, str, object)
     save_with_media_requested = Signal(str, str, object, object)
     save_with_status_requested = Signal(
@@ -111,6 +118,14 @@ class RemotePostsPanel(QWidget):
         self.remote_tag_selector.tags_list.setEnabled(False)
         self.remote_tag_selector.setFixedHeight(85)
 
+        self.categories_label = QLabel("WordPress categories", self)
+        self.remote_category_selector = RemoteCategorySelector(self)
+        self._remote_categories_editable = False
+        self.remote_category_selector.setEnabled(False)
+        self.remote_category_selector.selection_changed.connect(
+            self._update_save_button
+        )
+
         self.featured_media_label = QLabel(
             "Featured image media ID", self
         )
@@ -163,6 +178,8 @@ class RemotePostsPanel(QWidget):
         editor_layout.addWidget(self.post_status_selector)
         editor_layout.addWidget(self.tags_label)
         editor_layout.addWidget(self.remote_tag_selector)
+        editor_layout.addWidget(self.categories_label)
+        editor_layout.addWidget(self.remote_category_selector)
         editor_layout.addWidget(self.featured_media_label)
         editor_layout.addWidget(self.featured_media_checkbox)
         editor_layout.addWidget(self.featured_media_input)
@@ -299,6 +316,10 @@ class RemotePostsPanel(QWidget):
         self.remote_tag_selector.set_selected_ids(())
         self.remote_tag_selector.tags_list.setEnabled(False)
 
+        self.remote_category_selector.set_selected_ids(())
+        self.remote_category_selector.set_available_categories(())
+        self.remote_category_selector.setEnabled(False)
+
         self._reset_featured_media()
         self.save_button.setEnabled(False)
         self.trash_button.setEnabled(False)
@@ -361,6 +382,9 @@ class RemotePostsPanel(QWidget):
             self.remote_tag_selector.set_selected_ids(())
             self.remote_tag_selector.tags_list.setEnabled(False)
 
+            self.remote_category_selector.set_selected_ids(())
+            self.remote_category_selector.setEnabled(False)
+
             self._reset_featured_media()
             self.save_button.setEnabled(False)
             return
@@ -399,6 +423,13 @@ class RemotePostsPanel(QWidget):
         self.remote_tag_selector.set_selected_ids(post.tag_ids)
         self.remote_tag_selector.tags_list.setEnabled(True)
 
+        self.remote_category_selector.set_selected_ids(
+            post.category_ids
+        )
+        self.remote_category_selector.setEnabled(
+            self._remote_categories_editable
+        )
+
         self._reset_featured_media(post.featured_media_id)
         self.featured_media_checkbox.setEnabled(True)
         self.browse_media_button.setEnabled(True)
@@ -423,6 +454,9 @@ class RemotePostsPanel(QWidget):
             ) >= 0
         )
         self.remote_tag_selector.tags_list.setEnabled(has_selection)
+        self.remote_category_selector.setEnabled(
+            has_selection and self._remote_categories_editable
+        )
         self.featured_media_checkbox.setEnabled(has_selection)
         self.featured_media_input.setEnabled(
             has_selection
@@ -474,6 +508,11 @@ class RemotePostsPanel(QWidget):
                 and self.post_status_selector.currentData() != post.status
         )
         tags_changed = set(updated_tags) != set(post.tag_ids)
+        categories_changed = (
+                self.remote_category_selector.isEnabled()
+                and set(self.remote_category_selector.selected_ids())
+                != set(post.category_ids)
+        )
         media_changed = (
             self.featured_media_checkbox.isChecked()
             and self.featured_media_input.value()
@@ -485,6 +524,7 @@ class RemotePostsPanel(QWidget):
             or content_changed
             or excerpt_changed
             or tags_changed
+            or categories_changed
             or media_changed
             or status_changed
         )
@@ -511,6 +551,7 @@ class RemotePostsPanel(QWidget):
             self.excerpt_editor.setEnabled(False)
             self.post_status_selector.setEnabled(False)
             self.remote_tag_selector.tags_list.setEnabled(False)
+            self.remote_category_selector.setEnabled(False)
             self.featured_media_checkbox.setEnabled(False)
             self.featured_media_input.setEnabled(False)
             self.browse_media_button.setEnabled(False)
@@ -552,6 +593,11 @@ class RemotePostsPanel(QWidget):
                 and self.post_status_selector.currentData() != post.status
         )
         tags_changed = set(updated_tags) != set(post.tag_ids)
+        updated_categories = self.remote_category_selector.selected_ids()
+        categories_changed = (
+                self.remote_category_selector.isEnabled()
+                and set(updated_categories) != set(post.category_ids)
+        )
         media_changed = (
             self.featured_media_checkbox.isChecked()
             and self.featured_media_input.value()
@@ -569,6 +615,7 @@ class RemotePostsPanel(QWidget):
                 and not title_changed
                 and not excerpt_changed
                 and not tags_changed
+                and not categories_changed
                 and not media_changed
                 and not status_changed
         ):
@@ -582,12 +629,32 @@ class RemotePostsPanel(QWidget):
         self.excerpt_editor.setEnabled(False)
         self.post_status_selector.setEnabled(False)
         self.remote_tag_selector.tags_list.setEnabled(False)
+        self.remote_category_selector.setEnabled(False)
 
         self.featured_media_checkbox.setEnabled(False)
         self.featured_media_input.setEnabled(False)
         self.browse_media_button.setEnabled(False)
 
-        if title_changed:
+        if categories_changed:
+            self.save_with_categories_requested.emit(
+                post.remote_id,
+                updated_content,
+                updated_tags if tags_changed else None,
+                (
+                    self.featured_media_input.value()
+                    if media_changed
+                    else None
+                ),
+                (
+                    self.post_status_selector.currentData()
+                    if status_changed
+                    else None
+                ),
+                updated_excerpt if excerpt_changed else None,
+                updated_title if title_changed else None,
+                updated_categories,
+            )
+        elif title_changed:
             self.save_with_title_requested.emit(
                 post.remote_id,
                 updated_content,
@@ -660,3 +727,29 @@ class RemotePostsPanel(QWidget):
     ) -> None:
         """Display WordPress tag names for the active account."""
         self.remote_tag_selector.set_available_tags(tags)
+
+
+    def set_available_remote_categories(
+            self,
+            categories: tuple[RemoteCategory, ...],
+    ) -> None:
+        """Display category names without changing selected IDs."""
+        self.remote_category_selector.set_available_categories(
+            categories
+        )
+        self.remote_category_selector.setEnabled(
+            self._remote_categories_editable
+            and 0 <= self.posts_list.currentRow() < len(self._posts)
+            and self.posts_list.isEnabled()
+        )
+
+    def set_remote_categories_editable(self, editable: bool) -> None:
+        """Allow category editing only after account validation."""
+        self._remote_categories_editable = editable
+        self.remote_category_selector.setEnabled(
+            editable
+            and 0 <= self.posts_list.currentRow() < len(self._posts)
+            and self.posts_list.isEnabled()
+        )
+        self._update_save_button()
+

@@ -65,6 +65,7 @@ class WordPressPostClient(ABC):
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> int:
         """Update post content and optional WordPress metadata."""
 

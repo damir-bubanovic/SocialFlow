@@ -578,3 +578,144 @@ def test_panel_restores_status_after_failed_save(qtbot):
     assert panel.post_status_selector.isEnabled()
     assert panel.post_status_selector.currentData() == "draft"
     assert panel.save_button.isEnabled()
+
+
+
+def test_my_posts_displays_selected_post_category_ids(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=(10, 20),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.remote_category_selector.selected_ids() == (10, 20)
+    assert not panel.remote_category_selector.isEnabled()
+
+
+def test_my_posts_clears_categories_when_selection_is_removed(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=(10, 20),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.posts_list.setCurrentRow(-1)
+
+    assert panel.remote_category_selector.selected_ids() == ()
+    assert not panel.remote_category_selector.isEnabled()
+
+
+def test_my_posts_clears_categories_when_loading_new_posts(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=(10, 20),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.show_loading()
+
+    assert panel.remote_category_selector.selected_ids() == ()
+    assert not panel.remote_category_selector.isEnabled()
+
+
+
+def test_my_posts_category_names_preserve_selected_ids(qtbot):
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.remote_category_selector.set_selected_ids((10, 20))
+
+    categories = (
+        RemoteCategory(10, "Technology"),
+        RemoteCategory(20, "Python", parent_id=10),
+    )
+
+    panel.set_available_remote_categories(categories)
+
+    assert (
+        panel.remote_category_selector.available_categories()
+        == categories
+    )
+    assert panel.remote_category_selector.selected_ids() == (10, 20)
+    assert not panel.remote_category_selector.isEnabled()
+
+
+
+def test_category_changes_do_not_enable_save_while_read_only(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=(10,),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_category_selector.set_selected_ids((20,))
+    panel._update_save_button()
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_category_changes_enable_save_when_editing_is_enabled(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=(10,),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_category_selector.setEnabled(True)
+    panel.remote_category_selector.set_selected_ids((20,))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+    panel.remote_category_selector.set_selected_ids((10,))
+    panel._update_save_button()
+
+    assert not panel.save_button.isEnabled()

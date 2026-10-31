@@ -203,6 +203,7 @@ class PostsPage(QWidget):
             )
 
         self._remote_categories_generation = 0
+        self._loaded_remote_categories_account: Account | None = None
         self._remote_category_loading_generation: int | None = None
         self._remote_category_loading_account: Account | None = None
         self._pending_remote_category_account: Account | None = None
@@ -502,6 +503,9 @@ class PostsPage(QWidget):
         self.remote_posts_panel.save_with_title_requested.connect(
             self._handle_remote_post_save_with_title
         )
+        self.remote_posts_panel.save_with_categories_requested.connect(
+            self._handle_remote_post_save_with_categories
+        )
         self.remote_posts_panel.browse_media_requested.connect(
             self._browse_remote_media
         )
@@ -767,6 +771,22 @@ class PostsPage(QWidget):
         return accounts[0] if len(accounts) == 1 else None
 
 
+    def _sync_remote_category_editing(self) -> None:
+        """Enable My Posts category editing only for a validated account."""
+        account = self._selected_category_wordpress_account()
+
+        editable = (
+            account is not None
+            and account == self._loaded_remote_categories_account
+            and account == self._loaded_remote_posts_account
+            and self._remote_post_updating_account is None
+            and not self._remote_category_loading_shutting_down
+            and not self._remote_post_loading_shutting_down
+        )
+
+        self.remote_posts_panel.set_remote_categories_editable(
+            editable
+        )
 
 
     def _refresh_remote_categories(self) -> None:
@@ -775,6 +795,9 @@ class PostsPage(QWidget):
             return
 
         self._remote_categories_generation += 1
+        self._loaded_remote_categories_account = None
+        self.remote_posts_panel.set_remote_categories_editable(False)
+
         self._pending_created_category_id = None
         self._pending_category_selection_ids = ()
 
@@ -785,6 +808,10 @@ class PostsPage(QWidget):
         selector.setEnabled(False)
         selector.set_selected_ids(())
         selector.set_available_categories(())
+
+        # Prevent categories from a previous WordPress site
+        # from appearing in the My Posts editor.
+        self.remote_posts_panel.set_available_remote_categories(())
 
         self.post_editor.add_category_button.setEnabled(False)
 
@@ -843,6 +870,14 @@ class PostsPage(QWidget):
         selector.set_available_categories(categories)
         selector.setEnabled(True)
 
+        self.remote_posts_panel.set_available_remote_categories(
+            categories
+        )
+        self._loaded_remote_categories_account = (
+            self._remote_category_loading_account
+        )
+        self._sync_remote_category_editing()
+
         if self._pending_created_category_id is not None:
             created_id = self._pending_created_category_id
 
@@ -874,6 +909,11 @@ class PostsPage(QWidget):
         selector = self.post_editor.category_selector
         selector.set_available_categories(())
         selector.setEnabled(False)
+
+        self._loaded_remote_categories_account = None
+        self.remote_posts_panel.set_remote_categories_editable(False)
+        self.remote_posts_panel.set_available_remote_categories(())
+
         self.post_editor.add_category_button.setEnabled(False)
 
     def _on_remote_category_loading_finished(self) -> None:
@@ -1111,6 +1151,7 @@ class PostsPage(QWidget):
 
         self._loaded_remote_posts = ()
         self._loaded_remote_posts_account = None
+        self.remote_posts_panel.set_remote_categories_editable(False)
         self._remote_posts_error = None
         self._pending_remote_post_account = account
         if account is None:
@@ -1171,12 +1212,17 @@ class PostsPage(QWidget):
             self._remote_post_loading_account
         )
         self.remote_posts_panel.show_posts(posts)
+        self._sync_remote_category_editing()
 
     def _on_remote_posts_error(self, message: str) -> None:
         """Display remote retrieval errors."""
         if not self._is_current_remote_post_account():
             return
 
+        self._loaded_remote_posts = ()
+        self._loaded_remote_posts_account = None
+        self._remote_posts_error = message
+        self.remote_posts_panel.set_remote_categories_editable(False)
         self.remote_posts_panel.show_error(message)
 
 
@@ -1578,6 +1624,7 @@ class PostsPage(QWidget):
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> None:
         """Save an existing WordPress post asynchronously."""
         controller = self._remote_post_updating_controller
@@ -1654,6 +1701,7 @@ class PostsPage(QWidget):
         self.remote_posts_panel.remote_tag_selector.tags_list.setEnabled(
             False
         )
+        self.remote_posts_panel.remote_category_selector.setEnabled(False)
         self.remote_posts_panel.featured_media_checkbox.setEnabled(False)
         self.remote_posts_panel.featured_media_input.setEnabled(False)
         self.remote_posts_panel.status_label.setText(
@@ -1681,7 +1729,46 @@ class PostsPage(QWidget):
         if title is not None:
             update_kwargs["title"] = title
 
+        if categories is not None:
+            update_kwargs["categories"] = categories
+
         controller.start(**update_kwargs)
+
+
+
+    def _handle_remote_post_save_with_categories(
+            self,
+            remote_id: str,
+            content: str,
+            tags: tuple[int, ...] | None,
+            featured_media_id: int | None,
+            status: str | None,
+            excerpt: str | None,
+            title: str | None,
+            categories: tuple[int, ...],
+    ) -> None:
+        """Forward explicitly changed WordPress categories."""
+        if not isinstance(categories, tuple) or any(
+                type(category_id) is not int or category_id <= 0
+                for category_id in categories
+        ):
+            self.remote_posts_panel.status_label.setText(
+                "WordPress category IDs must be positive integers."
+            )
+            self.remote_posts_panel.restore_editing()
+            return
+
+        self._handle_remote_post_save(
+            remote_id,
+            content,
+            tags=tags,
+            featured_media_id=featured_media_id,
+            status=status,
+            excerpt=excerpt,
+            title=title,
+            categories=categories,
+        )
+
 
 
     def _handle_remote_post_save_with_tags(
@@ -2140,6 +2227,7 @@ class PostsPage(QWidget):
             )
             self._refresh_remote_posts()
         else:
+            self._sync_remote_category_editing()
             self.remote_posts_panel.restore_editing()
 
     def _refresh_recent_posts(self) -> None:

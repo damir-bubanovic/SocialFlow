@@ -17,5 +17,6 @@ class RemotePostUpdater(ABC):
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> None:
         """Update post content and optionally tags, featured media, status, optional excerpts."""

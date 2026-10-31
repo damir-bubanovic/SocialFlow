@@ -2002,3 +2002,129 @@ def test_remote_posts_list_selection_uses_original_post(qtbot):
     assert panel.post_title_editor.toPlainText() == "Second article"
     assert panel.content_editor.toPlainText() == "Original content"
     assert not panel.save_button.isEnabled()
+
+
+
+@pytest.mark.parametrize(
+    "original_categories, updated_categories, expected",
+    [
+        ((10,), (20,), (20,)),
+        ((10, 20), (), ()),
+        ((10, 20), (20, 10), None),
+    ],
+)
+def test_category_save_emits_only_actual_changes(
+    qtbot,
+    original_categories,
+    updated_categories,
+    expected,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=original_categories,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_category_selector.setEnabled(True)
+
+    receiver = Mock()
+    panel.save_with_categories_requested.connect(receiver)
+
+    panel.remote_category_selector.set_selected_ids(
+        updated_categories
+    )
+    panel._update_save_button()
+    panel._request_save()
+
+    if expected is None:
+        receiver.assert_not_called()
+    else:
+        receiver.assert_called_once()
+        assert receiver.call_args.args[-1] == expected
+
+
+
+
+def test_category_editor_remains_disabled_by_default(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert panel.remote_category_selector.selected_ids() == (10,)
+
+
+def test_category_editor_can_be_enabled_explicitly(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.set_remote_categories_editable(True)
+
+    assert panel.remote_category_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+    panel.remote_category_selector.set_selected_ids((20,))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+
+def test_category_save_locks_and_failed_save_restores(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+    panel.set_remote_categories_editable(True)
+
+    panel.remote_category_selector.set_selected_ids((20,))
+    panel._update_save_button()
+
+    with qtbot.waitSignal(
+        panel.save_with_categories_requested,
+        timeout=1000,
+    ):
+        panel.save_button.click()
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert not panel.posts_list.isEnabled()
+
+    panel.restore_editing()
+
+    assert panel.remote_category_selector.isEnabled()
+    assert panel.remote_category_selector.selected_ids() == (20,)
+    assert panel.save_button.isEnabled()
+
+
+def test_category_editing_is_revoked_on_account_change(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+    panel.set_remote_categories_editable(True)
+
+    panel.set_remote_categories_editable(False)
+    panel.show_empty()
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert panel.remote_category_selector.selected_ids() == ()
+    assert not panel.save_button.isEnabled()

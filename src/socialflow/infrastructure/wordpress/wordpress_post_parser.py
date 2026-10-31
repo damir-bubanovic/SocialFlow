@@ -15,11 +15,21 @@ class WordPressPostParser:
         raw_tags = data.get("tags", [])
 
         if not isinstance(raw_tags, list) or any(
-            type(tag_id) is not int or tag_id <= 0
-            for tag_id in raw_tags
+                type(tag_id) is not int or tag_id <= 0
+                for tag_id in raw_tags
         ):
             raise ValueError(
                 "WordPress post tags must be positive integer IDs."
+            )
+
+        raw_categories = data.get("categories", [])
+
+        if not isinstance(raw_categories, list) or any(
+                type(category_id) is not int or category_id <= 0
+                for category_id in raw_categories
+        ):
+            raise ValueError(
+                "WordPress post categories must be positive integer IDs."
             )
 
         featured_media_id = data.get("featured_media", 0)
@@ -77,4 +87,5 @@ class WordPressPostParser:
             featured_media_id=featured_media_id,
             excerpt=excerpt,
             title=title,
+            category_ids=tuple(raw_categories),
         )

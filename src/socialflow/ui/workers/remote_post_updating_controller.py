@@ -43,6 +43,7 @@ class RemotePostUpdatingController(QObject):
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> None:
         """Start updating an existing remote post."""
         if self._shutting_down or self.is_running:
@@ -71,6 +72,9 @@ class RemotePostUpdatingController(QObject):
 
         if title is not None:
             worker_kwargs["title"] = title
+
+        if categories is not None:
+            worker_kwargs["categories"] = categories
 
         worker = RemotePostUpdatingWorker(**worker_kwargs)
 

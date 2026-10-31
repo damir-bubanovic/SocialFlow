@@ -96,3 +96,29 @@ def test_remote_post_preserves_unicode_title():
     )
 
     assert post.title == "Naslov članka čćžšđ"
+
+
+
+def test_remote_post_stores_category_ids():
+    post = RemotePost(
+        remote_id="42",
+        destination=PublishingDestination.WORDPRESS,
+        content="<p>Content</p>",
+        published_at=datetime(2026, 10, 31, 10, 30),
+        status="publish",
+        category_ids=(10, 20),
+    )
+
+    assert post.category_ids == (10, 20)
+
+
+def test_remote_post_defaults_to_no_known_categories():
+    post = RemotePost(
+        remote_id="42",
+        destination=PublishingDestination.WORDPRESS,
+        content="<p>Content</p>",
+        published_at=datetime(2026, 10, 31, 10, 30),
+        status="publish",
+    )
+
+    assert post.category_ids == ()

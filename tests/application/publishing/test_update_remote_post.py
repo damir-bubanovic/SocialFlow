@@ -361,3 +361,52 @@ def test_update_remote_post_omits_title_when_not_supplied():
         post_id=42,
         content="Updated content",
     )
+
+
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (10, 20),
+        (),
+    ],
+)
+def test_update_remote_post_forwards_category_changes(categories):
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        categories=categories,
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        categories=categories,
+    )
+
+
+def test_update_remote_post_omits_unchanged_categories():
+    updater = Mock()
+    use_case = UpdateRemotePost(updater=updater)
+    account = Mock()
+
+    use_case.execute(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        title="Updated title",
+    )
+
+    updater.update_post.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        title="Updated title",
+    )

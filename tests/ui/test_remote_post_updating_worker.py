@@ -319,3 +319,55 @@ def test_worker_forwards_title_with_metadata(qtbot):
         excerpt="Updated excerpt",
         title="Updated title",
     )
+
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (10, 20),
+        (),
+    ],
+)
+def test_worker_forwards_category_changes(qtbot, categories):
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+        categories=categories,
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+        categories=categories,
+    )
+
+
+def test_worker_omits_categories_when_unchanged(qtbot):
+    update_remote_post = Mock()
+    account = Mock()
+
+    worker = RemotePostUpdatingWorker(
+        update_remote_post=update_remote_post,
+        account=account,
+        post_id=123,
+        content="Updated content",
+    )
+
+    with qtbot.waitSignal(worker.finished, timeout=1000):
+        worker.run()
+
+    update_remote_post.execute.assert_called_once_with(
+        account=account,
+        post_id=123,
+        content="Updated content",
+    )

@@ -90,6 +90,7 @@ class WordPressPostProvider(
                 featured_media_id=post.featured_media_id,
                 excerpt=post.excerpt,
                 title=post.title,
+                category_ids=post.category_ids,
             )
             for post in wordpress_posts
         )
@@ -144,6 +145,7 @@ class WordPressPostProvider(
                 featured_media_id=post.featured_media_id,
                 excerpt=post.excerpt,
                 title=post.title,
+                category_ids=post.category_ids,
             )
             for post in wordpress_posts
         )

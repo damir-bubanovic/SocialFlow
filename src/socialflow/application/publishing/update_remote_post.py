@@ -24,6 +24,7 @@ class UpdateRemotePost:
             status: str | None = None,
             excerpt: str | None = None,
             title: str | None = None,
+            categories: tuple[int, ...] | None = None,
     ) -> None:
         """Update a remote post without changing omitted metadata."""
         update_kwargs = {
@@ -46,5 +47,8 @@ class UpdateRemotePost:
 
         if title is not None:
             update_kwargs["title"] = title
+
+        if categories is not None:
+            update_kwargs["categories"] = categories
 
         self._updater.update_post(**update_kwargs)

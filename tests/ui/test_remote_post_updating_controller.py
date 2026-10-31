@@ -736,3 +736,79 @@ def test_controller_forwards_title_with_metadata(qtbot):
         )
     finally:
         controller.shutdown()
+
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (10, 20),
+        (),
+    ],
+)
+def test_controller_forwards_category_changes(qtbot, categories):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+                categories=categories,
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+            categories=categories,
+        )
+    finally:
+        controller.shutdown()
+
+
+def test_controller_omits_categories_when_unchanged(qtbot):
+    account = make_account()
+    update_remote_post = Mock()
+
+    controller = RemotePostUpdatingController(
+        update_remote_post=update_remote_post,
+    )
+
+    try:
+        with qtbot.waitSignal(
+            controller.post_updated,
+            timeout=5000,
+        ):
+            controller.start(
+                account=account,
+                post_id=123,
+                content="Updated content",
+            )
+
+        qtbot.waitUntil(
+            lambda: not controller.is_running,
+            timeout=5000,
+        )
+
+        update_remote_post.execute.assert_called_once_with(
+            account=account,
+            post_id=123,
+            content="Updated content",
+        )
+    finally:
+        controller.shutdown()
