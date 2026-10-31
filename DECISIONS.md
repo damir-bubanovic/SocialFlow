@@ -1,5 +1,8 @@
 # SocialFlow --- Architecture Decisions
 
+**Latest decisions:** ADR-072 through ADR-076 record the October 31, 2026 WordPress scope and verification handoff.
+
+
 ## Purpose
 
 This document records significant technical and development decisions
@@ -1747,3 +1750,59 @@ cancellation and recovery.
   asynchronous delivery is the behavior under test.
 
 **Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.
+
+## ADR-072 --- Keep Remote WordPress Retrieval Deliberately Small
+
+**Status:** Accepted (reaffirmed October 31, 2026)
+
+### Decision
+
+Retrieve only a small recent set of WordPress posts (approximately 5–10) for the desktop UI. Do not implement pagination or an all-history browser unless the product requirement changes.
+
+### Consequences
+
+The My Posts interface remains focused on recent editing; it is not a full WordPress archive manager. Tests and future changes should preserve the limited retrieval behavior.
+
+## ADR-073 --- WordPress Title Is Required Only for WordPress Publishing
+
+**Status:** Accepted
+
+### Decision
+
+Require a nonempty title when WordPress is a selected publishing destination, including validation through the editor and publishing pipeline. Do not impose the same requirement on future non-WordPress destinations without their own product/API requirements.
+
+## ADR-074 --- Category IDs Are Authoritative and Optional Update Fields Are Explicit
+
+**Status:** Accepted
+
+### Decision
+
+Represent WordPress categories using numeric remote IDs and account-scoped catalog records. A hierarchical selector presents names and parent relationships, while REST publishing and updates transmit IDs. For remote updates, `categories=None` means omit the field, `categories=()` means explicitly clear assignments, and a nonempty tuple means replace with those IDs. Reject non-positive IDs and booleans.
+
+### Consequences
+
+Category-only changes must be detectable by ID membership, not ordering. An unrelated text/metadata edit must not unintentionally overwrite category assignments. WordPress may apply its default category when a post has no assignments; verify actual behavior live.
+
+## ADR-075 --- Gate Category Editing on Account-Scoped Catalog Readiness
+
+**Status:** Accepted
+
+### Decision
+
+Allow My Posts category editing only when both the remote posts and category catalog are loaded for the same selected WordPress account. Successful loading of an empty catalog counts as readiness. Revoke permission on account switching, errors, active saves, and shutdown. Ignore superseded asynchronous results and restore editing after failures only if still authorized.
+
+### Consequences
+
+A failed or stale catalog response cannot enable editing for a different WordPress site. Account-aware UI state and controller generation checks require dedicated regression tests.
+
+## ADR-076 --- WordPress Closure Requires Live Integration Verification
+
+**Status:** Accepted as current handoff criterion (October 31, 2026)
+
+### Decision
+
+Passing mocked/unit/UI tests and successfully launching the desktop app are not sufficient to declare the WordPress milestone completely signed off. Finish controlled live checks of category publishing/editing and a WordPress lifecycle smoke test, then record any issues and final sign-off. The next planned platform will be chosen between Instagram and Facebook after that review.
+
+### Evidence
+
+The developer reported that the full test suite passed and Phase 21.9.72D2-C2 was committed/pushed. Earlier live WordPress connectivity and Application Password authentication were verified; comprehensive live category workflows remain pending. This documentation edit did not run tests.

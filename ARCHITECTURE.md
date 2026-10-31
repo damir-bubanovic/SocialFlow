@@ -1,5 +1,8 @@
 # SocialFlow --- Architecture
 
+**Current implementation checkpoint:** See Section 42 for WordPress Categories, post lifecycle, and current asynchronous guards; earlier sections document historical evolution.
+
+
 ## 1. Purpose
 
 This document describes the technical architecture of SocialFlow.
@@ -1274,3 +1277,35 @@ These are local lifecycle guarantees. A shutdown or cancellation does not
 undo WordPress network side effects already performed.
 
 **Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.
+
+## 42. WordPress Post Lifecycle and Categories (Phases 21.9.60–21.9.72, October 2026)
+
+This section is the current implementation checkpoint and supersedes older feature-boundary statements above that described titles, excerpts, featured media, Trash/Restore, or categories as unavailable.
+
+### Presentation and workflow
+
+`PostsPage` coordinates the **Create Post**, **My Posts**, and **Trash** sub-tabs. `PostEditor` is the shared composer; `RemotePostsPanel` is the selected remote-post editor; `RemoteTrashedPostsPanel` handles trashed posts. WordPress publishing requires a nonempty title. The My Posts editor supports title, content, excerpt, status, tags, featured media, and category assignments. The Accounts UI has a master/detail layout, explicit New/Edit modes, and a masked stored Application Password toggle.
+
+### Categories — domain, infrastructure, application
+
+- `RemoteCategory` carries a WordPress numeric ID, name, and parent relationship; category parsers and WordPress HTTP clients/providers translate REST payloads.
+- `ListRemoteCategories` and the remote-category provider load the selected account's catalog; a separate WordPress category creation path supports confirmed creation with an optional parent.
+- `RemoteCategoryLoadingWorker`/`RemoteCategoryLoadingController` and `WordPressCategoryCreationWorker`/`WordPressCategoryCreationController` keep network work off the GUI thread.
+- `RemoteCategorySelector` displays a hierarchical multi-select UI while retaining numeric IDs. `WordPressCategoryDialog` collects the new category name and optional parent.
+- Create Post passes selected IDs through the WordPress publishing path. My Posts reads existing IDs from `RemotePost` and sends changed IDs through the remote-post update path.
+
+### Remote update semantics and UI signals
+
+`categories: tuple[int, ...] | None = None` is carried through the remote-post update boundary. `None` omits `categories` from the REST update; `()` explicitly requests an empty assignment; `(id, ...)` replaces assignments. Validate positive integer IDs, excluding bool. The panel compares category membership as sets; when changed, it emits `save_with_categories_requested`, carrying the other edited fields as well. Unchanged category assignments preserve the existing save paths.
+
+### Account and asynchronous safety
+
+`PostsPage` tracks category loading generation/account, successful catalog account, and loaded posts account. Editing is authorized only when both catalogs and posts belong to the same selected WordPress account. An empty successful catalog is valid; a failed catalog is not. Refresh and account changes revoke editing; stale callbacks are rejected. Category controls are locked while saving/trashing, and failed updates restore editing only under the current permission state. Post-loading failures clear loaded-post identity and disable category editing.
+
+### WordPress post lifecycle
+
+Recent remote posts are deliberately limited to a small set (about 5–10); pagination and full historical retrieval are outside scope. My Posts can update existing posts and move them to Trash. The Trash tab retrieves trashed posts and restores selected posts as drafts. Operations use account/generation guards and asynchronous Qt controllers.
+
+### Verification boundary
+
+The developer reported that the complete automated test suite passed after Phase 21.9.72D2-C2 and pushed the changes. A live WordPress REST connection and Application Password authentication had been established previously. The final live category publishing/editing and integrated lifecycle checks remain pending; documentation preparation did not rerun pytest. Facebook/Instagram integrations remain future work.

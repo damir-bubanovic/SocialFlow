@@ -1,5 +1,8 @@
 # SocialFlow --- Features
 
+**Current status (October 31, 2026):** See Section 28 for the latest completed WordPress features and remaining live verification. Earlier unchecked items are retained as historical phase snapshots.
+
+
 ## 1. Project Goal
 
 SocialFlow is a cross-platform desktop application for creating,
@@ -520,3 +523,38 @@ automatically limit manual retry to transient errors.
 - [ ] Validate these workflows against a live WordPress installation.
 
 **Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.
+
+## 28. WordPress Posts, Accounts, and Categories — Current Checkpoint (October 31, 2026)
+
+This section supersedes outdated pending checkboxes in earlier historical sections; earlier phase-specific descriptions are retained for traceability.
+
+### Completed and automated-test covered
+
+- [x] Accounts master/detail redesign, explicit New/Edit account modes, platform placeholder, and saved WordPress password visibility toggle.
+- [x] Posts sub-tabs: **Create Post**, **My Posts**, and **Trash**; two-column composer and remote-post editing layout.
+- [x] Require a nonblank WordPress title for WordPress publishing; leave other destinations' title policy independent.
+- [x] WordPress post retrieval/editing for title, content, excerpt, status, tag IDs, featured media, and category IDs.
+- [x] WordPress Move to Trash and Restore as Draft with async concurrency and stale-account guards.
+- [x] Retrieve existing WordPress categories as account-scoped `RemoteCategory` records with numeric IDs, names, and parent relationships.
+- [x] Hierarchical multi-select `RemoteCategorySelector` and confirmed `WordPressCategoryDialog` with optional parent.
+- [x] Create missing categories asynchronously, refresh the catalog, and select newly created categories when the request is still current.
+- [x] Include selected category IDs in WordPress new-post publishing.
+- [x] Retrieve and preserve category IDs for recent/trashed WordPress posts.
+- [x] Edit My Posts categories by membership, including clearing assignments, without unintentionally changing other fields.
+- [x] Remote update semantics: `categories=None` omits the REST field; `categories=()` explicitly requests no categories; nonempty tuples set IDs. Validate positive integers, rejecting booleans.
+- [x] Enable My Posts category editing only after successful catalog loading for the same account as loaded posts; a valid empty catalog counts as loaded.
+- [x] Reject stale asynchronous responses and revoke editability during account changes, loading failures, post-update operations, and shutdown.
+- [x] Restore editing permissions after failed saves only when the account/loading state still permits them.
+- [x] Preserve the product decision to retrieve only a small recent-post set (about 5–10); no historical pagination.
+- [x] Developer-reported full automated suite passed and code was committed/pushed following Phase 21.9.72D2-C2.
+
+### Not yet verified or implemented
+
+- [ ] Perform controlled live-site checks for WordPress category creation, assignment on publishing, editing, clearing, and persistence.
+- [ ] Run a final integrated live smoke test for WordPress publishing, editing, Trash/Restore, account changes, and related metadata.
+- [ ] Resolve any defects revealed by live verification and formally close the WordPress milestone.
+- [ ] Implement Facebook publishing/authentication using supported Meta APIs.
+- [ ] Implement Instagram publishing/authentication using supported Meta APIs.
+- [ ] Complete packaging, Windows end-to-end verification, and production error-email notifications.
+
+**Evidence boundary:** The full-suite result and Git push are developer-reported; the documentation pass did not execute tests. The desktop app was reported to launch successfully. Earlier live WordPress authentication/REST checks succeeded, but the final Categories workflow has not been reported as fully live-verified. Historical test counts in sections above are snapshots, not the current total.

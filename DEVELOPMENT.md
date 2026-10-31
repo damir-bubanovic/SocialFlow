@@ -1,5 +1,8 @@
 # SocialFlow --- Development Guide
 
+**Latest handoff (October 31, 2026):** See Section 38 for the current source snapshot, test commands, and remaining WordPress live verification. Earlier checkpoint counts are historical.
+
+
 ## 1. Purpose
 
 This document describes how to set up, develop, test, and verify
@@ -995,3 +998,51 @@ For headless Linux Qt runs, prefix pytest with
 live-site WordPress integration tests. Do not stage or commit `AGENTS.md`.
 
 **Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.
+
+## 38. October 31, 2026 — WordPress Categories Completion and Handoff
+
+**Source snapshot:** `SocialFlow_Python Pycharm(20261031-223824).zip` (400 archive entries). This is the current development baseline; older ZIP names and counts in this document are historical. The developer reported a passing complete pytest suite and committed/pushed the Phase 21.9.72D2-C2 implementation. No tests were rerun for this documentation edit.
+
+### Recent implementation sequence
+
+1. WordPress featured image, excerpt, and title retrieval/editing; enforce WordPress-only required title when publishing.
+2. Move to Trash, Restore as Draft, and asynchronous concurrency/lifecycle protections.
+3. Accounts master/detail, saved-password eye toggle, explicit New/Edit modes, and platform selection placeholder.
+4. Posts UI split into Create Post, My Posts, Trash; compact composer, two-column remote editor, and title-first recent-post presentation.
+5. Phase 21.9.72: WordPress category domain/API/provider, hierarchical selection and creation UI, asynchronous loading/creation, Create Post publishing integration, My Posts category retrieval and editing, and account-aware lifecycle guards.
+6. Phase 21.9.72D2-C2: category-aware update pipeline; `None` versus explicit empty tuple; save signals, category selector locking, stale callback rejection, catalog success/error handling, and regression tests for loading order, empty catalogs, failed saves, and account changes.
+
+### Run and test
+
+From the repository root with `.venv` activated:
+
+```bash
+python -m socialflow
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+```
+
+Useful targeted UI checks for category editing:
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m pytest -q \
+  tests/ui/test_posts_page.py \
+  tests/ui/test_remote_posts_panel.py \
+  tests/ui/test_remote_posts_panel_editing.py \
+  tests/ui/test_remote_category_selector.py
+```
+
+Do not set `QT_QPA_PLATFORM=offscreen` for ordinary interactive desktop use. Continue to batch related tests into one pytest invocation. Test outcomes must be reported by the developer; never infer a new passing count from the existence of tests.
+
+### Next session: live verification before WordPress sign-off
+
+- Use a disposable post and the existing live WordPress test account; never include application passwords in source, tests, documentation, or logs.
+- Confirm category list and hierarchy in Create Post; create a category with an optional parent; publish a draft with multiple categories and inspect WordPress results.
+- Load the same post in My Posts; verify selected category IDs/names; change and clear assignments; inspect persisted WordPress behavior (including its default-category rules).
+- Confirm unchanged title/content/excerpt/tags/featured media where those fields were not edited.
+- Smoke-test account switching, failure recovery, Trash and Restore. Keep the recent-post limit; do not introduce pagination.
+- If defects occur: use exact current source, implement focused fixes and batched regression tests, run the full suite, then commit/push a logical milestone.
+- If all live checks pass: record WordPress sign-off and choose Facebook or Instagram for the next integration.
+
+### Documentation and Git policy
+
+These Markdown files were prepared at the end-of-day documentation checkpoint. Public files: `README.md`, `FEATURES.md`, `DEVELOPMENT.md`, `DECISIONS.md`, `ARCHITECTURE.md`. **`AGENTS.md` is local-only and must not be staged, committed, pushed, or distributed publicly.** After copying updated public files into the repository, review `git diff --check` and `git status`, then commit/push only the intended documentation files.

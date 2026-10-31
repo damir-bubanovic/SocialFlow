@@ -1,5 +1,8 @@
 # SocialFlow
 
+**Current status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
+
+
 SocialFlow is a cross-platform desktop application for creating,
 managing, publishing, and updating content across multiple online
 platforms from a single interface.
@@ -251,3 +254,26 @@ They do **not** cancel an already completed remote API operation, guarantee
 remote transaction rollback, or establish live WordPress compatibility.
 
 **Latest developer-reported full-suite checkpoint:** **1,478 tests passed** after Phase 21.9.59 (October 26, 2026). This documentation review did not execute pytest. The uploaded archive contains the three new remote-post-loading controller tests and the guarded-slot implementation.
+
+## October 31, 2026 — Current WordPress Implementation and Handoff
+
+> **Current checkpoint (supersedes earlier status paragraphs and historical test counts above).** Source baseline: `SocialFlow_Python Pycharm(20261031-223824).zip`. The developer reports that the complete automated test suite passed and that Phase 21.9.72D2-C2 was committed and pushed. Documentation preparation did **not** rerun pytest or perform live API checks.
+
+### Implemented in the desktop application
+
+- **Accounts:** two-column master/detail UI, explicit New/Edit modes, platform placeholder selection, and masked saved WordPress application password with show/hide control. Existing WordPress Application Password authentication and account verification remain supported.
+- **Posts:** Create Post, My Posts, and Trash tabs; a compact two-column composer; WordPress post title required when publishing to WordPress, but not for other destinations.
+- **Create Post:** WordPress categories loaded per selected account; hierarchical multi-selection, category creation with optional parent, confirmation, asynchronous loading/creation, and category IDs included in publishing. Tag and featured-image workflows remain available.
+- **My Posts:** retrieve a deliberately small recent set (approximately 5–10; **no pagination**), show remote post titles, edit title/content/excerpt/status/tags/featured media/categories, and save via the WordPress REST API. The category selector displays category names while retaining numeric WordPress IDs.
+- **Trash:** move selected WordPress posts to Trash, list trashed posts, and restore a post as a draft, with request/account lifecycle guards.
+- **Reliability:** guard stale Qt callbacks and account changes, lock controls during operations, restore unsaved changes after failed updates, and distinguish omitted optional update fields (`None`) from explicit empty category/tag assignments (`()`).
+
+### Remaining before closing the WordPress section
+
+1. **Controlled live verification** of category publishing and editing on the existing disposable WordPress test site: assign multiple categories, edit and remove assignments, check persisted REST/WordPress results, and confirm unrelated fields remain unchanged. The application was launched successfully, but that alone does not establish these end-to-end results.
+2. **Final WordPress integration smoke test** across Create Post, My Posts, Trash, Restore, account switching, and failure recovery. Earlier live WordPress REST connectivity and account authentication were verified; do not confuse those checks with verification of every newly added category flow.
+3. **Review any issues found** and rerun the complete automated suite before marking WordPress fully finished.
+
+**After WordPress sign-off:** choose the next Meta platform (Instagram or Facebook) and verify its official API requirements before implementation. Both integrations are still unimplemented. Packaging, Windows end-to-end verification, and production error-email delivery are separate future work.
+
+**Development commands:** `python -m socialflow` to launch; `QT_QPA_PLATFORM=offscreen python -m pytest -q` for headless Linux tests. Keep credentials and the local-only `AGENTS.md` out of public Git commits.
