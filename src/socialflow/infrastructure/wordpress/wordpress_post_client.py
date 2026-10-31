@@ -48,6 +48,7 @@ class WordPressPostClient(ABC):
             content: str,
             tags: tuple[int, ...] = (),
             title: str = "",
+            categories: tuple[int, ...] = (),
     ) -> int:
         """Return the HTTP status code from the create-post request."""
 

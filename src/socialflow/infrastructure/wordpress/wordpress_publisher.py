@@ -143,6 +143,7 @@ class WordPressPublisher(Publisher):
             content=content,
             tags=tag_ids,
             title=post.source.title.strip(),
+            categories=post.source.category_ids,
         )
 
         if status != 201:

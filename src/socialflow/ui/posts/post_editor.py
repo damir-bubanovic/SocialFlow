@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QPushButton,
     QLabel,
     QPlainTextEdit,
     QSplitter,
@@ -34,6 +35,9 @@ from socialflow.ui.posts.image_selector import ImageSelector
 from socialflow.ui.posts.language_controls import LanguageControls
 from socialflow.ui.posts.publish_button import PublishButton
 from socialflow.ui.posts.tag_selector import TagSelector
+from socialflow.ui.posts.remote_category_selector import (
+    RemoteCategorySelector,
+)
 
 
 class PostEditor(QWidget):
@@ -78,6 +82,20 @@ class PostEditor(QWidget):
 
         self.image_selector = ImageSelector(self)
         self.tag_selector = TagSelector(self)
+
+        self.category_selector = RemoteCategorySelector(self)
+        self.category_selector.setEnabled(False)
+
+        self.add_category_button = QPushButton(
+            "Add category...",
+            self,
+        )
+        self.add_category_button.setEnabled(False)
+        self.add_category_button.setToolTip(
+            "WordPress category loading and creation "
+            "will be enabled in the next integration batch."
+        )
+
         self.publish_button = PublishButton(self)
 
         self.title_editor = QLineEdit(self)
@@ -101,11 +119,16 @@ class PostEditor(QWidget):
         self.content_heading = QLabel("Post content", self.composer_panel)
         self.images_heading = QLabel("Images", self.composer_panel)
         self.tags_heading = QLabel("Tags", self.composer_panel)
+        self.categories_heading = QLabel(
+            "WordPress categories",
+            self.composer_panel,
+        )
 
         for heading in (
                 self.content_heading,
                 self.images_heading,
                 self.tags_heading,
+                self.categories_heading,
         ):
             font = heading.font()
             font.setBold(True)
@@ -122,6 +145,18 @@ class PostEditor(QWidget):
 
         composer_layout.addWidget(self.tags_heading)
         composer_layout.addWidget(self.tag_selector)
+
+        self.categories_section = QWidget(self.composer_panel)
+        categories_layout = QVBoxLayout(self.categories_section)
+        categories_layout.setContentsMargins(0, 0, 0, 0)
+        categories_layout.setSpacing(6)
+
+        categories_layout.addWidget(self.categories_heading)
+        categories_layout.addWidget(self.category_selector)
+        categories_layout.addWidget(self.add_category_button)
+
+        self.categories_section.hide()
+        composer_layout.addWidget(self.categories_section)
 
         # Keep the composer sections grouped near the top.
         composer_layout.addStretch()
@@ -232,6 +267,14 @@ class PostEditor(QWidget):
             images=self.image_selector.selected_images(),
             tags=self.tag_selector.selected_tags(),
             title=self.title_editor.text().strip(),
+            category_ids=(
+                self.category_selector.selected_ids()
+                if sum(
+                    account.destination == PublishingDestination.WORDPRESS
+                    for account in self.selected_accounts()
+                ) == 1
+                else ()
+            ),
         )
 
     def new_post(self) -> None:
@@ -242,6 +285,7 @@ class PostEditor(QWidget):
         self.text_editor.clear()
         self.image_selector.set_selected_images(())
         self.tag_selector.set_selected_tags(())
+        self.category_selector.set_selected_ids(())
 
         self.language_controls.set_detected_language(
             Language.CROATIAN
@@ -256,6 +300,7 @@ class PostEditor(QWidget):
         self.language_controls.set_language(post.language)
         self.image_selector.set_selected_images(post.images)
         self.tag_selector.set_selected_tags(post.tags)
+        self.category_selector.set_selected_ids(post.category_ids)
 
     def publish_request(self) -> PublishRequest:
         """Return the current publishing request."""
@@ -269,10 +314,24 @@ class PostEditor(QWidget):
         return self.destination_selector.selected_accounts()
 
     def _update_tag_creation(self) -> None:
-        """Synchronize tag creation with account selection."""
-        self.tag_selector.set_creation_enabled(
-            bool(self.selected_accounts())
+        """Synchronize platform-specific controls with accounts."""
+        accounts = self.selected_accounts()
+
+        self.tag_selector.set_creation_enabled(bool(accounts))
+
+        has_wordpress = any(
+            account.destination == PublishingDestination.WORDPRESS
+            for account in accounts
         )
+
+        wordpress_count = sum(
+            account.destination == PublishingDestination.WORDPRESS
+            for account in accounts
+        )
+
+        self.categories_section.setVisible(has_wordpress)
+        self.category_selector.setEnabled(wordpress_count == 1)
+        self.add_category_button.setEnabled(wordpress_count == 1)
 
     def _lock_language_selection(self) -> None:
         """Prevent automatic detection from overriding manual selection."""

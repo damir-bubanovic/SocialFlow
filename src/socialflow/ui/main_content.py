@@ -28,6 +28,9 @@ from socialflow.application.publishing.list_trashed_remote_posts import (
 from socialflow.application.publishing.restore_remote_post import (
     RestoreRemotePost,
 )
+from socialflow.ui.workers.wordpress_category_creation_controller import (
+    WordPressCategoryCreationController,
+)
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.publishing.unconfigured_publisher import (
@@ -41,6 +44,15 @@ from socialflow.application.tags.routing_tag_provider import (
 )
 from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
     WordPressTagProvider,
+)
+from socialflow.infrastructure.wordpress.wordpress_category_provider import (
+    WordPressCategoryProvider,
+)
+from socialflow.infrastructure.wordpress.urllib_wordpress_category_client import (
+    UrllibWordPressCategoryClient,
+)
+from socialflow.application.categories.list_remote_categories import (
+    ListRemoteCategories,
 )
 from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
@@ -195,6 +207,15 @@ class MainContent(QWidget):
         create_tag = CreateTag(tag_provider)
         list_remote_tags = ListRemoteTags(wordpress_tag_provider)
 
+        wordpress_category_client = UrllibWordPressCategoryClient()
+        wordpress_category_provider = WordPressCategoryProvider(
+            category_client=wordpress_category_client,
+            credential_store=credential_store,
+        )
+        list_remote_categories = ListRemoteCategories(
+            wordpress_category_provider
+        )
+
 
         # Publishing services.
         publisher = UnconfiguredPublisher()
@@ -311,6 +332,12 @@ class MainContent(QWidget):
                 tag_client=wordpress_tag_client,
             ),
             list_remote_tags=list_remote_tags,
+            list_remote_categories=list_remote_categories,
+            wordpress_category_creation_controller=(
+                WordPressCategoryCreationController(
+                    category_provider=wordpress_category_provider,
+                )
+            ),
             list_remote_media=list_remote_media,
         )
 

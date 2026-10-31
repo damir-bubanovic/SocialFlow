@@ -1785,3 +1785,82 @@ def test_list_trashed_posts_propagates_http_failure():
             )
 
     assert raised.value.code == 403
+
+
+
+def test_create_post_includes_selected_categories_in_payload():
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = make_response()
+
+        client = UrllibWordPressPostClient()
+        client.create_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            content="Hello WordPress",
+            title="Category Test",
+            categories=(10, 20),
+        )
+
+    request = build_opener.return_value.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert payload["categories"] == [10, 20]
+
+
+def test_create_post_omits_categories_when_none_selected():
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        build_opener.return_value.open.return_value = make_response()
+
+        client = UrllibWordPressPostClient()
+        client.create_post(
+            site_url="https://example.com",
+            username="admin",
+            application_password="secret",
+            content="Hello WordPress",
+            title="Category Test",
+        )
+
+    request = build_opener.return_value.open.call_args.args[0]
+    payload = json.loads(request.data.decode("utf-8"))
+
+    assert "categories" not in payload
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (0,),
+        (-1,),
+        ("10",),
+        (True,),
+        (1.5,),
+    ],
+)
+def test_create_post_rejects_invalid_category_ids(categories):
+    with patch(
+        "socialflow.infrastructure.wordpress."
+        "urllib_wordpress_post_client.build_opener"
+    ) as build_opener:
+        client = UrllibWordPressPostClient()
+
+        with pytest.raises(
+            ValueError,
+            match="WordPress category IDs must be positive integers",
+        ):
+            client.create_post(
+                site_url="https://example.com",
+                username="admin",
+                application_password="secret",
+                content="Hello WordPress",
+                title="Category Test",
+                categories=cast(tuple[int, ...], categories),
+            )
+
+        build_opener.assert_not_called()

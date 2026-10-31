@@ -111,3 +111,47 @@ def test_post_with_only_tags_has_no_content() -> None:
     )
 
     assert not post.has_content()
+
+
+
+def test_post_has_no_category_ids_by_default() -> None:
+    post = Post(
+        text="Post without categories",
+        language=Language.ENGLISH,
+    )
+
+    assert post.category_ids == ()
+
+
+def test_post_can_contain_multiple_category_ids() -> None:
+    post = Post(
+        text="Post with categories",
+        language=Language.ENGLISH,
+        category_ids=(10, 20, 30),
+    )
+
+    assert post.category_ids == (10, 20, 30)
+
+
+def test_post_categories_do_not_count_as_content() -> None:
+    post = Post(
+        text="",
+        language=Language.ENGLISH,
+        category_ids=(10,),
+    )
+
+    assert not post.has_content()
+
+
+def test_post_keeps_tags_and_categories_separate() -> None:
+    tag = Tag(name="SocialFlow")
+
+    post = Post(
+        text="Post with tags and categories",
+        language=Language.ENGLISH,
+        tags=(tag,),
+        category_ids=(10, 20),
+    )
+
+    assert post.tags == (tag,)
+    assert post.category_ids == (10, 20)

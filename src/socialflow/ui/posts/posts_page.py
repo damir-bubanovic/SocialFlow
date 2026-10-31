@@ -81,6 +81,13 @@ from socialflow.application.tags.list_remote_tags import (
     ListRemoteTags,
 )
 from socialflow.domain.post.remote_tag import RemoteTag
+from socialflow.domain.post.remote_category import RemoteCategory
+from socialflow.application.categories.list_remote_categories import (
+    ListRemoteCategories,
+)
+from socialflow.ui.workers.remote_category_loading_controller import (
+    RemoteCategoryLoadingController,
+)
 
 from socialflow.ui.workers.remote_tag_loading_controller import (
     RemoteTagLoadingController,
@@ -97,6 +104,12 @@ from socialflow.ui.workers.remote_media_loading_controller import (
 from socialflow.ui.posts.create_post_view import CreatePostView
 from socialflow.ui.posts.my_posts_view import MyPostsView
 from socialflow.ui.posts.trash_view import TrashView
+from socialflow.ui.dialogs.wordpress_category_dialog import (
+    WordPressCategoryDialog,
+)
+from socialflow.ui.workers.wordpress_category_creation_controller import (
+    WordPressCategoryCreationController,
+)
 
 
 
@@ -122,6 +135,10 @@ class PostsPage(QWidget):
         wordpress_tag_preparation_controller: WordPressTagPreparationController | None = None,
         wordpress_tag_creation_controller: WordPressTagCreationController | None = None,
         list_remote_media: ListRemoteMedia | None = None,
+        list_remote_categories: ListRemoteCategories | None = None,
+        wordpress_category_creation_controller: (
+            WordPressCategoryCreationController | None
+        ) = None,
     ) -> None:
         super().__init__(parent)
 
@@ -149,6 +166,58 @@ class PostsPage(QWidget):
             )
             self._remote_media_loading_controller.finished.connect(
                 self._on_remote_media_loading_finished
+            )
+
+        self._list_remote_categories = list_remote_categories
+        self._remote_category_loading_controller = (
+            RemoteCategoryLoadingController(
+                list_remote_categories=list_remote_categories,
+                parent=self,
+            )
+            if list_remote_categories is not None
+            else None
+        )
+
+        self._wordpress_category_creation_controller = (
+            wordpress_category_creation_controller
+        )
+        self._category_creation_account: Account | None = None
+        self._category_creation_generation: int | None = None
+        self._category_creation_shutting_down = False
+        self._pending_created_category_id: int | None = None
+        self._pending_category_selection_ids: tuple[int, ...] = ()
+
+        if self._wordpress_category_creation_controller is not None:
+            creation_controller = (
+                self._wordpress_category_creation_controller
+            )
+            creation_controller.setParent(self)
+            creation_controller.category_created.connect(
+                self._on_wordpress_category_created
+            )
+            creation_controller.error_occurred.connect(
+                self._on_wordpress_category_creation_error
+            )
+            creation_controller.finished.connect(
+                self._on_wordpress_category_creation_finished
+            )
+
+        self._remote_categories_generation = 0
+        self._remote_category_loading_generation: int | None = None
+        self._remote_category_loading_account: Account | None = None
+        self._pending_remote_category_account: Account | None = None
+        self._remote_category_loading_shutting_down = False
+
+        if self._remote_category_loading_controller is not None:
+            controller = self._remote_category_loading_controller
+            controller.categories_ready.connect(
+                self._on_remote_categories_loaded
+            )
+            controller.error_occurred.connect(
+                self._on_remote_categories_error
+            )
+            controller.finished.connect(
+                self._on_remote_category_loading_finished
             )
 
         self._list_remote_tags = list_remote_tags
@@ -526,6 +595,13 @@ class PostsPage(QWidget):
         self.post_editor.account_selection_changed.connect(
             self._refresh_remote_tags
         )
+        self.post_editor.account_selection_changed.connect(
+            self._refresh_remote_categories
+        )
+
+        self.post_editor.add_category_button.clicked.connect(
+            self._add_wordpress_category
+        )
 
         self.post_editor.tag_selector.tag_created.connect(
             self._create_tag_for_selected_accounts
@@ -679,6 +755,247 @@ class PostsPage(QWidget):
             ),
             None,
         )
+
+    def _selected_category_wordpress_account(self) -> Account | None:
+        """Return a WordPress account only when exactly one is selected."""
+        accounts = tuple(
+            account
+            for account in self.post_editor.selected_accounts()
+            if account.destination == PublishingDestination.WORDPRESS
+        )
+
+        return accounts[0] if len(accounts) == 1 else None
+
+
+
+
+    def _refresh_remote_categories(self) -> None:
+        """Queue category loading for the selected WordPress account."""
+        if self._remote_category_loading_shutting_down:
+            return
+
+        self._remote_categories_generation += 1
+        self._pending_created_category_id = None
+        self._pending_category_selection_ids = ()
+
+        account = self._selected_category_wordpress_account()
+        self._pending_remote_category_account = account
+
+        selector = self.post_editor.category_selector
+        selector.setEnabled(False)
+        selector.set_selected_ids(())
+        selector.set_available_categories(())
+
+        self.post_editor.add_category_button.setEnabled(False)
+
+        self._start_remote_category_loading()
+
+    def _start_remote_category_loading(self) -> None:
+        """Start the latest queued request when the worker is idle."""
+        controller = self._remote_category_loading_controller
+
+        if (
+            controller is None
+            or self._remote_category_loading_shutting_down
+            or controller.is_running
+        ):
+            return
+
+        account = self._pending_remote_category_account
+        self._pending_remote_category_account = None
+
+        if account is None:
+            return
+
+        self._remote_category_loading_account = account
+        self._remote_category_loading_generation = (
+            self._remote_categories_generation
+        )
+
+        controller.start(account)
+
+    def _is_current_remote_category_account(self) -> bool:
+        """Reject results from an outdated WordPress account."""
+        account = self._remote_category_loading_account
+
+        if (
+            account is None
+            or self._remote_category_loading_shutting_down
+        ):
+            return False
+
+        return (
+                account == self._selected_category_wordpress_account()
+                and self._pending_remote_category_account is None
+                and self._remote_category_loading_generation
+                == self._remote_categories_generation
+        )
+
+    def _on_remote_categories_loaded(
+        self,
+        categories: tuple[RemoteCategory, ...],
+    ) -> None:
+        """Display categories only for the current account."""
+        if not self._is_current_remote_category_account():
+            return
+
+        selector = self.post_editor.category_selector
+        selector.set_available_categories(categories)
+        selector.setEnabled(True)
+
+        if self._pending_created_category_id is not None:
+            created_id = self._pending_created_category_id
+
+            if any(
+                    category.remote_id == created_id
+                    for category in categories
+            ):
+                selector.set_selected_ids(
+                    self._pending_category_selection_ids
+                )
+
+            self._pending_created_category_id = None
+            self._pending_category_selection_ids = ()
+
+        creation_controller = (
+            self._wordpress_category_creation_controller
+        )
+        self.post_editor.add_category_button.setEnabled(
+            creation_controller is not None
+            and not creation_controller.is_running
+            and not self._category_creation_shutting_down
+        )
+
+    def _on_remote_categories_error(self, _message: str) -> None:
+        """Keep category controls disabled after retrieval fails."""
+        if not self._is_current_remote_category_account():
+            return
+
+        selector = self.post_editor.category_selector
+        selector.set_available_categories(())
+        selector.setEnabled(False)
+        self.post_editor.add_category_button.setEnabled(False)
+
+    def _on_remote_category_loading_finished(self) -> None:
+        """Start any newer queued request after thread cleanup."""
+        self._remote_category_loading_account = None
+        self._remote_category_loading_generation = None
+        self._start_remote_category_loading()
+
+
+
+    def _add_wordpress_category(self) -> None:
+        """Ask the user to confirm a new WordPress category."""
+        controller = self._wordpress_category_creation_controller
+        account = self._selected_category_wordpress_account()
+        selector = self.post_editor.category_selector
+
+        if (
+            controller is None
+            or controller.is_running
+            or self._category_creation_shutting_down
+            or account is None
+            or not selector.isEnabled()
+        ):
+            return
+
+        dialog = WordPressCategoryDialog(
+            categories=selector.available_categories(),
+            parent=self,
+        )
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        if not dialog.is_confirmed():
+            return
+
+        # The account may have changed while the dialog was open.
+        if (
+                account != self._selected_category_wordpress_account()
+                or not selector.isEnabled()
+        ):
+            return
+
+        self._category_creation_account = account
+        self._category_creation_generation = (
+            self._remote_categories_generation
+        )
+
+        self.post_editor.add_category_button.setEnabled(False)
+
+        controller.start(
+            account=account,
+            name=dialog.category_name(),
+            parent_id=dialog.parent_category_id(),
+        )
+
+    def _is_current_category_creation(self) -> bool:
+        """Check that creation still belongs to the selected account."""
+        return (
+                not self._category_creation_shutting_down
+                and self._category_creation_account is not None
+                and self._category_creation_account
+                == self._selected_category_wordpress_account()
+                and self._category_creation_generation
+                == self._remote_categories_generation
+        )
+
+    def _on_wordpress_category_created(
+        self,
+        category: RemoteCategory,
+    ) -> None:
+        """Refresh categories and select the newly created category."""
+        if not self._is_current_category_creation():
+            return
+
+        selector = self.post_editor.category_selector
+        selected_ids = tuple(
+            dict.fromkeys(
+                (*selector.selected_ids(), category.remote_id)
+            )
+        )
+
+        self._refresh_remote_categories()
+
+        self._pending_created_category_id = category.remote_id
+        self._pending_category_selection_ids = selected_ids
+
+    def _on_wordpress_category_creation_error(
+        self,
+        message: str,
+    ) -> None:
+        """Report failures only for the current WordPress account."""
+        if not self._is_current_category_creation():
+            return
+
+        QMessageBox.warning(
+            self,
+            "WordPress category creation failed",
+            message,
+        )
+
+    def _on_wordpress_category_creation_finished(self) -> None:
+        """Clear creation state after background thread cleanup."""
+        account = self._category_creation_account
+        self._category_creation_account = None
+        self._category_creation_generation = None
+
+        if self._category_creation_shutting_down:
+            return
+
+        if account != self._selected_category_wordpress_account():
+            return
+
+        # Re-enable only when the category list is available.
+        loading = self._remote_category_loading_controller
+        if (
+            loading is not None
+            and not loading.is_running
+            and self.post_editor.category_selector.isEnabled()
+        ):
+            self.post_editor.add_category_button.setEnabled(True)
+
 
 
     def _refresh_remote_tags(self) -> None:
@@ -2260,6 +2577,10 @@ class PostsPage(QWidget):
         if self._remote_media_dialog is not None:
             self._remote_media_dialog.reject()
 
+        self._category_creation_shutting_down = True
+        self._pending_created_category_id = None
+        self._remote_category_loading_shutting_down = True
+        self._pending_remote_category_account = None
         self._remote_tag_loading_shutting_down = True
         self._pending_remote_tag_account = None
         self._loaded_remote_tags = ()
@@ -2269,6 +2590,12 @@ class PostsPage(QWidget):
 
         if self._remote_tag_loading_controller is not None:
             self._remote_tag_loading_controller.shutdown()
+
+        if self._remote_category_loading_controller is not None:
+            self._remote_category_loading_controller.shutdown()
+
+        if self._wordpress_category_creation_controller is not None:
+            self._wordpress_category_creation_controller.shutdown()
 
         if self._remote_media_loading_controller is not None:
             self._remote_media_loading_controller.shutdown()

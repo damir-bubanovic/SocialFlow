@@ -795,3 +795,224 @@ def test_new_post_clears_wordpress_title(qtbot) -> None:
 
     assert editor.title_editor.text() == ""
     assert editor.post().title == ""
+
+
+
+from socialflow.ui.posts.remote_category_selector import (
+    RemoteCategorySelector,
+)
+
+
+def test_post_editor_has_category_selector(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(
+        editor.category_selector,
+        RemoteCategorySelector,
+    )
+
+
+def test_post_editor_category_controls_start_disabled(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert not editor.category_selector.isEnabled()
+    assert not editor.add_category_button.isEnabled()
+
+
+def test_post_editor_categories_start_hidden(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.categories_section.isHidden()
+
+
+def test_post_editor_categories_are_inside_composer(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.categories_section.parentWidget() is (
+        editor.composer_panel
+    )
+
+
+def test_post_editor_categories_do_not_affect_post_model(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText("Test content")
+
+    post = editor.post()
+
+    assert post.text == "Test content"
+    assert post.tags == ()
+
+
+def test_post_editor_category_selector_starts_empty(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.category_selector.selected_ids() == ()
+    assert editor.category_selector.available_categories() == ()
+
+
+
+
+def test_post_editor_includes_selected_category_ids(qtbot) -> None:
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="Category Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_available_categories(
+        (
+            RemoteCategory(10, "Technology"),
+            RemoteCategory(20, "Python", parent_id=10),
+        )
+    )
+    editor.category_selector.set_selected_ids((10, 20))
+
+    assert editor.post().category_ids == (10, 20)
+
+
+def test_post_editor_new_post_clears_categories(qtbot) -> None:
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.category_selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+    editor.category_selector.set_selected_ids((10,))
+
+    editor.new_post()
+
+    assert editor.category_selector.selected_ids() == ()
+    assert editor.post().category_ids == ()
+
+
+def test_post_editor_load_post_restores_categories(qtbot) -> None:
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="Category Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_available_categories(
+        (
+            RemoteCategory(10, "Technology"),
+            RemoteCategory(20, "Python", parent_id=10),
+        )
+    )
+
+    post = Post(
+        text="Existing draft",
+        language=Language.ENGLISH,
+        category_ids=(20,),
+    )
+
+    editor.load_post(post)
+
+    assert editor.category_selector.selected_ids() == (20,)
+    assert editor.post().category_ids == (20,)
+
+
+def test_post_editor_publish_request_contains_categories(qtbot) -> None:
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="Category Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+    editor.category_selector.set_selected_ids((10,))
+    editor.text_editor.setPlainText("Publishing with categories")
+
+    request = editor.publish_request()
+
+    assert request.post.category_ids == (10,)
+
+
+
+def test_post_editor_does_not_publish_categories_to_two_wordpress_accounts(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    accounts = (
+        Account(
+            name="WordPress A",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+        Account(
+            name="WordPress B",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+    )
+    editor.set_accounts(accounts)
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_selected_ids((10,))
+
+    editor.destination_selector._checkboxes[1].setChecked(True)
+
+    assert not editor.category_selector.isEnabled()
+    assert not editor.add_category_button.isEnabled()
+    assert editor.post().category_ids == ()
+    assert editor.publish_request().post.category_ids == ()
+
+
+def test_post_editor_allows_categories_for_one_wordpress_account(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    accounts = (
+        Account(
+            name="WordPress A",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+        Account(
+            name="WordPress B",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+    )
+    editor.set_accounts(accounts)
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_selected_ids((10, 20))
+
+    assert editor.post().category_ids == (10, 20)
+
+    editor.destination_selector._checkboxes[1].setChecked(True)
+
+    assert editor.post().category_ids == ()
+
+    editor.destination_selector._checkboxes[1].setChecked(False)
+
+    assert editor.post().category_ids == (10, 20)

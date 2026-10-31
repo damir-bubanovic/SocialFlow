@@ -254,6 +254,7 @@ class UrllibWordPressPostClient(WordPressPostClient):
             content: str,
             tags: tuple[int, ...] = (),
             title: str = "",
+            categories: tuple[int, ...] = (),
     ) -> int:
         parsed = urlsplit(site_url)
 
@@ -285,6 +286,14 @@ class UrllibWordPressPostClient(WordPressPostClient):
                 "WordPress tag IDs must be positive integers."
             )
 
+        if any(
+            type(category_id) is not int or category_id <= 0
+            for category_id in categories
+        ):
+            raise ValueError(
+                "WordPress category IDs must be positive integers."
+            )
+
         if not isinstance(title, str) or not title.strip():
             raise ValueError(
                 "WordPress post title must be a non-empty string."
@@ -298,6 +307,9 @@ class UrllibWordPressPostClient(WordPressPostClient):
 
         if tags:
             post_data["tags"] = list(tags)
+
+        if categories:
+            post_data["categories"] = list(categories)
 
         payload = json.dumps(post_data).encode("utf-8")
 

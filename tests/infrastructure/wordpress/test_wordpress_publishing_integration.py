@@ -170,4 +170,58 @@ def test_account_routed_wordpress_publisher_sends_selected_tag_ids():
         content="Publishing with WordPress tags",
         tags=(202, 101),
         title="WordPress Test Title",
+        categories=(),
+    )
+
+
+
+def test_account_routed_wordpress_publisher_sends_selected_categories():
+    account = Account(
+        name="Categorized WordPress",
+        destination=PublishingDestination.WORDPRESS,
+        wordpress_config=WordPressConnectionConfig(
+            site_url="https://example.com",
+            username="admin",
+        ),
+    )
+
+    credential_store = Mock()
+    credential_store.get.return_value = "secret"
+
+    post_client = Mock()
+    post_client.create_post.return_value = 201
+
+    router = PublisherRouter(
+        publishers={},
+        account_factories={
+            PublishingDestination.WORDPRESS: (
+                lambda selected_account: WordPressPublisher(
+                    account=selected_account,
+                    credential_store=credential_store,
+                    post_client=post_client,
+                )
+            ),
+        },
+    )
+
+    post = PreparedPost(
+        source=Post(
+            text="Publishing with categories",
+            language=Language.ENGLISH,
+            title="Category Integration Test",
+            category_ids=(10, 20),
+        ),
+    )
+
+    publisher = router.publisher_for_account(account)
+    publisher.publish(post)
+
+    post_client.create_post.assert_called_once_with(
+        site_url="https://example.com",
+        username="admin",
+        application_password="secret",
+        content="Publishing with categories",
+        tags=(),
+        title="Category Integration Test",
+        categories=(10, 20),
     )

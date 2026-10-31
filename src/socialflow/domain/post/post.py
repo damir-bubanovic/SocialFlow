@@ -14,6 +14,7 @@ class Post:
     images: tuple[ImageAttachment, ...] = ()
     tags: tuple[Tag, ...] = ()
     title: str = ""
+    category_ids: tuple[int, ...] = ()
 
     def has_content(self) -> bool:
         """Return whether the post contains text or image content."""

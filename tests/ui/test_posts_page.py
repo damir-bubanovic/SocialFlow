@@ -5300,3 +5300,625 @@ def test_posts_page_has_three_sub_tabs(qtbot) -> None:
     assert page.posts_tabs.widget(2) is page.trash_view
 
     assert page.posts_tabs.currentWidget() is page.create_post_view
+
+
+
+def test_category_loading_rejects_outdated_generation():
+    """A response for an earlier selection must not be accepted."""
+    from unittest.mock import Mock
+
+    from socialflow.ui.posts.posts_page import PostsPage
+
+    # Use a mock rather than initializing the full QWidget.
+    # Test the guard with an unbound method and mocked attributes.
+    mock_page = Mock()
+    mock_page._remote_category_loading_account = Mock()
+    mock_page._remote_category_loading_shutting_down = False
+    mock_page._pending_remote_category_account = None
+    mock_page._remote_category_loading_generation = 1
+    mock_page._remote_categories_generation = 2
+    mock_page._selected_wordpress_account.return_value = (
+        mock_page._remote_category_loading_account
+    )
+
+    assert (
+        PostsPage._is_current_remote_category_account(mock_page)
+        is False
+    )
+
+
+
+
+def test_category_creation_rejects_old_account():
+    from unittest.mock import Mock
+
+    page = Mock()
+    page._category_creation_shutting_down = False
+    page._category_creation_account = "account-a"
+    page._category_creation_generation = 2
+    page._remote_categories_generation = 2
+    page._selected_wordpress_account.return_value = "account-b"
+
+    assert (
+        PostsPage._is_current_category_creation(page)
+        is False
+    )
+
+
+def test_category_creation_rejects_old_generation():
+    from unittest.mock import Mock
+
+    page = Mock()
+    page._category_creation_shutting_down = False
+    page._category_creation_account = "account-a"
+    page._category_creation_generation = 1
+    page._remote_categories_generation = 2
+    page._selected_wordpress_account.return_value = "account-a"
+
+    assert (
+        PostsPage._is_current_category_creation(page)
+        is False
+    )
+
+
+def test_category_creation_accepts_current_account():
+    from unittest.mock import Mock
+
+    page = Mock()
+    page._category_creation_shutting_down = False
+    page._category_creation_account = "account-a"
+    page._category_creation_generation = 2
+    page._remote_categories_generation = 2
+    page._selected_category_wordpress_account.return_value = "account-a"
+
+    assert (
+        PostsPage._is_current_category_creation(page)
+        is True
+    )
+
+
+def test_category_creation_rejects_shutdown():
+    from unittest.mock import Mock
+
+    page = Mock()
+    page._category_creation_shutting_down = True
+    page._category_creation_account = "account-a"
+    page._category_creation_generation = 2
+    page._remote_categories_generation = 2
+    page._selected_wordpress_account.return_value = "account-a"
+
+    assert (
+        PostsPage._is_current_category_creation(page)
+        is False
+    )
+
+
+
+def test_created_category_preserves_existing_selections():
+    from unittest.mock import Mock
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    page = Mock()
+    selector = Mock()
+    selector.selected_ids.return_value = (10, 20)
+
+    page.post_editor.category_selector = selector
+
+    def refresh():
+        selector.set_selected_ids(())
+        page._pending_created_category_id = None
+        page._pending_category_selection_ids = ()
+
+    page._refresh_remote_categories.side_effect = refresh
+    page._is_current_category_creation.return_value = True
+
+    PostsPage._on_wordpress_category_created(
+        page,
+        RemoteCategory(30, "New category"),
+    )
+
+    assert page._pending_created_category_id == 30
+    assert page._pending_category_selection_ids == (10, 20, 30)
+
+
+def test_created_category_selection_does_not_duplicate_ids():
+    from unittest.mock import Mock
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    page = Mock()
+    page._is_current_category_creation.return_value = True
+    page.post_editor.category_selector.selected_ids.return_value = (
+        10, 30
+    )
+
+    PostsPage._on_wordpress_category_created(
+        page,
+        RemoteCategory(30, "Existing selection"),
+    )
+
+    assert page._pending_category_selection_ids == (10, 30)
+
+
+def test_outdated_creation_does_not_refresh_categories():
+    from unittest.mock import Mock
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+
+    page = Mock()
+    page._is_current_category_creation.return_value = False
+
+    PostsPage._on_wordpress_category_created(
+        page,
+        RemoteCategory(30, "Outdated category"),
+    )
+
+    page._refresh_remote_categories.assert_not_called()
+
+
+
+def test_add_category_cancel_does_not_create(qtbot, monkeypatch):
+    from unittest.mock import Mock
+    from PySide6.QtWidgets import QDialog
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+    selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+
+    controller = Mock()
+    controller.is_running = False
+
+    page = Mock()
+    page._wordpress_category_creation_controller = controller
+    page._selected_wordpress_account.return_value = "account-a"
+    page._category_creation_shutting_down = False
+    page.post_editor.category_selector = selector
+
+    class CancelledDialog:
+        def __init__(self, categories, parent):
+            assert len(categories) == 1
+            _ = parent
+
+        @staticmethod
+        def exec():
+            return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(
+        "socialflow.ui.posts.posts_page.WordPressCategoryDialog",
+        CancelledDialog,
+    )
+
+    PostsPage._add_wordpress_category(page)
+
+    controller.start.assert_not_called()
+
+
+def test_add_category_submits_name_and_parent(qtbot, monkeypatch):
+    from unittest.mock import Mock
+    from PySide6.QtWidgets import QDialog, QPushButton
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+    selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+
+    controller = Mock()
+    controller.is_running = False
+
+    button = QPushButton()
+    qtbot.addWidget(button)
+
+    page = Mock()
+    page._wordpress_category_creation_controller = controller
+    page._selected_category_wordpress_account.return_value = "account-a"
+    page._category_creation_shutting_down = False
+    page._remote_categories_generation = 5
+    page.post_editor.category_selector = selector
+    page.post_editor.add_category_button = button
+
+    class ConfirmedDialog:
+        def __init__(self, categories, parent):
+            assert categories[0].remote_id == 10
+            _ = parent
+
+        @staticmethod
+        def exec():
+            return QDialog.DialogCode.Accepted
+
+        @staticmethod
+        def is_confirmed():
+            return True
+
+        @staticmethod
+        def category_name():
+            return "Python"
+
+        @staticmethod
+        def parent_category_id():
+            return 10
+
+    monkeypatch.setattr(
+        "socialflow.ui.posts.posts_page.WordPressCategoryDialog",
+        ConfirmedDialog,
+    )
+
+    PostsPage._add_wordpress_category(page)
+
+    controller.start.assert_called_once_with(
+        account="account-a",
+        name="Python",
+        parent_id=10,
+    )
+    assert page._category_creation_generation == 5
+    assert button.isEnabled() is False
+
+
+def test_category_creation_error_preserves_selection(qtbot, monkeypatch):
+    from unittest.mock import Mock
+    from PySide6.QtWidgets import QMessageBox
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+    selector.set_available_categories(
+        (
+            RemoteCategory(10, "Technology"),
+            RemoteCategory(20, "Python", parent_id=10),
+        )
+    )
+    selector.set_selected_ids((10, 20))
+
+    page = Mock()
+    page.post_editor.category_selector = selector
+    page._is_current_category_creation.return_value = True
+
+    warnings = []
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda *args: warnings.append(args),
+    )
+
+    PostsPage._on_wordpress_category_creation_error(
+        page,
+        "Authentication failed",
+    )
+
+    assert len(warnings) == 1
+    assert "Authentication failed" in warnings[0][2]
+    assert selector.selected_ids() == (10, 20)
+
+
+def test_category_creation_old_account_result_is_ignored(qtbot):
+    from unittest.mock import Mock
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+    selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+    selector.set_selected_ids((10,))
+
+    page = Mock()
+    page.post_editor.category_selector = selector
+    page._category_creation_shutting_down = False
+    page._category_creation_account = "account-a"
+    page._category_creation_generation = 3
+    page._remote_categories_generation = 4
+    page._selected_wordpress_account.return_value = "account-b"
+
+    page._is_current_category_creation.side_effect = (
+        lambda: PostsPage._is_current_category_creation(page)
+    )
+
+    PostsPage._on_wordpress_category_created(
+        page,
+        RemoteCategory(30, "New category"),
+    )
+
+    assert selector.selected_ids() == (10,)
+    page._refresh_remote_categories.assert_not_called()
+
+
+
+def test_category_refresh_restores_existing_and_created_ids(qtbot):
+    from unittest.mock import Mock
+
+    from PySide6.QtWidgets import QPushButton
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+
+    button = QPushButton()
+    qtbot.addWidget(button)
+
+    page = Mock()
+    page.post_editor.category_selector = selector
+    page.post_editor.add_category_button = button
+
+    page._is_current_remote_category_account.return_value = True
+    page._pending_created_category_id = 30
+    page._pending_category_selection_ids = (10, 20, 30)
+    page._category_creation_shutting_down = False
+
+    controller = Mock()
+    controller.is_running = False
+    page._wordpress_category_creation_controller = controller
+
+    categories = (
+        RemoteCategory(10, "Technology"),
+        RemoteCategory(20, "Python", parent_id=10),
+        RemoteCategory(30, "Django", parent_id=20),
+    )
+
+    PostsPage._on_remote_categories_loaded(page, categories)
+
+    assert selector.selected_ids() == (10, 20, 30)
+    assert selector.isEnabled()
+    assert button.isEnabled()
+    assert page._pending_created_category_id is None
+    assert page._pending_category_selection_ids == ()
+
+
+def test_category_refresh_selects_created_category_only(qtbot):
+    from unittest.mock import Mock
+
+    from PySide6.QtWidgets import QPushButton
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+
+    button = QPushButton()
+    qtbot.addWidget(button)
+
+    page = Mock()
+    page.post_editor.category_selector = selector
+    page.post_editor.add_category_button = button
+
+    page._is_current_remote_category_account.return_value = True
+    page._pending_created_category_id = 30
+    page._pending_category_selection_ids = (30,)
+    page._category_creation_shutting_down = False
+
+    controller = Mock()
+    controller.is_running = False
+    page._wordpress_category_creation_controller = controller
+
+    PostsPage._on_remote_categories_loaded(
+        page,
+        (
+            RemoteCategory(10, "Technology"),
+            RemoteCategory(30, "Django", parent_id=10),
+        ),
+    )
+
+    assert selector.selected_ids() == (30,)
+    assert page._pending_created_category_id is None
+
+
+def test_category_refresh_missing_created_category(qtbot):
+    from unittest.mock import Mock
+
+    from PySide6.QtWidgets import QPushButton
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+
+    button = QPushButton()
+    qtbot.addWidget(button)
+
+    page = Mock()
+    page.post_editor.category_selector = selector
+    page.post_editor.add_category_button = button
+
+    page._is_current_remote_category_account.return_value = True
+    page._pending_created_category_id = 30
+    page._pending_category_selection_ids = (10, 30)
+    page._category_creation_shutting_down = False
+
+    controller = Mock()
+    controller.is_running = False
+    page._wordpress_category_creation_controller = controller
+
+    PostsPage._on_remote_categories_loaded(
+        page,
+        (RemoteCategory(10, "Technology"),),
+    )
+
+    assert selector.selected_ids() == ()
+    assert page._pending_created_category_id is None
+    assert page._pending_category_selection_ids == ()
+
+
+def test_category_refresh_ignores_old_account_result(qtbot):
+    from unittest.mock import Mock
+
+    from PySide6.QtWidgets import QPushButton
+
+    from socialflow.domain.post.remote_category import RemoteCategory
+    from socialflow.ui.posts.remote_category_selector import (
+        RemoteCategorySelector,
+    )
+
+    selector = RemoteCategorySelector()
+    qtbot.addWidget(selector)
+
+    selector.set_available_categories(
+        (RemoteCategory(50, "Current account category"),)
+    )
+    selector.set_selected_ids((50,))
+
+    button = QPushButton()
+    qtbot.addWidget(button)
+    button.setEnabled(False)
+
+    page = Mock()
+    page.post_editor.category_selector = selector
+    page.post_editor.add_category_button = button
+
+    page._is_current_remote_category_account.return_value = False
+    page._pending_created_category_id = None
+    page._pending_category_selection_ids = ()
+
+    PostsPage._on_remote_categories_loaded(
+        page,
+        (RemoteCategory(10, "Old account category"),),
+    )
+
+    assert selector.selected_ids() == (50,)
+    assert tuple(
+        category.remote_id
+        for category in selector.available_categories()
+    ) == (50,)
+    assert button.isEnabled() is False
+
+
+
+
+def test_category_specific_account_selection_rejects_multiple_wordpress_accounts():
+    from unittest.mock import Mock
+
+    from socialflow.domain.account.account import Account
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+
+    first = Account(
+        name="WordPress A",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second = Account(
+        name="WordPress B",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    page = Mock()
+    page.post_editor.selected_accounts.return_value = (first, second)
+
+    assert PostsPage._selected_category_wordpress_account(page) is None
+
+
+def test_category_loading_rejects_result_after_multiple_accounts_selected():
+    from unittest.mock import Mock
+
+    from socialflow.domain.account.account import Account
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+
+    first = Account(
+        name="WordPress A",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second = Account(
+        name="WordPress B",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    page = Mock()
+    page.post_editor.selected_accounts.return_value = (first, second)
+    page._selected_category_wordpress_account = lambda: (
+        PostsPage._selected_category_wordpress_account(page)
+    )
+
+    page._remote_category_loading_account = first
+    page._remote_category_loading_shutting_down = False
+    page._pending_remote_category_account = None
+    page._remote_category_loading_generation = 5
+    page._remote_categories_generation = 5
+
+    assert (
+        PostsPage._is_current_remote_category_account(page)
+        is False
+    )
+
+
+def test_category_creation_rejects_result_after_multiple_accounts_selected():
+    from unittest.mock import Mock
+
+    from socialflow.domain.account.account import Account
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+
+    first = Account(
+        name="WordPress A",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second = Account(
+        name="WordPress B",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    page = Mock()
+    page.post_editor.selected_accounts.return_value = (first, second)
+    page._selected_category_wordpress_account = lambda: (
+        PostsPage._selected_category_wordpress_account(page)
+    )
+
+    page._category_creation_shutting_down = False
+    page._category_creation_account = first
+    page._category_creation_generation = 5
+    page._remote_categories_generation = 5
+
+    assert PostsPage._is_current_category_creation(page) is False
+
+
+
+def test_shared_wordpress_account_selection_preserves_first_account():
+    from unittest.mock import Mock
+
+    from socialflow.domain.account.account import Account
+    from socialflow.domain.publishing.destination import (
+        PublishingDestination,
+    )
+
+    first = Account(
+        name="WordPress A",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    second = Account(
+        name="WordPress B",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    page = Mock()
+    page.post_editor.selected_accounts.return_value = (first, second)
+
+    assert PostsPage._selected_wordpress_account(page) == first
+    assert PostsPage._selected_category_wordpress_account(page) is None

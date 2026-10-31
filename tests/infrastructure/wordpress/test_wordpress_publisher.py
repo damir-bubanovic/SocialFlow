@@ -79,6 +79,7 @@ def test_successful_wordpress_publication():
         content="Hello WordPress",
         tags=(),
         title="WordPress Test Title",
+        categories=(),
     )
 
 @pytest.mark.parametrize("title", ["", " ", "   \t\n"])
@@ -900,6 +901,7 @@ def test_publisher_resolves_and_sends_wordpress_tags():
         content="Hello WordPress",
         tags=(34, 12),
         title="WordPress Test Title",
+        categories=(),
     )
 
 def test_publisher_rejects_missing_wordpress_tag():
@@ -1047,3 +1049,29 @@ def test_publisher_sends_tags_with_uploaded_images():
     assert kwargs["content"].startswith("Hello WordPress")
     assert 'wp-image-55' in kwargs["content"]
     assert "https://example.com/photo.jpg" in kwargs["content"]
+
+
+
+def test_publisher_passes_selected_categories_to_client():
+    publisher, _, client = make_publisher()
+
+    post = PreparedPost(
+        source=Post(
+            text="Hello WordPress",
+            language=Language.ENGLISH,
+            title="Category Test",
+            category_ids=(10, 20),
+        )
+    )
+
+    publisher.publish(post)
+
+    assert client.create_post.call_args.kwargs["categories"] == (10, 20)
+
+
+def test_publisher_passes_empty_categories_by_default():
+    publisher, _, client = make_publisher()
+
+    publisher.publish(make_post())
+
+    assert client.create_post.call_args.kwargs["categories"] == ()
