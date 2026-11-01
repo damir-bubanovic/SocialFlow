@@ -1,5 +1,5 @@
 from socialflow.application.tags.tag_provider import TagProvider
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.tag import Tag
 
 

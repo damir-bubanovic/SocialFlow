@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from socialflow.application.publishing.update_remote_post import (
     UpdateRemotePost,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.ui.workers.remote_post_updating_worker import (
     RemotePostUpdatingWorker,
 )

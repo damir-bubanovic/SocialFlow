@@ -5,7 +5,7 @@ import pytest
 from socialflow.application.publishing.remote_media_provider import (
     RemoteMediaProvider,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )

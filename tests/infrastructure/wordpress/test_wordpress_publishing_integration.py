@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from socialflow.application.publishing.prepared_post import PreparedPost
 from socialflow.application.publishing.publisher_router import PublisherRouter
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination

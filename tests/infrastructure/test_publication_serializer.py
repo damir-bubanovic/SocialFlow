@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.post.tag import Tag

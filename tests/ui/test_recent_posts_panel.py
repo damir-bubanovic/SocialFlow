@@ -4,7 +4,7 @@ from uuid import UUID
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.post.post import Post

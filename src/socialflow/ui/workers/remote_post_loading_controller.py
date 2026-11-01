@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Qt, Slot
 from socialflow.application.publishing.list_remote_posts import (
     ListRemotePosts,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.ui.workers.remote_post_loading_worker import (
     RemotePostLoadingWorker,
 )

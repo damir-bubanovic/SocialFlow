@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from socialflow.application.categories.list_remote_categories import (
     ListRemoteCategories,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_category import RemoteCategory
 
 

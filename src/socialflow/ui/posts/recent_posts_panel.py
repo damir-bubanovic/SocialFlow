@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.publishing.publication import Publication
 from socialflow.ui.posts.recent_posts_list import RecentPostsList
 

@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from socialflow.application.publishing.list_trashed_remote_posts import (
     ListTrashedRemotePosts,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_post import RemotePost
 
 

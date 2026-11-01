@@ -1,7 +1,7 @@
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
 from socialflow.application.tags.tag_provider import TagProvider
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.destination import PublishingDestination
 

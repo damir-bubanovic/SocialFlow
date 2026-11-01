@@ -2,7 +2,7 @@
 from socialflow.application.publishing.remote_trashed_post_provider import (
     RemoteTrashedPostProvider,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_post import RemotePost
 
 

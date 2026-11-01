@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
-from socialflow.application.accounts.add_account import AddAccount
-from socialflow.application.accounts.list_accounts import ListAccounts
-from socialflow.application.accounts.remove_account import RemoveAccount
-from socialflow.application.accounts.update_account import UpdateAccount
+from socialflow.modules.accounts.services.add_account import AddAccount
+from socialflow.modules.accounts.services.list_accounts import ListAccounts
+from socialflow.modules.accounts.services.remove_account import RemoveAccount
+from socialflow.modules.accounts.services.update_account import UpdateAccount
 from socialflow.application.credentials.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
@@ -78,7 +78,7 @@ from socialflow.infrastructure.time.system_clock import SystemClock
 from socialflow.infrastructure.wordpress.wordpress_connection_verifier_factory import (
     WordPressConnectionVerifierFactory,
 )
-from socialflow.ui.accounts.accounts_page import AccountsPage
+from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
 from socialflow.application.credentials.delete_wordpress_credentials import (

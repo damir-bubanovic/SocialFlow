@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtWidgets import QDialog, QMessageBox
 
-from socialflow.application.accounts.list_accounts import ListAccounts
+from socialflow.modules.accounts.services.list_accounts import ListAccounts
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
 )
@@ -23,7 +23,7 @@ from socialflow.application.publishing.restore_remote_post import (
 from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.tags.create_tag import CreateTag
 from socialflow.application.tags.list_tags import ListTags
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.publish_request import PublishRequest

@@ -7,7 +7,7 @@ from uuid import uuid4
 from socialflow.application.publishing.publication_repository import (
     PublicationRepository,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.publication import Publication
 from socialflow.domain.publishing.publication_id import PublicationId
@@ -20,7 +20,7 @@ from socialflow.infrastructure.publishing.publication_serializer import (
 from socialflow.infrastructure.storage.publication_image_storage import (
     PublicationImageStorage,
 )
-from socialflow.application.accounts.account_repository import AccountRepository
+from socialflow.modules.accounts.repositories.account_repository import AccountRepository
 
 
 class JsonPublicationRepository(PublicationRepository):

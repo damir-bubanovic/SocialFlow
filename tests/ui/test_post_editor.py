@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QHBoxLayout
 
 from socialflow.domain.post.image_attachment import ImageAttachment
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination

@@ -19,7 +19,7 @@ def real_background_workers(qtbot):
         ConnectionVerifier,
     )
     from socialflow.application.publishing.publish_post import PublishPost
-    from socialflow.domain.account.account import Account
+    from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.connections.connection_result import (
         ConnectionResult,
     )
@@ -30,7 +30,7 @@ def real_background_workers(qtbot):
         PublishingDestination,
     )
     from socialflow.domain.publishing.publish_request import PublishRequest
-    from socialflow.ui.accounts.wordpress_verification_controller import (
+    from socialflow.modules.accounts.controllers.wordpress_verification_controller import (
         WordPressVerificationController,
     )
     from socialflow.ui.posts.publishing_controller import (
@@ -225,7 +225,7 @@ def test_main_window_closes_after_active_verification_finishes(
     from socialflow.application.connections.connection_verifier import (
         ConnectionVerifier,
     )
-    from socialflow.domain.account.account import Account
+    from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.connections.connection_result import (
         ConnectionResult,
     )
@@ -235,7 +235,7 @@ def test_main_window_closes_after_active_verification_finishes(
     from socialflow.domain.publishing.destination import (
         PublishingDestination,
     )
-    from socialflow.ui.accounts.wordpress_verification_controller import (
+    from socialflow.modules.accounts.controllers.wordpress_verification_controller import (
         WordPressVerificationController,
     )
 

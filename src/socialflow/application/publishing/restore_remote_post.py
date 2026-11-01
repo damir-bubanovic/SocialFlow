@@ -2,7 +2,7 @@
 from socialflow.application.publishing.remote_post_restorer import (
     RemotePostRestorer,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 
 
 class RestoreRemotePost:

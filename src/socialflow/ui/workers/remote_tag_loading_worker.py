@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from socialflow.application.tags.list_remote_tags import (
     ListRemoteTags,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_tag import RemoteTag
 
 

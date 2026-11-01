@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from socialflow.application.publishing.list_remote_media import (
     ListRemoteMedia,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.ui.workers.remote_media_loading_worker import (
     RemoteMediaLoadingWorker,
 )

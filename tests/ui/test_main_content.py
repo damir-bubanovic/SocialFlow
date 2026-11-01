@@ -3,11 +3,11 @@ import json
 
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
-from socialflow.ui.accounts.accounts_page import AccountsPage
+from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
 from socialflow.ui.posts.posts_page import PostsPage
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,

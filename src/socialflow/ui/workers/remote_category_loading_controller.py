@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from socialflow.application.categories.list_remote_categories import (
     ListRemoteCategories,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.ui.workers.remote_category_loading_worker import (
     RemoteCategoryLoadingWorker,
 )

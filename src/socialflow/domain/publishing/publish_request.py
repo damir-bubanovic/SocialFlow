@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.post import Post
 
 

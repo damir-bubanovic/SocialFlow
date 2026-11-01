@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from socialflow.domain.account.account_id import AccountId
-from socialflow.application.accounts.account_repository import AccountRepository
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account_id import AccountId
+from socialflow.modules.accounts.repositories.account_repository import AccountRepository
+from socialflow.modules.accounts.models.account import Account
 from socialflow.infrastructure.accounts.account_serializer import (
     AccountSerializer,
 )

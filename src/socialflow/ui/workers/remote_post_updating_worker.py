@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from socialflow.application.publishing.update_remote_post import (
     UpdateRemotePost,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 
 
 class RemotePostUpdatingWorker(QObject):

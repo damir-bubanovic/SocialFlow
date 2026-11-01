@@ -8,7 +8,7 @@ from socialflow.application.publishing.errors import (
 )
 from socialflow.application.publishing.publisher import Publisher
 from socialflow.application.publishing.publisher_router import PublisherRouter
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.destination import PublishingDestination
 

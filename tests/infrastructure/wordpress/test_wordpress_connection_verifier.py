@@ -5,7 +5,7 @@ import pytest
 from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.connections.connection_status import (
     ConnectionStatus,
 )

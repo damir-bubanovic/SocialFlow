@@ -1,0 +1,54 @@
+from socialflow.modules.accounts.repositories.account_repository import AccountRepository
+from socialflow.modules.accounts.services.list_accounts import ListAccounts
+from socialflow.modules.accounts.models.account import Account
+from socialflow.domain.publishing.destination import PublishingDestination
+
+
+class InMemoryAccountRepository(AccountRepository):
+    """Test repository that stores accounts in memory."""
+
+    def __init__(self) -> None:
+        self._accounts: list[Account] = []
+
+    def all(self) -> tuple[Account, ...]:
+        return tuple(self._accounts)
+
+    def add(self, account: Account) -> None:
+        self._accounts.append(account)
+
+    def remove(self, account: Account) -> None:
+        self._accounts.remove(account)
+
+    def update(self, current: Account, updated: Account) -> None:
+        index = self._accounts.index(current)
+        self._accounts[index] = updated
+
+
+def test_list_accounts_returns_configured_accounts() -> None:
+    repository = InMemoryAccountRepository()
+
+    facebook = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="SocialFlow WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    repository.add(facebook)
+    repository.add(wordpress)
+
+    service = ListAccounts(repository)
+
+    assert service.execute() == (
+        facebook,
+        wordpress,
+    )
+
+
+def test_list_accounts_returns_empty_tuple_when_no_accounts_exist() -> None:
+    repository = InMemoryAccountRepository()
+    service = ListAccounts(repository)
+
+    assert service.execute() == ()

@@ -4,7 +4,7 @@ from socialflow.domain.publishing.publication_id import PublicationId
 from socialflow.application.publishing.publication_repository import (
     PublicationRepository,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.publishing.publication import Publication
 
 

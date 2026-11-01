@@ -1,7 +1,7 @@
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.infrastructure.wordpress.wordpress_category_provider import (
     WordPressCategoryProvider,
 )

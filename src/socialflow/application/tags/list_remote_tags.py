@@ -2,7 +2,7 @@
 from socialflow.application.tags.remote_tag_provider import (
     RemoteTagProvider,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_tag import RemoteTag
 
 

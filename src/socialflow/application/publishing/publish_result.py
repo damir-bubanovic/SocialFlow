@@ -5,7 +5,7 @@ from socialflow.application.publishing.error_classifier import (
     ErrorCategory,
     ErrorClassifier,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 
 
 @dataclass(frozen=True)

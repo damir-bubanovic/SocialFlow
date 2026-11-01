@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from socialflow.application.publishing.restore_remote_post import (
     RestoreRemotePost,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.ui.workers.remote_post_restoring_worker import (
     RemotePostRestoringWorker,
 )

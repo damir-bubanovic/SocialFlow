@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.publication_id import PublicationId
 

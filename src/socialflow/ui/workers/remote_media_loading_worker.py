@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from socialflow.application.publishing.list_remote_media import (
     ListRemoteMedia,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_media import RemoteMedia
 
 

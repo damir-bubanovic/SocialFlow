@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QWidget
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 
 
 class DestinationSelector(QWidget):

@@ -2,7 +2,7 @@ from unittest.mock import Mock
 from threading import Event
 import pytest
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )

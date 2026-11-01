@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from socialflow.application.tags.list_remote_tags import (
     ListRemoteTags,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.ui.workers.remote_tag_loading_worker import (
     RemoteTagLoadingWorker,
 )

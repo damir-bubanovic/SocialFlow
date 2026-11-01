@@ -1,7 +1,7 @@
 from socialflow.application.publishing.remote_post_provider import (
     RemotePostProvider,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_post import RemotePost
 
 

@@ -8,8 +8,8 @@ from typing import Any
 
 from socialflow.domain.post.remote_media import RemoteMedia
 from socialflow.domain.post.image_attachment import ImageAttachment
-from socialflow.application.accounts.account_repository import AccountRepository
-from socialflow.application.accounts.list_accounts import ListAccounts
+from socialflow.modules.accounts.repositories.account_repository import AccountRepository
+from socialflow.modules.accounts.services.list_accounts import ListAccounts
 from socialflow.application.publishing.errors import PublishingError
 from socialflow.application.publishing.list_recent_publications import (
     ListRecentPublications,
@@ -26,7 +26,7 @@ from socialflow.application.tags.list_tags import ListTags
 from socialflow.application.tags.null_tag_provider import NullTagProvider
 from socialflow.application.tags.tag_provider import TagProvider
 from socialflow.application.time.clock import Clock
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.post.tag import Tag
@@ -5815,7 +5815,7 @@ def test_category_refresh_ignores_old_account_result(qtbot):
 def test_category_specific_account_selection_rejects_multiple_wordpress_accounts():
     from unittest.mock import Mock
 
-    from socialflow.domain.account.account import Account
+    from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.publishing.destination import (
         PublishingDestination,
     )
@@ -5838,7 +5838,7 @@ def test_category_specific_account_selection_rejects_multiple_wordpress_accounts
 def test_category_loading_rejects_result_after_multiple_accounts_selected():
     from unittest.mock import Mock
 
-    from socialflow.domain.account.account import Account
+    from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.publishing.destination import (
         PublishingDestination,
     )
@@ -5873,7 +5873,7 @@ def test_category_loading_rejects_result_after_multiple_accounts_selected():
 def test_category_creation_rejects_result_after_multiple_accounts_selected():
     from unittest.mock import Mock
 
-    from socialflow.domain.account.account import Account
+    from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.publishing.destination import (
         PublishingDestination,
     )
@@ -5905,7 +5905,7 @@ def test_category_creation_rejects_result_after_multiple_accounts_selected():
 def test_shared_wordpress_account_selection_preserves_first_account():
     from unittest.mock import Mock
 
-    from socialflow.domain.account.account import Account
+    from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.publishing.destination import (
         PublishingDestination,
     )

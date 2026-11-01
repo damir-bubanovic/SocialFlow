@@ -2,8 +2,8 @@
 from typing import Any
 from uuid import UUID
 
-from socialflow.domain.account.account import Account
-from socialflow.domain.account.account_id import AccountId
+from socialflow.modules.accounts.models.account import Account
+from socialflow.modules.accounts.models.account_id import AccountId
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )

@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from socialflow.application.tags.list_remote_tags import (
     ListRemoteTags,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_tag import RemoteTag
 from socialflow.domain.publishing.destination import (
     PublishingDestination,

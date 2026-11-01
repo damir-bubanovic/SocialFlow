@@ -1,7 +1,7 @@
 from socialflow.application.categories.remote_category_provider import (
     RemoteCategoryProvider,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_category import RemoteCategory
 
 

@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 from PySide6.QtWidgets import QDialog
 
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (

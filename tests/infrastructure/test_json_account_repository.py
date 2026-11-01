@@ -2,7 +2,7 @@ import json
 import pytest
 
 from socialflow.infrastructure.accounts.errors import AccountStorageError
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,

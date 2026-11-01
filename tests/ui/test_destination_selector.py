@@ -1,4 +1,4 @@
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.ui.posts.destination_selector import DestinationSelector
 

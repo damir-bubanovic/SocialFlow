@@ -4,7 +4,7 @@ from unittest.mock import Mock
 from socialflow.application.publishing.list_remote_posts import (
     ListRemotePosts,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_post import RemotePost
 from socialflow.domain.publishing.destination import (
     PublishingDestination,

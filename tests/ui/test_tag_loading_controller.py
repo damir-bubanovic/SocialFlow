@@ -3,7 +3,7 @@ from threading import Event
 from unittest.mock import Mock
 
 from socialflow.application.tags.list_tags import ListTags
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.tag import Tag
 from socialflow.domain.publishing.destination import PublishingDestination
 from socialflow.ui.workers.tag_loading_controller import (

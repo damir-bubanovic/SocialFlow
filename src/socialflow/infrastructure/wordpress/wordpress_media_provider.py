@@ -4,7 +4,7 @@ from socialflow.application.credentials.credential_store import (
 from socialflow.application.publishing.remote_media_provider import (
     RemoteMediaProvider,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.post.remote_media import RemoteMedia
 from socialflow.domain.publishing.destination import (
     PublishingDestination,

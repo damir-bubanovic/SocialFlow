@@ -26,7 +26,7 @@ from socialflow.application.publishing.publish_post import PublishPost
 from socialflow.application.publishing.publisher import Publisher
 from socialflow.application.publishing.publisher_router import PublisherRouter
 from socialflow.application.time.clock import Clock
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.image_attachment import ImageAttachment
 from socialflow.domain.post.post import Post

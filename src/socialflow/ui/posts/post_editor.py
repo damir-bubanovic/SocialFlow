@@ -26,7 +26,7 @@ from socialflow.application.language.post_language_classifier import (
 from socialflow.ui.posts.content_language_indicator import (
     ContentLanguageIndicator,
 )
-from socialflow.domain.account.account import Account
+from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
 from socialflow.domain.post.post import Post
 from socialflow.domain.publishing.publish_request import PublishRequest
