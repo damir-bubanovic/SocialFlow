@@ -558,3 +558,28 @@ This section supersedes outdated pending checkboxes in earlier historical sectio
 - [ ] Complete packaging, Windows end-to-end verification, and production error-email notifications.
 
 **Evidence boundary:** The full-suite result and Git push are developer-reported; the documentation pass did not execute tests. The desktop app was reported to launch successfully. Earlier live WordPress authentication/REST checks succeeded, but the final Categories workflow has not been reported as fully live-verified. Historical test counts in sections above are snapshots, not the current total.
+
+## 29. November 1, 2026 — Live WordPress Verification and Refactor Scope
+
+### Developer-reported verification
+
+- [x] Live WordPress category catalog loads in Create Post.
+- [x] Publish a disposable post with multiple categories; verify saved title/content and assignments.
+- [x] Edit existing category assignments and confirm persistence.
+- [x] Clear category assignments and confirm WordPress behavior (including potential default category).
+- [x] Move the test post to Trash and verify it appears there.
+- [x] Restore the test post as Draft.
+- [x] Developer reported the complete headless pytest suite passed; numeric count not provided.
+
+These checks close the **tested WordPress functional milestone**; they do not establish exhaustive failure recovery, account switching, Windows packaging, or production readiness. The earlier pending live-verification checklist is historical and superseded for the six cases above.
+
+### Approved next development work (NOT YET IMPLEMENTED)
+
+- [ ] Refactor to feature-first, Laravel-inspired Python modules, preserving domain/UI/infrastructure boundaries.
+- [ ] Group feature-specific requests, views, controllers, services, workers, and components under feature modules.
+- [ ] Extract platform contracts, capability declarations, and registration; migrate WordPress behind its adapter without behavior changes.
+- [ ] Keep Instagram and Facebook as **future** independent modules; do not implement or claim API support as part of the refactor.
+- [ ] Preserve all existing tests, add architecture/migration regression checks, and re-run full suite at milestones.
+- [ ] Verify WordPress live behavior again after structural migration.
+
+Scope: refactoring only, preliminary **35–55 engineering hours**, excluding actual Meta integration development.

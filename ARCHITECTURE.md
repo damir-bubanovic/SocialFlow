@@ -1309,3 +1309,73 @@ Recent remote posts are deliberately limited to a small set (about 5–10); pagi
 ### Verification boundary
 
 The developer reported that the complete automated test suite passed after Phase 21.9.72D2-C2 and pushed the changes. A live WordPress REST connection and Application Password authentication had been established previously. The final live category publishing/editing and integrated lifecycle checks remain pending; documentation preparation did not rerun pytest. Facebook/Instagram integrations remain future work.
+
+## 43. Target Architecture — Feature-First, Laravel-Inspired (Approved November 1, 2026)
+
+**Design only: NOT YET IMPLEMENTED.** This section supersedes earlier *proposed* source layouts, but the current code still uses the existing `domain/`, `application/`, `infrastructure/`, and `ui/` organization. Preserve existing behavior and clean dependency direction during migration.
+
+```text
+src/socialflow/
+├── core/
+│   ├── contracts/           # pure ports/interfaces, including platform contracts
+│   ├── exceptions/
+│   ├── events/              # framework-independent event definitions
+│   └── services/            # genuinely cross-feature logic
+├── modules/
+│   ├── accounts/
+│   │   ├── models/
+│   │   ├── requests/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   └── views/
+│   ├── posts/
+│   │   ├── models/
+│   │   ├── requests/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── views/
+│   │   ├── components/
+│   │   └── workers/
+│   ├── wordpress/
+│   │   ├── api/
+│   │   ├── auth/
+│   │   ├── requests/
+│   │   ├── services/
+│   │   ├── mappers/
+│   │   └── adapters/
+│   ├── instagram/           # FUTURE; not implemented
+│   └── facebook/            # FUTURE; not implemented
+├── infrastructure/
+│   ├── persistence/
+│   ├── storage/
+│   └── security/
+├── config/
+├── bootstrap/
+└── main.py
+```
+
+This is an illustrative ownership map, not a mandate to create every directory. Only create folders for actual responsibilities. Tests can remain centrally under `tests/` (mirroring modules) to preserve pytest discovery; do not move tests into production packages by default. Concrete file ownership is decided after dependency mapping.
+
+### Dependency rules
+
+- Pure models, request values, contracts, and business rules must not import PySide6, concrete HTTP clients, or persistence implementations.
+- UI controllers coordinate views and application services; Qt workers run I/O off the GUI thread and preserve guarded signal delivery, shutdown, cancellation, and account/request-generation checks.
+- Platform adapters implement core contracts and declare supported capabilities; common publishing logic depends on interfaces, not on WordPress/Instagram/Facebook implementations.
+- WordPress-specific REST payloads, Application Password auth, category/tag/media semantics, and mappers stay in the WordPress module. Instagram/Facebook API and OAuth design requires separate official API review later.
+- Avoid cyclic feature imports, duplicate models, unnecessary compatibility shims, and premature generic frameworks. Use explicit dependency registration in bootstrap where useful.
+- Keep WordPress's small recent-post scope, ID-based category assignments, omitted-vs-empty update semantics, and title requirement.
+
+### Migration sequence and acceptance gates
+
+1. Audit actual imports, dependencies, tests, Qt worker lifetimes, and Git status; establish baseline.
+2. Define contracts/module boundaries and compatibility approach before moving files.
+3. Migrate Accounts and Posts feature files in cohesive, testable batches.
+4. Move WordPress-specific integration behind its adapter; keep REST behavior identical.
+5. Add capability/adapter registration for future platforms, without claiming Instagram/Facebook functionality.
+6. Update imports and tests per batch, run full pytest at milestones, verify WordPress live smoke tests after migration, then commit and document.
+
+**Estimate:** 35–55 engineering hours, provisional, excluding Instagram/Facebook implementation. Do not mistake structural reorganization for performance optimization or a guarantee of fewer bugs.
+
+### November 1 verification checkpoint
+
+Developer reported six passing live WordPress tests: category load, multi-category publish, category edit, category clear, Trash, and Restore as Draft. Developer reported complete headless pytest suite passing; numeric count unknown. This documentation edit did not execute tests. The prior October 31 pending-live-verification statements are historical for these six flows; additional failure recovery/account switching and packaging remain separate checks.

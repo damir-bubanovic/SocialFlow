@@ -1806,3 +1806,32 @@ Passing mocked/unit/UI tests and successfully launching the desktop app are not 
 ### Evidence
 
 The developer reported that the full test suite passed and Phase 21.9.72D2-C2 was committed/pushed. Earlier live WordPress connectivity and Application Password authentication were verified; comprehensive live category workflows remain pending. This documentation edit did not run tests.
+
+## ADR-077 — Adopt Feature-First Laravel-Inspired Modular Architecture
+
+**Date:** 2026-11-01  
+**Status:** Accepted for future implementation; refactoring not yet started
+
+### Context
+
+SocialFlow's current Python/PySide6 architecture separates `domain`, `application`, `infrastructure`, and `ui`, but related feature code is distributed across several directories. WordPress is functional and developer-reported live checks plus the full automated suite passed. Instagram and Facebook remain future integrations. The developer prefers Laravel's discoverable organization of requests, controllers, services, and views.
+
+### Decision
+
+Refactor incrementally to a **feature-first, Laravel-inspired structure**: `modules/accounts`, `modules/posts`, `modules/wordpress`, and later `modules/instagram` and `modules/facebook`. Each feature owns its relevant models, requests, controllers, services, views, components, and workers as appropriate. Keep cross-feature contracts and pure business logic in `core/`, external storage/security adapters in `infrastructure/`, configuration in `config/`, and dependency wiring in `bootstrap/`. Preserve Python conventions, Clean Architecture dependency direction, and PySide6 GUI/thread safety; do **not** import Laravel's web routing/middleware architecture literally.
+
+WordPress, Instagram, and Facebook will use shared platform contracts and explicit capabilities, with independent API/auth adapters. Do not assume all platforms support WordPress-specific concepts such as categories, tags, or titles. Platform-specific input rules belong in the relevant adapter/validation layer; avoid scattered platform string conditionals.
+
+### Migration and consequences
+
+- Incremental, testable migration; no rewrite and no big-bang file move.
+- Existing WordPress behavior, tests, security, account isolation, and Qt async lifecycle semantics must remain unchanged.
+- Shared code should not be duplicated merely to achieve module symmetry; avoid unnecessary empty folders and premature abstractions.
+- First map imports/dependencies, then migrate in cohesive batches, updating imports and tests together. Use full-suite and live smoke-test gates.
+- No Instagram/Facebook implementation is authorized by this ADR; those are future feature phases after refactoring.
+- Planning estimate: **35–55 engineering hours**, provisional and excluding Meta integration development.
+- This ADR supersedes earlier *proposed* layer-first source organizations where they conflict, but does not erase historical architecture decisions.
+
+### Evidence boundary
+
+On November 1, 2026 the developer reported six successful live WordPress tests (category load, publish, edit, clear, Trash, Restore) and a passing full pytest suite, without an exact count. The documentation edit did not independently run tests or inspect Git status. Functional signoff is limited to the checks reported.

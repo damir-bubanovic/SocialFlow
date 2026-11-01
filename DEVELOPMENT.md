@@ -1046,3 +1046,33 @@ Do not set `QT_QPA_PLATFORM=offscreen` for ordinary interactive desktop use. Con
 ### Documentation and Git policy
 
 These Markdown files were prepared at the end-of-day documentation checkpoint. Public files: `README.md`, `FEATURES.md`, `DEVELOPMENT.md`, `DECISIONS.md`, `ARCHITECTURE.md`. **`AGENTS.md` is local-only and must not be staged, committed, pushed, or distributed publicly.** After copying updated public files into the repository, review `git diff --check` and `git status`, then commit/push only the intended documentation files.
+
+## 39. November 1, 2026 — Approved Architecture Refactor Handoff
+
+### Verified/reported baseline
+
+Developer confirmed six live WordPress checks: category loading, multi-category publishing, category editing, category clearing, Trash, and Restore as Draft. Developer also reported the complete pytest suite passed (no exact test count supplied). This documentation update did not run pytest or verify Git status. The October 31 live-verification instructions above are retained as history, not as the current next task.
+
+### Next work: plan and execute feature-first modular refactoring
+
+**Do not begin Instagram/Facebook feature implementation yet.** First inspect the latest complete source snapshot and map imports, ownership, Qt signal/thread lifecycles, and existing tests. Design is approved; implementation has not begun. Preliminary estimate: **35–55 hours**, excluding platform feature work. Treat target paths in `ARCHITECTURE.md` as a design, not existing paths.
+
+1. Inventory existing modules and dependencies; capture baseline pytest results and `git status`.
+2. Establish shared `core/contracts`, cross-cutting concerns, module boundaries, and a migration compatibility plan.
+3. Move Accounts and Posts feature-specific models/requests/services/views/controllers/components/workers in small cohesive batches; do not move everything at once.
+4. Encapsulate WordPress under `modules/wordpress/` behind stable contracts, retaining current REST semantics and all lifecycle guards.
+5. Introduce platform capability declarations and registration without implementing Instagram/Facebook. Keep placeholders conceptual until needed.
+6. Update imports and tests in the same batch as each move; check circular dependencies, Qt ownership, cancellation/stale callbacks, and account isolation.
+7. Run targeted tests after each batch and the full suite at stable milestones; perform post-migration live WordPress smoke tests, then document and sign off.
+
+**Non-negotiable invariants:** WordPress title required only for WordPress publishing; small recent-post retrieval (5–10), no pagination; `categories=None` omits update field while `categories=()` explicitly clears; preserve ID-based categories, account-scoped catalog readiness, stale-result protection, Trash/Restore, saved credentials handling, and UI responsiveness. Shared business logic must not depend on PySide6 or concrete platform HTTP clients.
+
+**Working style:** exact current PyCharm paths, `Find` / `Replace with` copy-paste blocks (no ZIPs or patch downloads), multiple tests per batch with one pytest command, explicit Git commit/push checkpoints, and public docs at the end of coding day. Never commit `AGENTS.md` or secrets.
+
+```bash
+python -m socialflow
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+git status
+```
+
+Before source changes, ask for a current snapshot if necessary; do not assume this proposal has already been implemented. Review Git status before any commit; only commit changed files intentionally.
