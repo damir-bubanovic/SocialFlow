@@ -3,13 +3,13 @@ from unittest.mock import Mock
 import pytest
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_post_provider import (
     WordPressPostProvider,
 )
-from socialflow.application.publishing.remote_post_provider import (
+from socialflow.modules.posts.services.remote_post_provider import (
     RemotePostProvider,
 )
 
@@ -121,7 +121,7 @@ def test_converts_wordpress_posts_to_remote_posts():
     from socialflow.domain.connections.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
-    from socialflow.domain.post.remote_post import RemotePost
+    from socialflow.modules.posts.models.remote_post import RemotePost
     from socialflow.infrastructure.wordpress.wordpress_post import (
         WordPressPost,
     )

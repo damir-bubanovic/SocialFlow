@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.application.images.image_preparation_service import (
     ImagePreparationService,
 )
@@ -13,7 +13,7 @@ from socialflow.application.images.image_profile import ImageProfile
 from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.application.images.prepared_image import PreparedImage
 
 
@@ -818,7 +818,7 @@ def test_preserves_processing_error_when_partial_cleanup_fails(
     from socialflow.application.images.image_preparation_service import (
         ImagePreparationService,
     )
-    from socialflow.domain.publishing.destination import (
+    from socialflow.modules.posts.models.destination import (
         PublishingDestination,
     )
 

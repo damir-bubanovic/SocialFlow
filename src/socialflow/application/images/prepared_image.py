@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from socialflow.domain.post.image_attachment import ImageAttachment
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.destination import PublishingDestination
 
 
 @dataclass(frozen=True, slots=True)

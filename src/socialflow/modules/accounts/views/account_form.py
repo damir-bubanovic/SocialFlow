@@ -12,7 +12,7 @@ from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 

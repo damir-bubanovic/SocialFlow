@@ -2,15 +2,15 @@
 from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
-from socialflow.application.publishing.remote_post_provider import (
+from socialflow.modules.posts.services.remote_post_provider import (
     RemotePostProvider,
 )
-from socialflow.application.publishing.remote_trashed_post_provider import (
+from socialflow.modules.posts.services.remote_trashed_post_provider import (
     RemoteTrashedPostProvider,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.post.remote_post import RemotePost
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.remote_post import RemotePost
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (

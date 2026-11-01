@@ -2,7 +2,7 @@ from socialflow.application.images.default_image_profiles import (
     DEFAULT_IMAGE_PROFILES,
 )
 from socialflow.application.images.image_processor import ImageDimensions
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 
 
 def test_default_profiles_include_all_publishing_destinations() -> None:

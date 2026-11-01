@@ -1,16 +1,16 @@
 
 from unittest.mock import Mock
 
-from socialflow.application.publishing.prepared_post import PreparedPost
-from socialflow.application.publishing.publisher_router import PublisherRouter
+from socialflow.modules.posts.services.prepared_post import PreparedPost
+from socialflow.modules.posts.services.publisher_router import PublisherRouter
 from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
-from socialflow.domain.post.post import Post
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.post import Post
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_publisher import (
     WordPressPublisher,
 )
-from socialflow.domain.post.tag import Tag
+from socialflow.modules.posts.models.tag import Tag
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )

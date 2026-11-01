@@ -3,7 +3,7 @@ import pytest
 from socialflow.application.images.default_image_profiles import (
     DEFAULT_IMAGE_PROFILES,
 )
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.application.images.image_processor import ImageDimensions
 from socialflow.application.images.image_profile import ImageProfile
 from socialflow.application.images.image_profile_provider import (

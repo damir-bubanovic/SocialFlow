@@ -20,7 +20,7 @@ def test_configure_logging_writes_application_errors(tmp_path) -> None:
     log_file = configure_logging(tmp_path / "logs")
 
     logger = logging.getLogger(
-        "socialflow.application.publishing.publish_post"
+        "socialflow.modules.posts.services.publish_post"
     )
 
     logger.error("Publishing failed: ConnectionError")

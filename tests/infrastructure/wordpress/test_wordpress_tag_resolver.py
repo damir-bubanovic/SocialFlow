@@ -1,6 +1,6 @@
 import pytest
 
-from socialflow.domain.post.tag import Tag
+from socialflow.modules.posts.models.tag import Tag
 from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
     WordPressTagResolver,

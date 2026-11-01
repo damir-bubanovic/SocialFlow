@@ -2,11 +2,11 @@
 from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
-from socialflow.application.publishing.remote_post_trasher import (
+from socialflow.modules.posts.services.remote_post_trasher import (
     RemotePostTrasher,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (

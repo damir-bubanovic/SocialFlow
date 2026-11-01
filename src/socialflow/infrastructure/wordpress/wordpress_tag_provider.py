@@ -1,18 +1,18 @@
 from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
-from socialflow.application.tags.tag_provider import TagProvider
+from socialflow.modules.posts.services.tag_provider import TagProvider
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.post.tag import Tag
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.tag import Tag
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 from socialflow.infrastructure.wordpress.wordpress_tag_client import (
     WordPressTagClient,
 )
-from socialflow.domain.post.remote_tag import RemoteTag
-from socialflow.application.tags.remote_tag_provider import (
+from socialflow.modules.posts.models.remote_tag import RemoteTag
+from socialflow.modules.posts.services.remote_tag_provider import (
     RemoteTagProvider,
 )
 

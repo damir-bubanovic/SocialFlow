@@ -1,5 +1,5 @@
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.modules.accounts.views.account_list import AccountList
 
 

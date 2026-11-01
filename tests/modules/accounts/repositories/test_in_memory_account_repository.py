@@ -2,7 +2,7 @@ from socialflow.modules.accounts.repositories.in_memory_account_repository impor
     InMemoryAccountRepository,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 
 
 def test_in_memory_account_repository_is_empty_by_default() -> None:

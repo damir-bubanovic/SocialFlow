@@ -3,17 +3,17 @@ from unittest.mock import Mock
 from pathlib import Path
 import pytest
 
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_publisher import (
     WordPressPublisher,
 )
-from socialflow.application.publishing.prepared_post import PreparedPost
+from socialflow.modules.posts.services.prepared_post import PreparedPost
 from socialflow.domain.language.language import Language
-from socialflow.domain.post.post import Post
+from socialflow.modules.posts.models.post import Post
 from socialflow.infrastructure.wordpress.wordpress_media import (
     WordPressMedia,
 )
-from socialflow.domain.post.tag import Tag
+from socialflow.modules.posts.models.tag import Tag
 from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 
 

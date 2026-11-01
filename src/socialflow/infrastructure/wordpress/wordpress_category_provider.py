@@ -1,13 +1,13 @@
 
-from socialflow.application.categories.remote_category_provider import (
+from socialflow.modules.posts.services.remote_category_provider import (
     RemoteCategoryProvider,
 )
 from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.post.remote_category import RemoteCategory
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.remote_category import RemoteCategory
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_category_client import (
     WordPressCategoryClient,
 )

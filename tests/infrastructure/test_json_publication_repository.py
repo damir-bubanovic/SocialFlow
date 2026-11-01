@@ -6,14 +6,14 @@ from unittest.mock import patch
 
 from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.language.language import Language
-from socialflow.domain.post.post import Post
-from socialflow.domain.publishing.destination import PublishingDestination
-from socialflow.domain.publishing.publication import Publication
-from socialflow.domain.publishing.publication_id import PublicationId
+from socialflow.modules.posts.models.post import Post
+from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.modules.posts.models.publication import Publication
+from socialflow.modules.posts.models.publication_id import PublicationId
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 
 def create_publication(

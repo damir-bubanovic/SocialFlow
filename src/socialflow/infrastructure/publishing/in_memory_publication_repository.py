@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from socialflow.domain.publishing.publication_id import PublicationId
-from socialflow.application.publishing.publication_repository import (
+from socialflow.modules.posts.models.publication_id import PublicationId
+from socialflow.modules.posts.repositories.publication_repository import (
     PublicationRepository,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.publication import Publication
+from socialflow.modules.posts.models.publication import Publication
 
 
 class InMemoryPublicationRepository(PublicationRepository):

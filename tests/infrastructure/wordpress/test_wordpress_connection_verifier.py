@@ -12,7 +12,7 @@ from socialflow.domain.connections.connection_status import (
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_connection_verifier import (

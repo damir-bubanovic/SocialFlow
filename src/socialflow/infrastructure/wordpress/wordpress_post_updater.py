@@ -2,7 +2,7 @@ from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
@@ -11,7 +11,7 @@ from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
 from socialflow.infrastructure.wordpress.wordpress_post_client import (
     WordPressPostClient,
 )
-from socialflow.application.publishing.remote_post_updater import (
+from socialflow.modules.posts.services.remote_post_updater import (
     RemotePostUpdater,
 )
 

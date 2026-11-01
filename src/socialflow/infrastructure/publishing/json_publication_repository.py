@@ -4,13 +4,13 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
-from socialflow.application.publishing.publication_repository import (
+from socialflow.modules.posts.repositories.publication_repository import (
     PublicationRepository,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.post.post import Post
-from socialflow.domain.publishing.publication import Publication
-from socialflow.domain.publishing.publication_id import PublicationId
+from socialflow.modules.posts.models.post import Post
+from socialflow.modules.posts.models.publication import Publication
+from socialflow.modules.posts.models.publication_id import PublicationId
 from socialflow.infrastructure.publishing.publication_image_inspector import (
     PublicationImageInspector,
 )

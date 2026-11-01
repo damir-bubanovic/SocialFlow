@@ -4,12 +4,12 @@ import pytest
 from PySide6.QtWidgets import QDialog
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.post.tag import Tag
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.tag import Tag
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
-from socialflow.ui.posts.posts_page import PostsPage
+from socialflow.modules.posts.views.posts_page import PostsPage
 
 
 def make_account(name: str) -> Account:
@@ -79,7 +79,7 @@ def test_approved_tags_are_created_before_publishing(workflow):
     workflow._preparing_wordpress_account = account
 
     with patch(
-        "socialflow.ui.posts.posts_page.WordPressTagConfirmationDialog"
+        "socialflow.modules.posts.views.posts_page.WordPressTagConfirmationDialog"
     ) as dialog:
         with patch.object(
             workflow,
@@ -121,7 +121,7 @@ def test_rejected_tags_cancel_publishing(workflow):
     workflow._preparing_wordpress_account = account
 
     with patch(
-        "socialflow.ui.posts.posts_page.WordPressTagConfirmationDialog"
+        "socialflow.modules.posts.views.posts_page.WordPressTagConfirmationDialog"
     ) as dialog:
         with patch.object(
             workflow,

@@ -1,0 +1,1018 @@
+from PySide6.QtWidgets import QPlainTextEdit, QWidget
+from pathlib import Path
+from PySide6.QtWidgets import QHBoxLayout
+
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
+from socialflow.modules.accounts.models.account import Account
+from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.post import Post
+from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.modules.posts.models.publish_request import PublishRequest
+from socialflow.modules.posts.components.destination_selector import DestinationSelector
+from socialflow.modules.posts.components.language_controls import LanguageControls
+from socialflow.modules.posts.views.post_editor import PostEditor
+from socialflow.modules.posts.components.publish_button import PublishButton
+from socialflow.modules.posts.models.tag import Tag
+from socialflow.application.language.post_language_classifier import (
+    PostLanguageClassification,
+)
+
+
+def create_facebook_account() -> Account:
+    return Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+
+def test_post_editor_is_widget(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(editor, QWidget)
+
+
+def test_post_editor_contains_text_editor(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(editor.text_editor, QPlainTextEdit)
+
+
+def test_post_editor_has_placeholder(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.text_editor.placeholderText() == "Write your post..."
+
+
+def test_post_editor_contains_language_controls(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(editor.language_controls, LanguageControls)
+
+
+def test_post_editor_language_can_be_changed(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.selector.setCurrentIndex(1)
+
+    assert editor.selected_language() == Language.ENGLISH
+    assert editor.language_controls.indicator.text() == "EN"
+
+
+def test_post_editor_returns_post_text(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+
+    assert editor.post_text() == "Hello from SocialFlow"
+
+
+def test_post_editor_returns_post(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.language_controls.selector.setCurrentIndex(1)
+
+    post = editor.post()
+
+    assert isinstance(post, Post)
+    assert post.text == "Hello from SocialFlow"
+    assert post.language == Language.ENGLISH
+
+
+def test_post_editor_contains_publish_button(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(editor.publish_button, PublishButton)
+
+
+def test_publish_button_is_disabled_without_account(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+
+    assert not editor.publish_button.isEnabled()
+
+
+def test_publish_button_is_enabled_with_content_and_account(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    assert editor.publish_button.isEnabled()
+
+
+def test_publish_button_is_disabled_when_post_has_no_content(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.text_editor.setPlainText("Hello")
+    editor.text_editor.setPlainText("   ")
+
+    assert not editor.publish_button.isEnabled()
+
+
+def test_post_editor_emits_publish_request(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    account = create_facebook_account()
+    editor.set_accounts((account,))
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    with qtbot.waitSignal(editor.publish_requested) as blocker:
+        editor.publish_button.click()
+
+    request = blocker.args[0]
+
+    assert isinstance(request, PublishRequest)
+    assert request.post.text == "Hello from SocialFlow"
+    assert request.post.language == Language.ENGLISH
+    assert request.accounts == (account,)
+
+
+def test_post_editor_contains_destination_selector(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(editor.destination_selector, DestinationSelector)
+
+
+def test_post_editor_returns_selected_accounts(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    facebook = create_facebook_account()
+    instagram = Account(
+        name="Main Instagram",
+        destination=PublishingDestination.INSTAGRAM,
+    )
+
+    editor.set_accounts((facebook, instagram))
+
+    editor.destination_selector._checkboxes[0].setChecked(True)
+    editor.destination_selector._checkboxes[1].setChecked(True)
+
+    assert editor.selected_accounts() == (
+        facebook,
+        instagram,
+    )
+
+
+def test_publish_button_is_disabled_when_account_is_removed(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+
+    checkbox = editor.destination_selector._checkboxes[0]
+
+    checkbox.setChecked(True)
+    checkbox.setChecked(False)
+
+    assert not editor.publish_button.isEnabled()
+
+
+def test_post_editor_returns_publish_request(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    editor.set_accounts((account,))
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    request = editor.publish_request()
+
+    assert request.post.text == "Hello from SocialFlow"
+    assert request.accounts == (account,)
+
+def test_post_contains_selected_images(
+    qtbot,
+    tmp_path: Path,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    image_path = tmp_path / "socialflow-image.jpg"
+    image_path.touch()
+
+    image = ImageAttachment(path=image_path)
+
+    editor.image_selector._images = (image,)
+
+    post = editor.post()
+
+    assert post.images == (image,)
+
+def test_post_editor_includes_selected_tags_in_publish_request(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    account = create_facebook_account()
+
+    editor.set_accounts((account,))
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.tag_selector.tag_input.setText("SocialFlow")
+    editor.tag_selector.add_button.click()
+
+    requests = []
+    editor.publish_requested.connect(requests.append)
+
+    editor.publish_button.click()
+
+    assert len(requests) == 1
+    assert requests[0].post.tags == (
+        Tag(name="SocialFlow"),
+    )
+    assert requests[0].accounts == (account,)
+
+def test_tag_creation_is_disabled_without_selected_account(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert not editor.tag_selector.tag_input.isEnabled()
+    assert not editor.tag_selector.add_button.isEnabled()
+
+def test_tag_creation_is_enabled_when_account_is_selected(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    assert editor.tag_selector.tag_input.isEnabled()
+    assert editor.tag_selector.add_button.isEnabled()
+
+def test_tag_creation_is_disabled_when_account_is_deselected(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+
+    checkbox = editor.destination_selector._checkboxes[0]
+
+    checkbox.setChecked(True)
+
+    assert editor.tag_selector.tag_input.isEnabled()
+    assert editor.tag_selector.add_button.isEnabled()
+
+    checkbox.setChecked(False)
+
+    assert not editor.tag_selector.tag_input.isEnabled()
+    assert not editor.tag_selector.add_button.isEnabled()
+
+def test_post_editor_loads_post_text(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+    )
+
+    editor.load_post(post)
+
+    assert editor.post_text() == "Historical publication"
+
+
+def test_post_editor_loads_post_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+    )
+
+    editor.load_post(post)
+
+    assert editor.selected_language() == Language.ENGLISH
+
+def test_post_editor_loads_post_tags(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+        tags=(
+            Tag(name="SocialFlow"),
+            Tag(name="Python"),
+        ),
+    )
+
+    editor.load_post(post)
+
+    assert editor.tag_selector.selected_tags() == (
+        Tag(name="SocialFlow"),
+        Tag(name="Python"),
+    )
+
+def test_post_editor_loads_post_images(
+    qtbot,
+    tmp_path,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    image_path = tmp_path / "historical.jpg"
+    image_path.touch()
+
+    image = ImageAttachment(path=image_path)
+
+    post = Post(
+        text="Historical publication",
+        language=Language.ENGLISH,
+        images=(image,),
+    )
+
+    editor.load_post(post)
+
+    assert editor.image_selector.selected_images() == (
+        image,
+    )
+
+def test_post_editor_automatically_detects_croatian(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+
+    editor.text_editor.setPlainText(
+        "Danas ćemo objaviti važnu obavijest."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+    assert editor.language_controls.indicator.text() == "HR"
+
+def test_manual_language_selection_is_preserved_when_text_changes(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+
+def test_dropdown_language_selection_prevents_automatic_detection(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.selector.activated.emit(
+        editor.language_controls.selector.currentIndex()
+    )
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+
+def test_new_post_resets_manual_language_override(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.CROATIAN
+
+    editor.new_post()
+
+    assert editor.post_text() == ""
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+
+def test_new_post_clears_content_but_preserves_accounts(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    account = create_facebook_account()
+    editor.set_accounts((account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.text_editor.setPlainText("Hello from SocialFlow")
+    editor.new_post()
+
+    assert editor.post_text() == ""
+    assert editor.image_selector.selected_images() == ()
+    assert editor.tag_selector.selected_tags() == ()
+    assert editor.selected_accounts() == (account,)
+    assert not editor.publish_button.isEnabled()
+
+def test_post_editor_updates_language_visual_marker(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.text_editor.property("postLanguage") == "unknown"
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert editor.selected_language() is Language.ENGLISH
+    assert editor.text_editor.property("postLanguage") == "en"
+    assert editor.language_controls.indicator.text() == "EN"
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    assert editor.selected_language() is Language.CROATIAN
+    assert editor.text_editor.property("postLanguage") == "en"
+    assert editor.language_controls.indicator.text() == "HR"
+
+    editor.new_post()
+
+    assert editor.text_editor.property("postLanguage") == "unknown"
+
+def test_post_editor_changes_border_color_with_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert "#6b7280" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "We are publishing important news today."
+    )
+
+    assert "#16a34a" in editor.text_editor.styleSheet()
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    assert editor.selected_language() is Language.CROATIAN
+    assert "#16a34a" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert "#2563eb" in editor.text_editor.styleSheet()
+
+    editor.new_post()
+
+    assert "#6b7280" in editor.text_editor.styleSheet()
+
+def test_post_editor_detects_individual_paragraph_languages(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+    assert editor.paragraph_languages() == (
+        Language.ENGLISH,
+        Language.CROATIAN,
+        Language.ENGLISH,
+    )
+
+def test_post_editor_highlights_mixed_language_paragraphs(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+    document = editor.text_editor.document()
+
+    assert document.findBlockByNumber(0).userState() == 1
+    assert document.findBlockByNumber(1).userState() == 2
+    assert document.findBlockByNumber(2).userState() == 1
+
+    assert editor.text_editor.toPlainText() == (
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+def test_post_editor_classifies_mixed_language_post(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest.\n"
+        "Thank you for your support."
+    )
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+def test_post_editor_border_reflects_mixed_language_content(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+    assert "#9333ea" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news."
+    )
+
+    assert "#16a34a" in editor.text_editor.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert "#2563eb" in editor.text_editor.styleSheet()
+
+    editor.text_editor.clear()
+
+    assert "#6b7280" in editor.text_editor.styleSheet()
+
+def test_post_editor_shows_detected_content_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.content_language_indicator.text() == "?"
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news."
+    )
+
+    assert editor.content_language_indicator.text() == "EN"
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR"
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR + EN"
+
+    editor.language_controls.set_language(Language.ENGLISH)
+
+    # Changing the publishing language must not change
+    # the detected content classification.
+    assert editor.content_language_indicator.text() == "HR + EN"
+
+    editor.new_post()
+
+    assert editor.content_language_indicator.text() == "?"
+
+def test_content_language_indicator_updates_during_editing(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news."
+    )
+
+    assert editor.content_language_indicator.text() == "EN"
+    assert "#16a34a" in editor.content_language_indicator.styleSheet()
+
+    editor.text_editor.appendPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR + EN"
+    assert "#9333ea" in editor.content_language_indicator.styleSheet()
+
+    editor.text_editor.setPlainText(
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_indicator.text() == "HR"
+    assert "#2563eb" in editor.content_language_indicator.styleSheet()
+
+    editor.text_editor.clear()
+
+    assert editor.content_language_indicator.text() == "?"
+    assert "#6b7280" in editor.content_language_indicator.styleSheet()
+
+def test_post_editor_labels_detected_content_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.content_language_label.text() == "Detected content:"
+
+    editor.text_editor.setPlainText(
+        "Today we are publishing important news.\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    assert editor.content_language_label.text() == "Detected content:"
+    assert editor.content_language_indicator.text() == "HR + EN"
+
+def test_detected_content_label_and_indicator_share_layout(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    label = editor.content_language_label
+    indicator = editor.content_language_indicator
+
+    parent_layout = label.parentWidget().layout()
+
+    assert parent_layout is not None
+
+    matching_layouts = [
+        item.layout()
+        for index in range(parent_layout.count())
+        if (item := parent_layout.itemAt(index)).layout() is not None
+    ]
+
+    assert any(
+        isinstance(child_layout, QHBoxLayout)
+        and child_layout.indexOf(label) >= 0
+        and child_layout.indexOf(indicator) >= 0
+        for child_layout in matching_layouts
+    )
+
+def test_post_editor_preserves_mixed_language_text(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    mixed_text = (
+        "Today we are publishing important news.\n"
+        "\n"
+        "Danas objavljujemo novu vijest.\n"
+        "\n"
+        "Thank you for your support."
+    )
+
+    editor.text_editor.setPlainText(mixed_text)
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+    post = editor.post()
+
+    assert post.text == mixed_text
+    assert editor.text_editor.toPlainText() == mixed_text
+
+def test_mixed_language_post_preserves_selected_publishing_language(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    mixed_text = (
+        "Today we are publishing important news.\n"
+        "\n"
+        "Danas objavljujemo novu vijest."
+    )
+
+    editor.text_editor.setPlainText(mixed_text)
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+    editor.language_controls.set_language(Language.ENGLISH)
+
+    english_post = editor.post()
+
+    assert english_post.text == mixed_text
+    assert english_post.language is Language.ENGLISH
+
+    editor.language_controls.set_language(Language.CROATIAN)
+
+    croatian_post = editor.post()
+
+    assert croatian_post.text == mixed_text
+    assert croatian_post.language is Language.CROATIAN
+
+    assert (
+        editor.post_language_classification()
+        is PostLanguageClassification.MIXED
+    )
+
+
+def test_wordpress_title_is_required_for_publishing(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="WordPress Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+    editor.text_editor.setPlainText("Post content")
+
+    assert editor.title_editor.isHidden() is False
+    assert editor.publish_button.isEnabled() is False
+
+    editor.title_editor.setText("My WordPress Title")
+
+    assert editor.publish_button.isEnabled() is True
+    assert editor.post().title == "My WordPress Title"
+
+
+def test_facebook_post_does_not_require_title(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.set_accounts((create_facebook_account(),))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+    editor.text_editor.setPlainText("Facebook content")
+
+    assert editor.title_editor.isHidden() is True
+    assert editor.publish_button.isEnabled() is True
+
+
+def test_new_post_clears_wordpress_title(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.title_editor.setText("Previous title")
+    editor.text_editor.setPlainText("Previous content")
+
+    editor.new_post()
+
+    assert editor.title_editor.text() == ""
+    assert editor.post().title == ""
+
+
+
+from socialflow.modules.posts.components.remote_category_selector import (
+    RemoteCategorySelector,
+)
+
+
+def test_post_editor_has_category_selector(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert isinstance(
+        editor.category_selector,
+        RemoteCategorySelector,
+    )
+
+
+def test_post_editor_category_controls_start_disabled(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert not editor.category_selector.isEnabled()
+    assert not editor.add_category_button.isEnabled()
+
+
+def test_post_editor_categories_start_hidden(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.categories_section.isHidden()
+
+
+def test_post_editor_categories_are_inside_composer(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.categories_section.parentWidget() is (
+        editor.composer_panel
+    )
+
+
+def test_post_editor_categories_do_not_affect_post_model(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.text_editor.setPlainText("Test content")
+
+    post = editor.post()
+
+    assert post.text == "Test content"
+    assert post.tags == ()
+
+
+def test_post_editor_category_selector_starts_empty(qtbot):
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    assert editor.category_selector.selected_ids() == ()
+    assert editor.category_selector.available_categories() == ()
+
+
+
+
+def test_post_editor_includes_selected_category_ids(qtbot) -> None:
+    from socialflow.modules.posts.models.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="Category Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_available_categories(
+        (
+            RemoteCategory(10, "Technology"),
+            RemoteCategory(20, "Python", parent_id=10),
+        )
+    )
+    editor.category_selector.set_selected_ids((10, 20))
+
+    assert editor.post().category_ids == (10, 20)
+
+
+def test_post_editor_new_post_clears_categories(qtbot) -> None:
+    from socialflow.modules.posts.models.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    editor.category_selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+    editor.category_selector.set_selected_ids((10,))
+
+    editor.new_post()
+
+    assert editor.category_selector.selected_ids() == ()
+    assert editor.post().category_ids == ()
+
+
+def test_post_editor_load_post_restores_categories(qtbot) -> None:
+    from socialflow.modules.posts.models.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="Category Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_available_categories(
+        (
+            RemoteCategory(10, "Technology"),
+            RemoteCategory(20, "Python", parent_id=10),
+        )
+    )
+
+    post = Post(
+        text="Existing draft",
+        language=Language.ENGLISH,
+        category_ids=(20,),
+    )
+
+    editor.load_post(post)
+
+    assert editor.category_selector.selected_ids() == (20,)
+    assert editor.post().category_ids == (20,)
+
+
+def test_post_editor_publish_request_contains_categories(qtbot) -> None:
+    from socialflow.modules.posts.models.remote_category import RemoteCategory
+
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    wordpress_account = Account(
+        name="Category Test WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    editor.set_accounts((wordpress_account,))
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_available_categories(
+        (RemoteCategory(10, "Technology"),)
+    )
+    editor.category_selector.set_selected_ids((10,))
+    editor.text_editor.setPlainText("Publishing with categories")
+
+    request = editor.publish_request()
+
+    assert request.post.category_ids == (10,)
+
+
+
+def test_post_editor_does_not_publish_categories_to_two_wordpress_accounts(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    accounts = (
+        Account(
+            name="WordPress A",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+        Account(
+            name="WordPress B",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+    )
+    editor.set_accounts(accounts)
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_selected_ids((10,))
+
+    editor.destination_selector._checkboxes[1].setChecked(True)
+
+    assert not editor.category_selector.isEnabled()
+    assert not editor.add_category_button.isEnabled()
+    assert editor.post().category_ids == ()
+    assert editor.publish_request().post.category_ids == ()
+
+
+def test_post_editor_allows_categories_for_one_wordpress_account(
+    qtbot,
+) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    accounts = (
+        Account(
+            name="WordPress A",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+        Account(
+            name="WordPress B",
+            destination=PublishingDestination.WORDPRESS,
+        ),
+    )
+    editor.set_accounts(accounts)
+    editor.destination_selector._checkboxes[0].setChecked(True)
+
+    editor.category_selector.set_selected_ids((10, 20))
+
+    assert editor.post().category_ids == (10, 20)
+
+    editor.destination_selector._checkboxes[1].setChecked(True)
+
+    assert editor.post().category_ids == ()
+
+    editor.destination_selector._checkboxes[1].setChecked(False)
+
+    assert editor.post().category_ids == (10, 20)

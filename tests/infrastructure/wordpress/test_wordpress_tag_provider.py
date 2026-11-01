@@ -6,8 +6,8 @@ from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
-from socialflow.domain.post.tag import Tag
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.tag import Tag
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
@@ -15,7 +15,7 @@ from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
     WordPressTagProvider,
 )
-from socialflow.domain.post.remote_tag import RemoteTag
+from socialflow.modules.posts.models.remote_tag import RemoteTag
 
 
 def make_account(

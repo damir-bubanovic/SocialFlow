@@ -1,5 +1,5 @@
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.accounts.account_serializer import (
     AccountSerializer,
 )

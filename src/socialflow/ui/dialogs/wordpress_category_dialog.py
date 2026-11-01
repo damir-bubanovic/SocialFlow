@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from socialflow.domain.post.remote_category import RemoteCategory
+from socialflow.modules.posts.models.remote_category import RemoteCategory
 
 
 class WordPressCategoryDialog(QDialog):

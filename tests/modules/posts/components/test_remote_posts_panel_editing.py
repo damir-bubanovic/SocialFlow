@@ -1,0 +1,2130 @@
+from datetime import datetime, timezone
+from PySide6.QtCore import Qt
+from unittest.mock import Mock
+import pytest
+from dataclasses import replace
+
+from socialflow.modules.posts.views.posts_page import PostsPage
+
+from socialflow.modules.posts.models.remote_post import RemotePost
+from socialflow.modules.posts.models.destination import (
+    PublishingDestination,
+)
+from socialflow.modules.posts.components.remote_posts_panel import RemotePostsPanel
+from socialflow.modules.posts.models.remote_tag import RemoteTag
+
+
+def make_post(
+    remote_id="123",
+    content="Original content",
+):
+    return RemotePost(
+        remote_id=remote_id,
+        destination=PublishingDestination.WORDPRESS,
+        content=content,
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+    )
+
+
+def test_editor_is_disabled_without_selected_post(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_selecting_post_loads_its_content(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post(),))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.isEnabled()
+    assert panel.content_editor.toPlainText() == "Original content"
+    assert not panel.save_button.isEnabled()
+
+
+def test_editing_content_enables_save_button(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText(
+        "Ažurirani sadržaj čćžšđ"
+    )
+
+    assert panel.save_button.isEnabled()
+
+
+def test_unchanged_or_empty_content_cannot_be_saved(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post(),))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.save_button.isEnabled()
+
+    panel.content_editor.setPlainText("   ")
+    assert not panel.save_button.isEnabled()
+
+    panel.content_editor.setPlainText("Original content")
+    assert not panel.save_button.isEnabled()
+
+
+def test_save_emits_post_id_and_updated_content(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    panel.show_posts((make_post(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText(
+        "Ažurirani sadržaj čćžšđ"
+    )
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Ažurirani sadržaj čćžšđ",
+    ]
+
+
+def test_loading_resets_editor_and_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.show_loading()
+
+    assert panel.posts_list.count() == 0
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_switching_posts_displays_correct_content(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123", content="First post"),
+        make_post(remote_id="456", content="Second post"),
+    ))
+
+    panel.posts_list.setCurrentRow(0)
+    assert panel.content_editor.toPlainText() == "First post"
+
+    panel.posts_list.setCurrentRow(1)
+    assert panel.content_editor.toPlainText() == "Second post"
+    assert not panel.save_button.isEnabled()
+
+
+
+
+
+def test_selecting_post_displays_existing_tag_ids(qtbot):
+    """Selecting a post displays its selected WordPress tags."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.remote_tag_selector.tags_list.isEnabled()
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
+    assert not panel.save_button.isEnabled()
+
+
+
+def test_loading_clears_displayed_tag_ids(qtbot):
+    """Loading new posts clears the previous tag selection."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
+
+    panel.show_loading()
+
+    assert panel.remote_tag_selector.selected_ids() == ()
+    assert not panel.remote_tag_selector.tags_list.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_tag_only_change_emits_tag_aware_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.save_button.isEnabled()
+
+    panel.remote_tag_selector.set_selected_ids((12, 56))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12, 56),
+    ]
+
+
+def test_clearing_all_tags_emits_empty_tuple(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_tag_selector.set_selected_ids(())
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (),
+    ]
+
+
+
+def test_invalid_tags_disable_save(qtbot):
+    """An unchanged tag selection cannot trigger a save."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_tag_selector.set_selected_ids((34, 12))
+    panel._update_save_button()
+
+    assert panel.remote_tag_selector.selected_ids() == (34, 12)
+    assert not panel.save_button.isEnabled()
+
+
+
+def test_content_only_change_preserves_existing_tags(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText("Updated content")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+    ]
+
+
+def test_failed_tag_aware_save_restores_both_editors(qtbot):
+    """A failed save restores content and tag-selection controls."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_tag_selector.set_selected_ids((12, 56))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+    panel.save_button.click()
+
+    assert not panel.content_editor.isEnabled()
+    assert not panel.remote_tag_selector.tags_list.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+    panel.restore_editing()
+
+    assert panel.content_editor.isEnabled()
+    assert panel.remote_tag_selector.tags_list.isEnabled()
+    assert panel.remote_tag_selector.selected_ids() == (12, 56)
+    assert panel.save_button.isEnabled()
+
+
+
+def test_successful_remote_post_update_refreshes_posts():
+    """A completed successful update reloads remote posts."""
+    page = Mock()
+    account = Mock()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_posts_generation = 1
+    page._remote_post_updating_generation = 1
+    page._remote_post_updating_account = account
+    page._loaded_remote_posts_account = account
+    page._remote_post_update_succeeded = True
+
+    PostsPage._on_remote_post_update_finished(page)
+
+    assert page._remote_post_updating_generation is None
+    assert page._remote_post_updating_account is None
+    assert page._remote_post_update_succeeded is False
+
+    page.remote_posts_panel.status_label.setText.assert_called_once_with(
+        "WordPress post updated successfully."
+    )
+    page._refresh_remote_posts.assert_called_once_with()
+    page.remote_posts_panel.restore_editing.assert_not_called()
+
+
+def test_failed_remote_post_update_restores_editing():
+    """A failed update keeps the remote post editable."""
+    page = Mock()
+    account = Mock()
+
+    page._remote_post_updating_shutting_down = False
+    page._remote_posts_generation = 1
+    page._remote_post_updating_generation = 1
+    page._remote_post_updating_account = account
+    page._loaded_remote_posts_account = account
+    page._remote_post_update_succeeded = False
+
+    PostsPage._on_remote_post_update_finished(page)
+
+    assert page._remote_post_updating_generation is None
+    assert page._remote_post_updating_account is None
+    assert page._remote_post_update_succeeded is False
+
+    page._refresh_remote_posts.assert_not_called()
+    page.remote_posts_panel.restore_editing.assert_called_once_with()
+
+
+def test_checking_remote_tag_enables_save(qtbot):
+    """Checking a tag enables saving and preserves WordPress IDs."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12,),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.save_button.isEnabled()
+
+    item = panel.remote_tag_selector.tags_list.item(1)
+    item.setCheckState(Qt.CheckState.Checked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12, 34),
+    ]
+
+
+def test_unchecking_remote_tag_enables_save(qtbot):
+    """Unchecking a tag removes its WordPress ID from the save."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    item = panel.remote_tag_selector.tags_list.item(1)
+    item.setCheckState(Qt.CheckState.Unchecked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12,)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12,),
+    ]
+
+
+def test_unchecking_all_remote_tags_emits_empty_tuple(qtbot):
+    """Removing every selected tag submits an empty tuple."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    for index in range(panel.remote_tag_selector.tags_list.count()):
+        panel.remote_tag_selector.tags_list.item(index).setCheckState(
+            Qt.CheckState.Unchecked
+        )
+
+    assert panel.remote_tag_selector.selected_ids() == ()
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (),
+    ]
+
+
+def test_restoring_original_tag_selection_disables_save(qtbot):
+    """Reversing a tag change disables Save when content is unchanged."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="News"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12,),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    item = panel.remote_tag_selector.tags_list.item(1)
+
+    item.setCheckState(Qt.CheckState.Checked)
+    assert panel.save_button.isEnabled()
+
+    item.setCheckState(Qt.CheckState.Unchecked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12,)
+    assert not panel.save_button.isEnabled()
+
+
+def test_unknown_existing_tag_can_be_removed(qtbot):
+    """A tag missing from the WordPress catalog can still be removed."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+    ))
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 99),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    unknown_item = panel.remote_tag_selector.tags_list.item(1)
+
+    assert unknown_item.text() == (
+        "Unknown WordPress tag (ID 99)"
+    )
+
+    unknown_item.setCheckState(Qt.CheckState.Unchecked)
+
+    assert panel.remote_tag_selector.selected_ids() == (12,)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12,),
+    ]
+
+
+def test_late_remote_tag_loading_preserves_selected_ids(qtbot):
+    """Loading tag names later preserves the post's assigned IDs."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.remote_tag_selector.selected_ids() == (12, 34)
+    assert not panel.save_button.isEnabled()
+
+    panel.set_available_remote_tags((
+        RemoteTag(remote_id=12, name="Python"),
+        RemoteTag(remote_id=34, name="Tutorials"),
+        RemoteTag(remote_id=56, name="News"),
+    ))
+
+    selector = panel.remote_tag_selector
+
+    assert selector.selected_ids() == (12, 34)
+    assert selector.tags_list.count() == 3
+
+    assert selector.tags_list.item(0).text() == "Python"
+    assert selector.tags_list.item(1).text() == "Tutorials"
+    assert selector.tags_list.item(2).text() == "News"
+
+    assert selector.tags_list.item(0).checkState() == (
+        Qt.CheckState.Checked
+    )
+    assert selector.tags_list.item(1).checkState() == (
+        Qt.CheckState.Checked
+    )
+    assert selector.tags_list.item(2).checkState() == (
+        Qt.CheckState.Unchecked
+    )
+
+    assert not panel.save_button.isEnabled()
+
+
+def test_missing_tag_catalog_preserves_editable_existing_tags(qtbot):
+    """Unavailable tag names do not prevent editing existing IDs."""
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.set_available_remote_tags(())
+
+    selector = panel.remote_tag_selector
+
+    assert selector.selected_ids() == (12, 34)
+    assert selector.tags_list.isEnabled()
+    assert selector.tags_list.count() == 2
+    assert selector.tags_list.item(0).text() == (
+        "Unknown WordPress tag (ID 12)"
+    )
+    assert selector.tags_list.item(1).text() == (
+        "Unknown WordPress tag (ID 34)"
+    )
+
+    selector.tags_list.item(1).setCheckState(
+        Qt.CheckState.Unchecked
+    )
+
+    assert selector.selected_ids() == (12,)
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        (12,),
+    ]
+
+def test_save_locks_remote_post_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+    assert not panel.content_editor.isEnabled()
+
+
+def test_failed_save_restores_selection_and_unsaved_content(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.restore_editing()
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+    assert panel.content_editor.isEnabled()
+    assert panel.content_editor.toPlainText() == "Unsaved changes"
+    assert panel.save_button.isEnabled()
+
+
+def test_failed_save_allows_selecting_another_post(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456", content="Second post"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.restore_editing()
+    panel.posts_list.setCurrentRow(1)
+
+    assert panel.posts_list.currentRow() == 1
+    assert panel.content_editor.toPlainText() == "Second post"
+    assert not panel.save_button.isEnabled()
+
+def test_status_save_locks_post_selection_and_restores_on_failure(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_status_selector.setCurrentIndex(
+        panel.post_status_selector.findData("draft")
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        "draft",
+    ]
+    assert not panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+
+    panel.restore_editing()
+
+    assert panel.posts_list.isEnabled()
+    assert panel.post_status_selector.isEnabled()
+    assert panel.post_status_selector.currentData() == "draft"
+    assert panel.save_button.isEnabled()
+
+def test_featured_image_save_locks_selection_and_restores_on_failure(
+    qtbot,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(789)
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        789,
+    ]
+    assert not panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == 0
+
+    panel.restore_editing()
+
+    assert panel.posts_list.isEnabled()
+    assert panel.featured_media_checkbox.isEnabled()
+    assert panel.featured_media_input.isEnabled()
+    assert panel.featured_media_input.value() == 789
+    assert panel.save_button.isEnabled()
+
+def test_successful_refresh_resets_locked_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_loading()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.currentRow() == -1
+    assert not panel.save_button.isEnabled()
+
+    panel.show_posts((
+        make_post(remote_id="123", content="Updated content"),
+        make_post(remote_id="456"),
+    ))
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.count() == 2
+    assert panel.posts_list.currentRow() == -1
+    assert not panel.save_button.isEnabled()
+
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.toPlainText() == "Updated content"
+    assert not panel.save_button.isEnabled()
+
+def test_account_switch_clears_locked_remote_post_selection(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    # The account-switch path clears the previous account's posts.
+    panel.show_empty()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.posts_list.isEnabled()
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+def test_new_account_posts_are_selectable_after_locked_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123", content="First account post"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved first account changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_loading()
+    panel.show_posts((
+        make_post(remote_id="456", content="Second account post"),
+    ))
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.count() == 1
+    assert panel.posts_list.currentRow() == -1
+
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.toPlainText() == "Second account post"
+    assert panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+def test_loading_error_clears_locked_remote_post_editor(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_error("WordPress request failed")
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.posts_list.isEnabled()
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+    assert "WordPress request failed" in panel.status_label.text()
+
+def test_remote_post_editor_recovers_after_loading_error(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_error("Temporary WordPress failure")
+
+    panel.show_loading()
+    panel.show_posts((
+        make_post(remote_id="456", content="Recovered post"),
+    ))
+
+    assert panel.posts_list.isEnabled()
+    assert panel.posts_list.count() == 1
+
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.content_editor.isEnabled()
+    assert panel.content_editor.toPlainText() == "Recovered post"
+    assert not panel.save_button.isEnabled()
+
+    panel.content_editor.setPlainText("Edited recovered post")
+
+    assert panel.save_button.isEnabled()
+
+def test_clearing_account_discards_unsaved_status_change(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    draft_index = panel.post_status_selector.findData("draft")
+    assert draft_index >= 0
+
+    panel.post_status_selector.setCurrentIndex(draft_index)
+    assert panel.save_button.isEnabled()
+
+    panel.show_empty()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.isEnabled()
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+    panel.show_posts((
+        make_post(remote_id="456"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.post_status_selector.currentData() == "publish"
+    assert not panel.save_button.isEnabled()
+
+def test_late_save_failure_does_not_restore_cleared_account(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Unsaved changes")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    assert not panel.posts_list.isEnabled()
+
+    panel.show_empty()
+
+    # Simulate a delayed failure callback from the previous save.
+    panel.restore_editing()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+def test_late_save_failure_does_not_restore_editor_during_loading(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.show_loading()
+
+    # A delayed save failure must not restore the old post.
+    panel.restore_editing()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.save_button.isEnabled()
+    assert panel.status_label.text() == "Loading WordPress posts..."
+
+
+def test_late_save_failure_does_not_restore_editor_after_load_error(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(remote_id="123"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(panel.save_requested, timeout=1000):
+        panel.save_button.click()
+
+    panel.show_error("WordPress connection failed")
+
+    # Simulate a delayed failure callback from the previous save.
+    panel.restore_editing()
+
+    assert panel.posts_list.count() == 0
+    assert panel.posts_list.currentRow() == -1
+    assert panel.content_editor.toPlainText() == ""
+    assert not panel.content_editor.isEnabled()
+    assert not panel.post_status_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+    assert "WordPress connection failed" in panel.status_label.text()
+
+
+
+def make_post_with_featured_image(
+    remote_id="123",
+    featured_media_id=456,
+    tag_ids=(12, 34),
+):
+    return RemotePost(
+        remote_id=remote_id,
+        destination=PublishingDestination.WORDPRESS,
+        content="Original content čćžšđ",
+        published_at=datetime(
+            2026, 10, 15, tzinfo=timezone.utc
+        ),
+        status="publish",
+        tag_ids=tag_ids,
+        featured_media_id=featured_media_id,
+    )
+
+
+def test_existing_featured_image_loads_without_enabling_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.featured_media_checkbox.isChecked()
+    assert not panel.featured_media_input.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    ("new_media_id", "description"),
+    [
+        (789, "replace"),
+        (0, "remove"),
+    ],
+)
+def test_featured_image_change_emits_correct_media_id(
+    qtbot,
+    new_media_id,
+    description,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(new_media_id)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_media_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content čćžšđ",
+        None,
+        new_media_id,
+    ]
+
+
+def test_unchanged_featured_image_cannot_be_saved(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.save_button.isEnabled()
+
+
+def test_reverting_featured_image_change_disables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.featured_media_checkbox.setChecked(True)
+    panel.featured_media_input.setValue(789)
+
+    assert panel.save_button.isEnabled()
+
+    panel.featured_media_input.setValue(456)
+
+    assert not panel.save_button.isEnabled()
+
+
+def test_browsed_media_selection_enables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.apply_selected_media(789)
+
+    assert panel.featured_media_checkbox.isChecked()
+    assert panel.featured_media_input.value() == 789
+    assert panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "invalid_media_id",
+    [-1, 0, True, False, 1.5, "789", None],
+)
+def test_browsed_media_rejects_invalid_ids(
+    qtbot,
+    invalid_media_id,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((make_post_with_featured_image(),))
+    panel.posts_list.setCurrentRow(0)
+
+    with pytest.raises(
+        ValueError,
+        match="positive integer",
+    ):
+        panel.apply_selected_media(invalid_media_id)
+
+    assert panel.featured_media_input.value() == 456
+    assert not panel.featured_media_checkbox.isChecked()
+    assert not panel.save_button.isEnabled()
+
+
+
+def test_selecting_post_loads_excerpt(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = make_post()
+    post = replace(
+        post,
+        excerpt="Postojeći sažetak čćžšđ",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.excerpt_editor.isEnabled()
+    assert (
+        panel.excerpt_editor.toPlainText()
+        == "Postojeći sažetak čćžšđ"
+    )
+    assert not panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "updated_excerpt",
+    [
+        "",
+        "Novi sažetak čćžšđ",
+    ],
+)
+def test_excerpt_change_emits_excerpt_save_signal(
+    qtbot,
+    updated_excerpt,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText(updated_excerpt)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        updated_excerpt,
+    ]
+
+
+
+@pytest.mark.parametrize(
+    "updated_excerpt",
+    [
+        "",
+        "Novi sažetak čćžšđ",
+    ],
+    ids=["clear-excerpt", "replace-excerpt"],
+)
+def test_excerpt_only_save_preserves_other_fields(
+    qtbot,
+    updated_excerpt,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText(updated_excerpt)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        updated_excerpt,
+    ]
+
+    assert not panel.excerpt_editor.isEnabled()
+    assert not panel.posts_list.isEnabled()
+
+
+def test_reverting_excerpt_disables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText("Changed excerpt")
+    assert panel.save_button.isEnabled()
+
+    panel.excerpt_editor.setPlainText("Original excerpt")
+    assert not panel.save_button.isEnabled()
+
+
+def test_failed_excerpt_save_restores_unsaved_excerpt(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.excerpt_editor.setPlainText("Unsaved čćžšđ")
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ):
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    panel.restore_editing()
+
+    assert panel.excerpt_editor.isEnabled()
+    assert panel.excerpt_editor.toPlainText() == "Unsaved čćžšđ"
+    assert panel.save_button.isEnabled()
+    assert panel.posts_list.isEnabled()
+
+
+def test_unchanged_excerpt_uses_existing_content_save_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        excerpt="Keep this excerpt",
+    )
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+    ]
+
+
+
+def test_selecting_post_loads_title_without_enabling_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        title="Original title čćžšđ",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.post_title_editor.isEnabled()
+    assert (
+        panel.post_title_editor.toPlainText()
+        == "Original title čćžšđ"
+    )
+    assert not panel.save_button.isEnabled()
+
+
+def test_title_only_change_emits_title_save_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    original_html = (
+        '<p>Hello <strong>WordPress</strong>!</p>'
+        '<p><a href="https://example.com">Read more</a></p>'
+    )
+
+    post = replace(
+        make_post(content=original_html),
+        title="Original title",
+        excerpt="Original excerpt",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText(
+        "Novi naslov čćžšđ"
+    )
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        original_html,
+        None,
+        None,
+        None,
+        None,
+        "Novi naslov čćžšđ",
+    ]
+
+    assert not panel.post_title_editor.isEnabled()
+    assert not panel.posts_list.isEnabled()
+
+
+def test_title_and_excerpt_change_emit_combined_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+        excerpt="Original excerpt",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Updated title")
+    panel.excerpt_editor.setPlainText("Updated excerpt")
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        "Updated excerpt",
+        "Updated title",
+    ]
+
+
+def test_reverting_title_disables_save(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Changed title")
+    assert panel.save_button.isEnabled()
+
+    panel.post_title_editor.setPlainText("Original title")
+    assert not panel.save_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    "invalid_title",
+    ["", "   ", "\n\t"],
+)
+def test_empty_title_change_cannot_be_saved(
+    qtbot,
+    invalid_title,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText(invalid_title)
+
+    assert not panel.save_button.isEnabled()
+
+
+def test_failed_title_save_restores_unsaved_title(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText(
+        "Unsaved title čćžšđ"
+    )
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ):
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    panel.restore_editing()
+
+    assert panel.post_title_editor.isEnabled()
+    assert (
+        panel.post_title_editor.toPlainText()
+        == "Unsaved title čćžšđ"
+    )
+    assert panel.save_button.isEnabled()
+    assert panel.posts_list.isEnabled()
+
+
+def test_unchanged_title_uses_existing_content_signal(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+    panel.show()
+
+    post = replace(
+        make_post(),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.content_editor.setPlainText("Updated content")
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        qtbot.mouseClick(
+            panel.save_button,
+            Qt.MouseButton.LeftButton,
+        )
+
+    assert signal.args == [
+        "123",
+        "Updated content",
+    ]
+
+
+def test_tag_only_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        '<p>Original <strong>formatted</strong> content.</p>'
+        '<ul><li>First item</li><li>Second item</li></ul>'
+    )
+
+    post = replace(
+        make_post(content=original_html),
+        tag_ids=(12, 34),
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_tag_selector.set_selected_ids((12, 56))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_tags_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        original_html,
+        (12, 56),
+    ]
+
+
+def test_status_only_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        '<h2>WordPress heading</h2>'
+        '<p>Some <em>formatted</em> content.</p>'
+    )
+
+    panel.show_posts((
+        make_post(content=original_html),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    draft_index = panel.post_status_selector.findData("draft")
+    assert draft_index >= 0
+
+    panel.post_status_selector.setCurrentIndex(draft_index)
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_status_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        original_html,
+        None,
+        None,
+        "draft",
+    ]
+
+
+def test_html_content_displays_without_visible_tags(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        "<h2>Welcome</h2>"
+        "<p>Hello <strong>WordPress</strong>!</p>"
+    )
+
+    panel.show_posts((make_post(content=original_html),))
+    panel.posts_list.setCurrentRow(0)
+
+    visible_text = panel.content_editor.toPlainText()
+
+    assert "Welcome" in visible_text
+    assert "Hello WordPress!" in visible_text
+    assert "<h2>" not in visible_text
+    assert "<strong>" not in visible_text
+    assert panel.content_editor.isReadOnly()
+    assert not panel.save_button.isEnabled()
+
+
+def test_html_post_title_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_html = (
+        '<p>Hello <a href="https://example.com">'
+        "WordPress</a>!</p>"
+    )
+
+    post = replace(
+        make_post(content=original_html),
+        title="Original title",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Updated title")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        original_html,
+        None,
+        None,
+        None,
+        None,
+        "Updated title",
+    ]
+
+
+def test_plain_text_content_remains_editable(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(content="Original plain text"),
+    ))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.content_editor.isReadOnly()
+
+    panel.content_editor.setPlainText("Updated plain text")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Updated plain text",
+    ]
+
+
+def test_html_excerpt_displays_without_tags(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        excerpt="<p>Hello <strong>WordPress</strong>!</p>",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert panel.excerpt_editor.toPlainText().strip() == (
+        "Hello WordPress!"
+    )
+    assert panel.excerpt_editor.isReadOnly()
+    assert not panel.save_button.isEnabled()
+
+
+def test_html_excerpt_title_change_preserves_original_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    original_excerpt = (
+        '<p>Read <a href="https://example.com">'
+        "the full article</a>.</p>"
+    )
+
+    post = replace(
+        make_post(),
+        title="Original title",
+        excerpt=original_excerpt,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.post_title_editor.setPlainText("Updated title")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_title_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        None,
+        "Updated title",
+    ]
+
+
+def test_plain_text_excerpt_remains_editable(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(),
+        excerpt="Original excerpt",
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.excerpt_editor.isReadOnly()
+
+    panel.excerpt_editor.setPlainText("Updated excerpt")
+
+    assert panel.save_button.isEnabled()
+
+    with qtbot.waitSignal(
+        panel.save_with_excerpt_requested,
+        timeout=1000,
+    ) as signal:
+        panel.save_button.click()
+
+    assert signal.args == [
+        "123",
+        "Original content",
+        None,
+        None,
+        None,
+        "Updated excerpt",
+    ]
+
+
+def test_switching_posts_resets_excerpt_read_only_state(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    html_post = replace(
+        make_post(remote_id="123"),
+        excerpt="<p>Formatted excerpt</p>",
+    )
+    plain_post = replace(
+        make_post(remote_id="456"),
+        excerpt="Plain excerpt",
+    )
+
+    panel.show_posts((html_post, plain_post))
+
+    panel.posts_list.setCurrentRow(0)
+    assert panel.excerpt_editor.isReadOnly()
+
+    panel.posts_list.setCurrentRow(1)
+
+    assert not panel.excerpt_editor.isReadOnly()
+    assert panel.excerpt_editor.toPlainText() == "Plain excerpt"
+    assert not panel.save_button.isEnabled()
+
+
+def test_remote_posts_list_displays_title_instead_of_html(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(
+        make_post(
+            content="<p>Private HTML content</p>"
+        ),
+        title="My WordPress article",
+    )
+
+    panel.show_posts((post,))
+
+    label = panel.posts_list.item(0).text()
+
+    assert "My WordPress article" in label
+    assert "Private HTML content" not in label
+    assert "<p>" not in label
+    assert "publish" in label
+
+
+def test_remote_posts_list_uses_untitled_fallback(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    panel.show_posts((
+        make_post(content="<p>Some content</p>"),
+    ))
+
+    assert "(Untitled)" in panel.posts_list.item(0).text()
+
+
+def test_remote_posts_list_selection_uses_original_post(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    first = replace(
+        make_post(remote_id="123"),
+        title="A very long WordPress title " * 10,
+    )
+    second = replace(
+        make_post(remote_id="456"),
+        title="Second article",
+    )
+
+    panel.show_posts((first, second))
+    panel.posts_list.setCurrentRow(1)
+
+    assert panel.post_title_editor.toPlainText() == "Second article"
+    assert panel.content_editor.toPlainText() == "Original content"
+    assert not panel.save_button.isEnabled()
+
+
+
+@pytest.mark.parametrize(
+    "original_categories, updated_categories, expected",
+    [
+        ((10,), (20,), (20,)),
+        ((10, 20), (), ()),
+        ((10, 20), (20, 10), None),
+    ],
+)
+def test_category_save_emits_only_actual_changes(
+    qtbot,
+    original_categories,
+    updated_categories,
+    expected,
+):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = RemotePost(
+        remote_id="123",
+        destination=PublishingDestination.WORDPRESS,
+        content="Example content",
+        published_at=datetime(2026, 10, 31, 12, 0),
+        status="publish",
+        category_ids=original_categories,
+    )
+
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.remote_category_selector.setEnabled(True)
+
+    receiver = Mock()
+    panel.save_with_categories_requested.connect(receiver)
+
+    panel.remote_category_selector.set_selected_ids(
+        updated_categories
+    )
+    panel._update_save_button()
+    panel._request_save()
+
+    if expected is None:
+        receiver.assert_not_called()
+    else:
+        receiver.assert_called_once()
+        assert receiver.call_args.args[-1] == expected
+
+
+
+
+def test_category_editor_remains_disabled_by_default(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert panel.remote_category_selector.selected_ids() == (10,)
+
+
+def test_category_editor_can_be_enabled_explicitly(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+
+    panel.set_remote_categories_editable(True)
+
+    assert panel.remote_category_selector.isEnabled()
+    assert not panel.save_button.isEnabled()
+
+    panel.remote_category_selector.set_selected_ids((20,))
+    panel._update_save_button()
+
+    assert panel.save_button.isEnabled()
+
+
+def test_category_save_locks_and_failed_save_restores(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+    panel.set_remote_categories_editable(True)
+
+    panel.remote_category_selector.set_selected_ids((20,))
+    panel._update_save_button()
+
+    with qtbot.waitSignal(
+        panel.save_with_categories_requested,
+        timeout=1000,
+    ):
+        panel.save_button.click()
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert not panel.posts_list.isEnabled()
+
+    panel.restore_editing()
+
+    assert panel.remote_category_selector.isEnabled()
+    assert panel.remote_category_selector.selected_ids() == (20,)
+    assert panel.save_button.isEnabled()
+
+
+def test_category_editing_is_revoked_on_account_change(qtbot):
+    panel = RemotePostsPanel()
+    qtbot.addWidget(panel)
+
+    post = replace(make_post(), category_ids=(10,))
+    panel.show_posts((post,))
+    panel.posts_list.setCurrentRow(0)
+    panel.set_remote_categories_editable(True)
+
+    panel.set_remote_categories_editable(False)
+    panel.show_empty()
+
+    assert not panel.remote_category_selector.isEnabled()
+    assert panel.remote_category_selector.selected_ids() == ()
+    assert not panel.save_button.isEnabled()

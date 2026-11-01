@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from socialflow.domain.post.tag import Tag
+from socialflow.modules.posts.models.tag import Tag
 from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
 from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,

@@ -20,7 +20,7 @@ from socialflow.modules.accounts.views.account_form import AccountForm
 from socialflow.modules.accounts.views.account_list import AccountList
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.modules.accounts.views.account_status import AccountStatus
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
 from socialflow.modules.accounts.services.update_account import UpdateAccount
 from socialflow.application.credentials.save_wordpress_credentials import (

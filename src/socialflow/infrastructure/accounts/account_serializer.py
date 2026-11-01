@@ -7,7 +7,7 @@ from socialflow.modules.accounts.models.account_id import AccountId
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 
 
 class AccountSerializer:

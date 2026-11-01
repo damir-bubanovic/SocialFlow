@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from socialflow.application.images.image_validator import ImageValidator
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 
 def test_image_validator_accepts_readable_image(

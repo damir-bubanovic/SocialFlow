@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from PIL import Image
 
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 
 @dataclass(frozen=True, slots=True)

@@ -8,7 +8,7 @@ from socialflow.modules.accounts.services.errors import (
 )
 from socialflow.modules.accounts.services.update_account import UpdateAccount
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from socialflow.application.images.image_processor import ImageProcessor
 from socialflow.application.images.image_profile import ImageProfile
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 
 class DestinationImageProcessor:

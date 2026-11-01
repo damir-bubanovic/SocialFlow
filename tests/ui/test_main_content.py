@@ -6,9 +6,9 @@ from PySide6.QtWidgets import QStackedWidget, QWidget
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
-from socialflow.ui.posts.posts_page import PostsPage
+from socialflow.modules.posts.views.posts_page import PostsPage
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,
 )
@@ -26,7 +26,7 @@ from socialflow.infrastructure.wordpress.wordpress_publisher import (
 from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
-from socialflow.application.publishing.trash_remote_post import (
+from socialflow.modules.posts.services.trash_remote_post import (
     TrashRemotePost,
 )
 from socialflow.infrastructure.wordpress.wordpress_post_trasher import (

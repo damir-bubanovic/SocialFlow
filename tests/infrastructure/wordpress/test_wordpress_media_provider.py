@@ -2,15 +2,15 @@ from unittest.mock import Mock
 
 import pytest
 
-from socialflow.application.publishing.remote_media_provider import (
+from socialflow.modules.posts.services.remote_media_provider import (
     RemoteMediaProvider,
 )
 from socialflow.modules.accounts.models.account import Account
 from socialflow.domain.connections.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
-from socialflow.domain.post.remote_media import RemoteMedia
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.remote_media import RemoteMedia
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (

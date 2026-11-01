@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from socialflow.domain.post.tag import Tag
+from socialflow.modules.posts.models.tag import Tag
 
 
 @dataclass(frozen=True, slots=True)

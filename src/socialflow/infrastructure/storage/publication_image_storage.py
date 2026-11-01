@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 
 class PublicationImageStorage:

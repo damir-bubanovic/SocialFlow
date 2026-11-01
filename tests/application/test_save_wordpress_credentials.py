@@ -8,7 +8,7 @@ from socialflow.application.credentials.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import (

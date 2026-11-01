@@ -1,0 +1,281 @@
+from datetime import datetime
+from uuid import UUID
+
+from PySide6.QtCore import Qt
+
+from socialflow.modules.accounts.models.account import Account
+from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.post import Post
+from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.modules.posts.models.publication import Publication
+from socialflow.modules.posts.models.publication_id import PublicationId
+from socialflow.modules.posts.components.recent_posts_list import RecentPostsList
+
+
+def create_publication(
+    account_name: str,
+    text: str,
+    publication_id: UUID | None = None,
+) -> Publication:
+    """Create a publication for RecentPostsList tests."""
+    return Publication(
+        id=PublicationId(
+            publication_id
+            or UUID("12345678-1234-5678-1234-567812345678")
+        ),
+        account=Account(
+            name=account_name,
+            destination=PublishingDestination.FACEBOOK,
+        ),
+        post=Post(
+            text=text,
+            language=Language.ENGLISH,
+        ),
+        published_at=datetime(2026, 10, 5, 21, 0),
+    )
+
+
+def test_recent_posts_list_starts_empty(qtbot) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    assert recent_posts.count() == 0
+
+
+def test_recent_posts_list_displays_publications(qtbot) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    publications = (
+        create_publication(
+            "Main Facebook",
+            "First post",
+            UUID("11111111-1111-1111-1111-111111111111"),
+        ),
+        create_publication(
+            "Second Facebook",
+            "Second post",
+            UUID("22222222-2222-2222-2222-222222222222"),
+        ),
+    )
+
+    recent_posts.set_publications(publications)
+
+    assert recent_posts.count() == 2
+    assert (
+        recent_posts.item(0).text()
+        == (
+            "05 Oct 2026 21:00 · Facebook\n"
+            "Main Facebook — First post"
+        )
+    )
+    assert (
+        recent_posts.item(1).text()
+        == (
+            "05 Oct 2026 21:00 · Facebook\n"
+            "Second Facebook — Second post"
+        )
+    )
+
+
+def test_recent_posts_list_replaces_existing_publications(
+    qtbot,
+) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    recent_posts.set_publications(
+        (
+            create_publication(
+                "Main Facebook",
+                "Old post",
+                UUID("11111111-1111-1111-1111-111111111111"),
+            ),
+        )
+    )
+
+    recent_posts.set_publications(
+        (
+            create_publication(
+                "Main Facebook",
+                "New post",
+                UUID("22222222-2222-2222-2222-222222222222"),
+            ),
+        )
+    )
+
+    assert recent_posts.count() == 1
+    assert (
+        recent_posts.item(0).text()
+        == (
+            "05 Oct 2026 21:00 · Facebook\n"
+            "Main Facebook — New post"
+        )
+    )
+
+
+def test_recent_posts_list_has_no_selected_publication_initially(
+    qtbot,
+) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    recent_posts.set_publications(
+        (
+            create_publication(
+                "Main Facebook",
+                "First post",
+            ),
+        )
+    )
+
+    assert recent_posts.selected_publication() is None
+
+
+def test_recent_posts_list_returns_selected_publication(
+    qtbot,
+) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    first = create_publication(
+        "Main Facebook",
+        "First post",
+        UUID("11111111-1111-1111-1111-111111111111"),
+    )
+    second = create_publication(
+        "Second Facebook",
+        "Second post",
+        UUID("22222222-2222-2222-2222-222222222222"),
+    )
+
+    recent_posts.set_publications(
+        (
+            first,
+            second,
+        )
+    )
+
+    recent_posts.setCurrentRow(1)
+
+    assert recent_posts.selected_publication() == second
+
+
+def test_recent_posts_list_clears_selected_publication_when_replaced(
+    qtbot,
+) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    publication = create_publication(
+        "Main Facebook",
+        "First post",
+    )
+
+    recent_posts.set_publications(
+        (
+            publication,
+        )
+    )
+    recent_posts.setCurrentRow(0)
+
+    assert recent_posts.selected_publication() == publication
+
+    recent_posts.set_publications(())
+
+    assert recent_posts.selected_publication() is None
+
+
+
+def test_recent_posts_list_shortens_long_text(qtbot) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    publication = create_publication(
+        "Main Facebook",
+        "Very long content " * 30,
+    )
+
+    recent_posts.set_publications((publication,))
+
+    label = recent_posts.item(0).text()
+    preview = label.split("\n", 1)[1].split(" — ", 1)[1]
+
+    assert len(preview) <= 80
+    assert preview.endswith("…")
+    assert "Very long content" in preview
+
+
+def test_recent_posts_list_normalizes_whitespace(qtbot) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    publication = create_publication(
+        "Main Facebook",
+        "First line\n\nSecond line\tThird line",
+    )
+
+    recent_posts.set_publications((publication,))
+
+    label = recent_posts.item(0).text()
+
+    assert "First line Second line Third line" in label
+    assert label.count("\n") == 1
+
+
+def test_recent_posts_list_uses_empty_text_fallback(qtbot) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    publication = create_publication(
+        "Main Facebook",
+        "   \n  ",
+    )
+
+    recent_posts.set_publications((publication,))
+
+    assert "(No text)" in recent_posts.item(0).text()
+
+
+def test_recent_posts_list_selection_preserves_full_publication(
+    qtbot,
+) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    first = create_publication(
+        "Main Facebook",
+        "First publication " * 30,
+        UUID("11111111-1111-1111-1111-111111111111"),
+    )
+
+    second = create_publication(
+        "Second Facebook",
+        "Second publication " * 30,
+        UUID("22222222-2222-2222-2222-222222222222"),
+    )
+
+    recent_posts.set_publications((first, second))
+    recent_posts.setCurrentRow(1)
+
+    selected = recent_posts.selected_publication()
+
+    assert selected is second
+    assert selected.post.text == "Second publication " * 30
+
+    # The visible preview is shortened, but the actual
+    # publication content must remain unchanged.
+    assert len(recent_posts.item(1).text()) < len(
+        selected.post.text
+    )
+
+
+def test_recent_posts_list_disables_horizontal_scrollbar(
+    qtbot,
+) -> None:
+    recent_posts = RecentPostsList()
+    qtbot.addWidget(recent_posts)
+
+    assert recent_posts.horizontalScrollBarPolicy() == (
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )

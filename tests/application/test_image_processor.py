@@ -6,7 +6,7 @@ from socialflow.application.images.image_processor import (
     ImageDimensions,
     ImageProcessor,
 )
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 
 def create_test_image(

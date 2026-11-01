@@ -16,30 +16,30 @@ from socialflow.application.images.image_preparation_service import (
 from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
-from socialflow.application.publishing.list_recent_publications import (
+from socialflow.modules.posts.services.list_recent_publications import (
     ListRecentPublications,
 )
-from socialflow.application.publishing.list_remote_posts import (
+from socialflow.modules.posts.services.list_remote_posts import (
     ListRemotePosts,
 )
-from socialflow.application.publishing.list_trashed_remote_posts import (
+from socialflow.modules.posts.services.list_trashed_remote_posts import (
     ListTrashedRemotePosts,
 )
-from socialflow.application.publishing.restore_remote_post import (
+from socialflow.modules.posts.services.restore_remote_post import (
     RestoreRemotePost,
 )
-from socialflow.ui.workers.wordpress_category_creation_controller import (
+from socialflow.modules.posts.controllers.wordpress_category_creation_controller import (
     WordPressCategoryCreationController,
 )
-from socialflow.application.publishing.publish_post import PublishPost
-from socialflow.application.publishing.publisher_router import PublisherRouter
-from socialflow.application.publishing.unconfigured_publisher import (
+from socialflow.modules.posts.services.publish_post import PublishPost
+from socialflow.modules.posts.services.publisher_router import PublisherRouter
+from socialflow.modules.posts.services.unconfigured_publisher import (
     UnconfiguredPublisher,
 )
-from socialflow.application.tags.create_tag import CreateTag
-from socialflow.application.tags.list_tags import ListTags
-from socialflow.application.tags.null_tag_provider import NullTagProvider
-from socialflow.application.tags.routing_tag_provider import (
+from socialflow.modules.posts.services.create_tag import CreateTag
+from socialflow.modules.posts.services.list_tags import ListTags
+from socialflow.modules.posts.services.null_tag_provider import NullTagProvider
+from socialflow.modules.posts.services.routing_tag_provider import (
     RoutingTagProvider,
 )
 from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
@@ -51,13 +51,13 @@ from socialflow.infrastructure.wordpress.wordpress_category_provider import (
 from socialflow.infrastructure.wordpress.urllib_wordpress_category_client import (
     UrllibWordPressCategoryClient,
 )
-from socialflow.application.categories.list_remote_categories import (
+from socialflow.modules.posts.services.list_remote_categories import (
     ListRemoteCategories,
 )
 from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
-from socialflow.domain.publishing.destination import (
+from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
 from socialflow.infrastructure.accounts.json_account_repository import (
@@ -80,7 +80,7 @@ from socialflow.infrastructure.wordpress.wordpress_connection_verifier_factory i
 )
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
-from socialflow.ui.posts.posts_page import PostsPage
+from socialflow.modules.posts.views.posts_page import PostsPage
 from socialflow.application.credentials.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
@@ -99,10 +99,10 @@ from socialflow.infrastructure.wordpress.wordpress_post_retriever import (
 from socialflow.infrastructure.wordpress.wordpress_post_provider import (
     WordPressPostProvider,
 )
-from socialflow.application.publishing.update_remote_post import (
+from socialflow.modules.posts.services.update_remote_post import (
     UpdateRemotePost,
 )
-from socialflow.application.publishing.trash_remote_post import (
+from socialflow.modules.posts.services.trash_remote_post import (
     TrashRemotePost,
 )
 from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
@@ -114,16 +114,16 @@ from socialflow.infrastructure.wordpress.wordpress_post_restorer import (
 from socialflow.infrastructure.wordpress.wordpress_post_updater import (
     WordPressPostUpdater,
 )
-from socialflow.ui.workers.wordpress_tag_preparation_controller import (
+from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller import (
     WordPressTagPreparationController,
 )
-from socialflow.ui.workers.wordpress_tag_creation_controller import (
+from socialflow.modules.posts.controllers.wordpress_tag_creation_controller import (
     WordPressTagCreationController,
 )
-from socialflow.application.tags.list_remote_tags import (
+from socialflow.modules.posts.services.list_remote_tags import (
     ListRemoteTags,
 )
-from socialflow.application.publishing.list_remote_media import (
+from socialflow.modules.posts.services.list_remote_media import (
     ListRemoteMedia,
 )
 from socialflow.infrastructure.wordpress.wordpress_media_provider import (

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
-from socialflow.domain.post.remote_category import RemoteCategory
+from socialflow.modules.posts.models.remote_category import RemoteCategory
 from socialflow.ui.dialogs.wordpress_category_dialog import (
     WordPressCategoryDialog,
 )

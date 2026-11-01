@@ -1,6 +1,6 @@
 from socialflow.application.images.image_processor import ImageDimensions
 from socialflow.application.images.image_profile import ImageProfile
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 
 
 DEFAULT_IMAGE_PROFILES: dict[PublishingDestination, ImageProfile] = {

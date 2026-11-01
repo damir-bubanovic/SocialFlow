@@ -3,7 +3,7 @@ import pytest
 
 from socialflow.infrastructure.accounts.errors import AccountStorageError
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.accounts.json_account_repository import (
     JsonAccountRepository,
 )

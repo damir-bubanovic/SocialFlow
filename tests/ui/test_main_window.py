@@ -18,7 +18,7 @@ def real_background_workers(qtbot):
     from socialflow.application.connections.connection_verifier import (
         ConnectionVerifier,
     )
-    from socialflow.application.publishing.publish_post import PublishPost
+    from socialflow.modules.posts.services.publish_post import PublishPost
     from socialflow.modules.accounts.models.account import Account
     from socialflow.domain.connections.connection_result import (
         ConnectionResult,
@@ -26,14 +26,14 @@ def real_background_workers(qtbot):
     from socialflow.domain.connections.connection_status import (
         ConnectionStatus,
     )
-    from socialflow.domain.publishing.destination import (
+    from socialflow.modules.posts.models.destination import (
         PublishingDestination,
     )
-    from socialflow.domain.publishing.publish_request import PublishRequest
+    from socialflow.modules.posts.models.publish_request import PublishRequest
     from socialflow.modules.accounts.controllers.wordpress_verification_controller import (
         WordPressVerificationController,
     )
-    from socialflow.ui.posts.publishing_controller import (
+    from socialflow.modules.posts.controllers.publishing_controller import (
         PublishingController,
     )
 
@@ -232,7 +232,7 @@ def test_main_window_closes_after_active_verification_finishes(
     from socialflow.domain.connections.connection_status import (
         ConnectionStatus,
     )
-    from socialflow.domain.publishing.destination import (
+    from socialflow.modules.posts.models.destination import (
         PublishingDestination,
     )
     from socialflow.modules.accounts.controllers.wordpress_verification_controller import (
@@ -347,9 +347,9 @@ def test_main_window_closes_after_active_publishing_finishes(
     from threading import Event
     from unittest.mock import Mock
 
-    from socialflow.application.publishing.publish_post import PublishPost
-    from socialflow.domain.publishing.publish_request import PublishRequest
-    from socialflow.ui.posts.publishing_controller import PublishingController
+    from socialflow.modules.posts.services.publish_post import PublishPost
+    from socialflow.modules.posts.models.publish_request import PublishRequest
+    from socialflow.modules.posts.controllers.publishing_controller import PublishingController
 
     window = MainWindow()
     qtbot.addWidget(window)
@@ -445,9 +445,9 @@ def test_main_window_closes_after_active_publishing_failure(
     from threading import Event
     from unittest.mock import Mock
 
-    from socialflow.application.publishing.publish_post import PublishPost
-    from socialflow.domain.publishing.publish_request import PublishRequest
-    from socialflow.ui.posts.publishing_controller import PublishingController
+    from socialflow.modules.posts.services.publish_post import PublishPost
+    from socialflow.modules.posts.models.publish_request import PublishRequest
+    from socialflow.modules.posts.controllers.publishing_controller import PublishingController
 
     window = MainWindow()
     qtbot.addWidget(window)

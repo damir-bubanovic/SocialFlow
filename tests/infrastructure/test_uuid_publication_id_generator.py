@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from socialflow.domain.publishing.publication_id import PublicationId
+from socialflow.modules.posts.models.publication_id import PublicationId
 from socialflow.infrastructure.publishing.uuid_publication_id_generator import (
     UuidPublicationIdGenerator,
 )

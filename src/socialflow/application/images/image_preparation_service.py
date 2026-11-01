@@ -10,8 +10,8 @@ from socialflow.application.images.image_profile_provider import (
     ImageProfileProvider,
 )
 from socialflow.application.images.prepared_image import PreparedImage
-from socialflow.domain.post.image_attachment import ImageAttachment
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.destination import PublishingDestination
 
 
 logger = logging.getLogger(__name__)

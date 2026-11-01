@@ -3,10 +3,10 @@ from html import escape
 from urllib.parse import urlsplit
 
 from socialflow.application.credentials.credential_store import CredentialStore
-from socialflow.application.publishing.prepared_post import PreparedPost
-from socialflow.application.publishing.publisher import Publisher
+from socialflow.modules.posts.services.prepared_post import PreparedPost
+from socialflow.modules.posts.services.publisher import Publisher
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
+from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.infrastructure.wordpress.wordpress_credential_keys import WordPressCredentialKeys
 from socialflow.infrastructure.wordpress.wordpress_post_client import WordPressPostClient
 from socialflow.infrastructure.wordpress.wordpress_tag_client import (

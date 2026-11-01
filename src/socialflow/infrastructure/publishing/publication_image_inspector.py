@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from socialflow.domain.publishing.publication import Publication
+from socialflow.modules.posts.models.publication import Publication
 
 
 class PublicationImageInspector:

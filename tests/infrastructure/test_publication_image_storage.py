@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch
 
-from socialflow.domain.post.image_attachment import ImageAttachment
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.infrastructure.storage.publication_image_storage import (
     PublicationImageStorage,
 )
