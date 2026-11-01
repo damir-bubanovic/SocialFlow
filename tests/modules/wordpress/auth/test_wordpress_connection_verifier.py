@@ -18,7 +18,7 @@ from socialflow.core.destination import (
 from socialflow.modules.wordpress.auth.wordpress_connection_verifier import (
     WordPressConnectionVerifier,
 )
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 from socialflow.modules.wordpress.api.wordpress_http_client import (

@@ -8,7 +8,7 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 )
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.core.destination import PublishingDestination
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag

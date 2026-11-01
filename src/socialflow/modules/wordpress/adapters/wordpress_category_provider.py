@@ -11,7 +11,7 @@ from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.api.wordpress_category_client import (
     WordPressCategoryClient,
 )
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 

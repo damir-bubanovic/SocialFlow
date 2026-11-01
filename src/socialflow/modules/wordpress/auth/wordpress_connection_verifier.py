@@ -20,7 +20,7 @@ from socialflow.modules.accounts.models.connection_result import (
 from socialflow.modules.accounts.models.connection_status import (
     ConnectionStatus,
 )
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 

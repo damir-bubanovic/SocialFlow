@@ -13,7 +13,7 @@ from socialflow.modules.posts.models.remote_media import RemoteMedia
 from socialflow.core.destination import (
     PublishingDestination,
 )
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 from socialflow.modules.wordpress.adapters.wordpress_media_provider import (

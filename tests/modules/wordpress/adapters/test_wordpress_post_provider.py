@@ -41,7 +41,7 @@ def test_retrieves_posts_using_stored_wordpress_credentials():
     from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
-    from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+    from socialflow.modules.accounts.services.wordpress_credential_keys import (
         WordPressCredentialKeys,
     )
 
@@ -186,7 +186,7 @@ def test_retrieves_trashed_posts_using_stored_credentials():
     from socialflow.modules.wordpress.models.wordpress_post import (
         WordPressPost,
     )
-    from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+    from socialflow.modules.accounts.services.wordpress_credential_keys import (
         WordPressCredentialKeys,
     )
 

@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
 from socialflow.core.destination import PublishingDestination
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 from socialflow.modules.wordpress.api.wordpress_tag_client import (

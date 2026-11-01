@@ -63,3 +63,15 @@ def test_shared_destination_has_one_canonical_definition() -> None:
         / "models"
         / "destination.py"
     ).exists()
+
+
+def test_accounts_does_not_depend_on_wordpress() -> None:
+    """Accounts must not import WordPress implementation modules."""
+    accounts_root = SOURCE_ROOT / "modules" / "accounts"
+
+    for path in accounts_root.rglob("*.py"):
+        for imported in _imports_from(path):
+            assert not (
+                imported == "socialflow.modules.wordpress"
+                or imported.startswith("socialflow.modules.wordpress.")
+            ), f"{path} imports WordPress module {imported}"

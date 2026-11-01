@@ -18,7 +18,7 @@ from socialflow.modules.wordpress.api.wordpress_category_client import (
 from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
     WordPressCategoryProvider,
 )
-from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
+from socialflow.modules.accounts.services.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
 
