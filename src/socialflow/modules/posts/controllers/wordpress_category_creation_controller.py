@@ -8,7 +8,7 @@ from PySide6.QtCore import (
 )
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.infrastructure.wordpress.wordpress_category_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
     WordPressCategoryProvider,
 )
 from socialflow.modules.posts.workers.wordpress_category_creation_worker import (

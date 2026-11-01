@@ -8,8 +8,8 @@ from socialflow.domain.connections.wordpress_connection_config import (
 )
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.modules.posts.models.destination import PublishingDestination
-from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
-from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
+from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
 from socialflow.modules.posts.controllers.wordpress_tag_creation_controller import (

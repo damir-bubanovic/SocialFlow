@@ -2,10 +2,10 @@ from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 
 from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
-from socialflow.infrastructure.wordpress.wordpress_tag_client import (
+from socialflow.modules.wordpress.api.wordpress_tag_client import (
     WordPressTagClient,
 )
-from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
 from socialflow.modules.posts.workers.wordpress_tag_creation_worker import (

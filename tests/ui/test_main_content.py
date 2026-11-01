@@ -15,21 +15,21 @@ from socialflow.infrastructure.accounts.json_account_repository import (
 from socialflow.infrastructure.publishing.json_publication_repository import (
     JsonPublicationRepository,
 )
-from socialflow.infrastructure.wordpress.wordpress_connection_verifier import (
+from socialflow.modules.wordpress.auth.wordpress_connection_verifier import (
     WordPressConnectionVerifier,
 )
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
-from socialflow.infrastructure.wordpress.wordpress_publisher import (
+from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
 from socialflow.modules.posts.services.trash_remote_post import (
     TrashRemotePost,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
+from socialflow.modules.wordpress.adapters.wordpress_post_trasher import (
     WordPressPostTrasher,
 )
 

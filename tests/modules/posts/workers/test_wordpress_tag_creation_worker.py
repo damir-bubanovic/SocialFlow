@@ -7,8 +7,8 @@ from socialflow.domain.connections.wordpress_connection_config import (
 )
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.modules.posts.models.destination import PublishingDestination
-from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
-from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
+from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
 from socialflow.modules.posts.workers.wordpress_tag_creation_worker import (
@@ -110,7 +110,7 @@ def test_worker_stops_after_first_failure():
     client.create_tag.assert_called_once()
 
 def test_retry_only_requires_tags_missing_after_partial_failure():
-    from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
+    from socialflow.modules.wordpress.adapters.wordpress_tag_resolver import (
         WordPressTagResolver,
     )
 
@@ -160,7 +160,7 @@ def test_retry_only_requires_tags_missing_after_partial_failure():
     assert retry_plan.tag_names == ("Linux",)
 
 def test_network_failure_recovery_uses_fresh_remote_tag_state():
-    from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
+    from socialflow.modules.wordpress.adapters.wordpress_tag_resolver import (
         WordPressTagResolver,
     )
 

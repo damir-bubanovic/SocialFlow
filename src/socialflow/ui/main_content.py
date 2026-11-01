@@ -42,19 +42,19 @@ from socialflow.modules.posts.services.null_tag_provider import NullTagProvider
 from socialflow.modules.posts.services.routing_tag_provider import (
     RoutingTagProvider,
 )
-from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_tag_provider import (
     WordPressTagProvider,
 )
-from socialflow.infrastructure.wordpress.wordpress_category_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
     WordPressCategoryProvider,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_category_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_category_client import (
     UrllibWordPressCategoryClient,
 )
 from socialflow.modules.posts.services.list_remote_categories import (
     ListRemoteCategories,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
 from socialflow.modules.posts.models.destination import (
@@ -75,7 +75,7 @@ from socialflow.infrastructure.publishing.uuid_publication_id_generator import (
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.infrastructure.time.system_clock import SystemClock
-from socialflow.infrastructure.wordpress.wordpress_connection_verifier_factory import (
+from socialflow.modules.wordpress.auth.wordpress_connection_verifier_factory import (
     WordPressConnectionVerifierFactory,
 )
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
@@ -84,19 +84,19 @@ from socialflow.modules.posts.views.posts_page import PostsPage
 from socialflow.application.credentials.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
-from socialflow.infrastructure.wordpress.wordpress_publisher import (
+from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_post_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_post_client import (
     UrllibWordPressPostClient,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_parser import (
+from socialflow.modules.wordpress.mappers.wordpress_post_parser import (
     WordPressPostParser,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_retriever import (
+from socialflow.modules.wordpress.adapters.wordpress_post_retriever import (
     WordPressPostRetriever,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_post_provider import (
     WordPressPostProvider,
 )
 from socialflow.modules.posts.services.update_remote_post import (
@@ -105,13 +105,13 @@ from socialflow.modules.posts.services.update_remote_post import (
 from socialflow.modules.posts.services.trash_remote_post import (
     TrashRemotePost,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
+from socialflow.modules.wordpress.adapters.wordpress_post_trasher import (
     WordPressPostTrasher,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_restorer import (
+from socialflow.modules.wordpress.adapters.wordpress_post_restorer import (
     WordPressPostRestorer,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_updater import (
+from socialflow.modules.wordpress.adapters.wordpress_post_updater import (
     WordPressPostUpdater,
 )
 from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller import (
@@ -126,7 +126,7 @@ from socialflow.modules.posts.services.list_remote_tags import (
 from socialflow.modules.posts.services.list_remote_media import (
     ListRemoteMedia,
 )
-from socialflow.infrastructure.wordpress.wordpress_media_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_media_provider import (
     WordPressMediaProvider,
 )
 from socialflow.application.credentials.get_wordpress_credentials import (

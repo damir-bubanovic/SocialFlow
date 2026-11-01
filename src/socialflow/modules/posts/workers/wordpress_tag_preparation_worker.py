@@ -4,13 +4,13 @@ from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.modules.posts.models.destination import PublishingDestination
-from socialflow.infrastructure.wordpress.wordpress_credential_keys import (
+from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
     WordPressCredentialKeys,
 )
-from socialflow.infrastructure.wordpress.wordpress_tag_client import (
+from socialflow.modules.wordpress.api.wordpress_tag_client import (
     WordPressTagClient,
 )
-from socialflow.infrastructure.wordpress.wordpress_tag_resolver import (
+from socialflow.modules.wordpress.adapters.wordpress_tag_resolver import (
     WordPressTagResolver,
 )
 

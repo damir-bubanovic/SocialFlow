@@ -6,7 +6,7 @@ from socialflow.domain.connections.wordpress_connection_config import (
 )
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.modules.posts.models.destination import PublishingDestination
-from socialflow.infrastructure.wordpress.wordpress_tag import WordPressTag
+from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
 from socialflow.modules.posts.workers.wordpress_tag_preparation_worker import (
     WordPressTagPreparationWorker,
 )

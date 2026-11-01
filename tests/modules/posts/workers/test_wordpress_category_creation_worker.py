@@ -2,7 +2,7 @@
 from unittest.mock import Mock
 
 from socialflow.modules.posts.models.remote_category import RemoteCategory
-from socialflow.infrastructure.wordpress.wordpress_category_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
     WordPressCategoryProvider,
 )
 from socialflow.modules.posts.workers.wordpress_category_creation_worker import (

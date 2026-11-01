@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
 from socialflow.ui.dialogs.wordpress_tag_confirmation_dialog import (

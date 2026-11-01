@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
 

@@ -68,7 +68,7 @@ from socialflow.modules.posts.controllers.remote_post_updating_controller import
 from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller import (
     WordPressTagPreparationController,
 )
-from socialflow.infrastructure.wordpress.wordpress_tag_creation_plan import (
+from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
 from socialflow.ui.dialogs.wordpress_tag_confirmation_dialog import (

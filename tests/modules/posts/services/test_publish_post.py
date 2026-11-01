@@ -1577,7 +1577,7 @@ def test_wordpress_tag_resolution_failure_preserves_other_publications() -> None
         WordPressConnectionConfig,
     )
     from socialflow.modules.posts.models.tag import Tag
-    from socialflow.infrastructure.wordpress.wordpress_publisher import (
+    from socialflow.modules.wordpress.adapters.wordpress_publisher import (
         WordPressPublisher,
     )
 
