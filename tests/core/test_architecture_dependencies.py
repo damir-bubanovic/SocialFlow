@@ -162,3 +162,25 @@ def test_posts_does_not_import_wordpress_modules() -> None:
             ), (
                 f"{source_file} imports WordPress module {imported}"
             )
+
+
+def test_wordpress_does_not_depend_on_posts_implementation() -> None:
+    """WordPress may use Posts contracts, but not its UI or orchestration."""
+    wordpress_root = SOURCE_ROOT / "modules" / "wordpress"
+
+    forbidden_prefixes = (
+        "socialflow.modules.posts.views",
+        "socialflow.modules.posts.components",
+        "socialflow.modules.posts.controllers",
+        "socialflow.modules.posts.workers",
+        "socialflow.modules.posts.repositories",
+    )
+
+    for source_file in wordpress_root.rglob("*.py"):
+        for imported in _imports_from(source_file):
+            assert not any(
+                imported == prefix or imported.startswith(prefix + ".")
+                for prefix in forbidden_prefixes
+            ), (
+                f"{source_file} imports Posts implementation {imported}"
+            )

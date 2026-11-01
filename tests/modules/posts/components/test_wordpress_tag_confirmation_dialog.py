@@ -1,8 +1,8 @@
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 from socialflow.modules.posts.components.wordpress_tag_confirmation_dialog import (
     WordPressTagConfirmationDialog,
@@ -10,7 +10,7 @@ from socialflow.modules.posts.components.wordpress_tag_confirmation_dialog impor
 
 
 def test_dialog_displays_missing_tags(qtbot):
-    plan = WordPressTagCreationPlan(
+    plan = RemoteTagCreationPlan(
         missing_tags=(
             Tag("Python"),
             Tag("SocialFlow"),
@@ -31,7 +31,7 @@ def test_dialog_displays_missing_tags(qtbot):
 
 
 def test_dialog_accepts_confirmation(qtbot):
-    plan = WordPressTagCreationPlan(
+    plan = RemoteTagCreationPlan(
         missing_tags=(Tag("Python"),),
     )
 
@@ -49,7 +49,7 @@ def test_dialog_accepts_confirmation(qtbot):
 
 
 def test_dialog_rejects_cancellation(qtbot):
-    plan = WordPressTagCreationPlan(
+    plan = RemoteTagCreationPlan(
         missing_tags=(Tag("Python"),),
     )
 

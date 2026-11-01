@@ -9,8 +9,8 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 from socialflow.modules.posts.controllers.wordpress_tag_creation_controller import (
     WordPressTagCreationController,
@@ -50,7 +50,7 @@ def make_controller():
         ),
     )
 
-    plan = WordPressTagCreationPlan(
+    plan = RemoteTagCreationPlan(
         missing_tags=(Tag("SocialFlow"),),
     )
 
@@ -115,7 +115,7 @@ def test_controller_can_start_again_after_completion(qtbot):
 def test_controller_rejects_empty_plan():
     controller, account, _, client = make_controller()
 
-    empty_plan = WordPressTagCreationPlan(missing_tags=())
+    empty_plan = RemoteTagCreationPlan(missing_tags=())
 
     with pytest.raises(ValueError):
         controller.start(account, empty_plan)
@@ -166,7 +166,7 @@ def test_shutdown_during_active_tag_creation(qtbot):
 
     controller, account, _, client = make_controller()
 
-    plan = WordPressTagCreationPlan(
+    plan = RemoteTagCreationPlan(
         missing_tags=(
             Tag("Python"),
             Tag("SocialFlow"),

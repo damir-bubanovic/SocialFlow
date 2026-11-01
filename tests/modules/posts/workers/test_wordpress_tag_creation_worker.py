@@ -8,8 +8,8 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 from socialflow.modules.posts.workers.wordpress_tag_creation_worker import (
     WordPressTagCreationWorker,
@@ -39,7 +39,7 @@ def make_worker(tag_names: tuple[str, ...]):
         for index, name in enumerate(tag_names)
     ]
 
-    plan = WordPressTagCreationPlan(
+    plan = RemoteTagCreationPlan(
         missing_tags=tuple(Tag(name) for name in tag_names),
     )
 
