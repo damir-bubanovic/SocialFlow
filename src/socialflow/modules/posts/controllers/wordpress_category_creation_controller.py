@@ -8,9 +8,11 @@ from PySide6.QtCore import (
 )
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
-    WordPressCategoryProvider,
+
+from socialflow.modules.posts.services.remote_category_provider import (
+    RemoteCategoryProvider,
 )
+
 from socialflow.modules.posts.workers.wordpress_category_creation_worker import (
     WordPressCategoryCreationWorker,
 )
@@ -25,7 +27,7 @@ class WordPressCategoryCreationController(QObject):
 
     def __init__(
         self,
-        category_provider: WordPressCategoryProvider,
+        category_provider: RemoteCategoryProvider,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)

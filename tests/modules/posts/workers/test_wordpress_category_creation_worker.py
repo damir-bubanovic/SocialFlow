@@ -2,8 +2,8 @@
 from unittest.mock import Mock
 
 from socialflow.modules.posts.models.remote_category import RemoteCategory
-from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
-    WordPressCategoryProvider,
+from socialflow.modules.posts.services.remote_category_provider import (
+    RemoteCategoryProvider,
 )
 from socialflow.modules.posts.workers.wordpress_category_creation_worker import (
     WordPressCategoryCreationWorker,
@@ -14,7 +14,7 @@ def test_worker_creates_top_level_category(qtbot):
     account = Mock()
     category = RemoteCategory(12, "Technology")
 
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     provider.create_category.return_value = category
 
     worker = WordPressCategoryCreationWorker(
@@ -36,7 +36,7 @@ def test_worker_creates_subcategory(qtbot):
     account = Mock()
     category = RemoteCategory(22, "Python", parent_id=12)
 
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     provider.create_category.return_value = category
 
     worker = WordPressCategoryCreationWorker(
@@ -51,7 +51,7 @@ def test_worker_creates_subcategory(qtbot):
 
 
 def test_worker_emits_error_without_success(qtbot):
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     provider.create_category.side_effect = RuntimeError(
         "WordPress rejected category creation"
     )

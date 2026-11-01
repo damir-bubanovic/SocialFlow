@@ -1,3 +1,4 @@
+
 """Architecture dependency regression tests."""
 
 import ast
@@ -21,8 +22,11 @@ def _imports_from(path: Path) -> set[str]:
             imports.update(alias.name for alias in node.names)
 
         elif isinstance(node, ast.ImportFrom):
-            if node.level == 0 and node.module:
-                imports.add(node.module)
+
+            module_name = getattr(node, "module", None)
+
+            if node.level == 0 and module_name:
+                imports.add(module_name)
 
     return imports
 
@@ -75,3 +79,29 @@ def test_accounts_does_not_depend_on_wordpress() -> None:
                 imported == "socialflow.modules.wordpress"
                 or imported.startswith("socialflow.modules.wordpress.")
             ), f"{path} imports WordPress module {imported}"
+
+
+def test_posts_category_creation_uses_provider_contract() -> None:
+    """Category creation must not import the WordPress provider."""
+    paths = (
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "controllers"
+        / "wordpress_category_creation_controller.py",
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "workers"
+        / "wordpress_category_creation_worker.py",
+    )
+
+    forbidden = (
+        "socialflow.modules.wordpress.adapters."
+        "wordpress_category_provider"
+    )
+
+    for path in paths:
+        assert forbidden not in _imports_from(path), (
+            f"{path} imports the concrete WordPress category provider"
+        )

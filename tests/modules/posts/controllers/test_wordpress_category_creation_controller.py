@@ -4,8 +4,8 @@ from unittest.mock import Mock
 import pytest
 
 from socialflow.modules.posts.models.remote_category import RemoteCategory
-from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
-    WordPressCategoryProvider,
+from socialflow.modules.posts.services.remote_category_provider import (
+    RemoteCategoryProvider,
 )
 from socialflow.modules.posts.controllers.wordpress_category_creation_controller import (
     WordPressCategoryCreationController,
@@ -15,7 +15,7 @@ from socialflow.modules.posts.controllers.wordpress_category_creation_controller
 def test_controller_creates_category(qtbot):
     category = RemoteCategory(15, "Technology")
 
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     provider.create_category.return_value = category
 
     controller = WordPressCategoryCreationController(provider)
@@ -30,7 +30,7 @@ def test_controller_creates_category(qtbot):
 
 
 def test_controller_reports_creation_error(qtbot):
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     provider.create_category.side_effect = RuntimeError(
         "Authentication failed"
     )
@@ -47,7 +47,7 @@ def test_controller_reports_creation_error(qtbot):
 
 
 def test_controller_rejects_blank_name():
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     controller = WordPressCategoryCreationController(provider)
 
     with pytest.raises(ValueError, match="Category name"):
@@ -57,7 +57,7 @@ def test_controller_rejects_blank_name():
 
 
 def test_controller_rejects_invalid_parent():
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     controller = WordPressCategoryCreationController(provider)
 
     with pytest.raises(ValueError, match="Parent category"):
@@ -67,7 +67,7 @@ def test_controller_rejects_invalid_parent():
 
 
 def test_controller_can_create_again(qtbot):
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     provider.create_category.return_value = RemoteCategory(
         15, "Technology"
     )
@@ -84,7 +84,7 @@ def test_controller_can_create_again(qtbot):
 
 
 def test_controller_shutdown_prevents_new_requests():
-    provider = Mock(spec=WordPressCategoryProvider)
+    provider = Mock(spec=RemoteCategoryProvider)
     controller = WordPressCategoryCreationController(provider)
 
     controller.shutdown()

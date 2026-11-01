@@ -2,9 +2,11 @@
 from PySide6.QtCore import QObject, Signal, Slot
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
-    WordPressCategoryProvider,
+
+from socialflow.modules.posts.services.remote_category_provider import (
+    RemoteCategoryProvider,
 )
+
 
 
 class WordPressCategoryCreationWorker(QObject):
@@ -15,7 +17,7 @@ class WordPressCategoryCreationWorker(QObject):
 
     def __init__(
         self,
-        category_provider: WordPressCategoryProvider,
+        category_provider: RemoteCategoryProvider,
         account: Account,
         name: str,
         parent_id: int = 0,
