@@ -2,7 +2,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.components.language_indicator import LanguageIndicator
 from socialflow.modules.posts.components.language_selector import LanguageSelector
 

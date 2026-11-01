@@ -9,10 +9,10 @@ from socialflow.ui.navigation import Navigation
 from socialflow.modules.posts.views.posts_page import PostsPage
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.destination import PublishingDestination
-from socialflow.infrastructure.accounts.json_account_repository import (
+from socialflow.modules.accounts.repositories.json_account_repository import (
     JsonAccountRepository,
 )
-from socialflow.infrastructure.publishing.json_publication_repository import (
+from socialflow.modules.posts.repositories.json_publication_repository import (
     JsonPublicationRepository,
 )
 from socialflow.modules.wordpress.auth.wordpress_connection_verifier import (

@@ -1,5 +1,5 @@
 from socialflow.modules.posts.components.language_selector import LanguageSelector
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 
 
 def test_language_selector_has_supported_languages(qtbot) -> None:

@@ -6,10 +6,10 @@ from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.connection_status import (
+from socialflow.modules.accounts.models.connection_status import (
     ConnectionStatus,
 )
-from socialflow.domain.connections.wordpress_connection_config import (
+from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 from socialflow.modules.posts.models.destination import (

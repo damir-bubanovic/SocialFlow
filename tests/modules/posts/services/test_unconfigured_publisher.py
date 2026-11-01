@@ -7,7 +7,7 @@ from socialflow.modules.posts.services.prepared_post import PreparedPost
 from socialflow.modules.posts.services.unconfigured_publisher import (
     UnconfiguredPublisher,
 )
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 
 

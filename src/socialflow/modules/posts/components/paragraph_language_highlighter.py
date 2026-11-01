@@ -5,8 +5,8 @@ from PySide6.QtGui import (
     QTextDocument,
 )
 
-from socialflow.application.language.language_detector import LanguageDetector
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.services.language_detector import LanguageDetector
+from socialflow.modules.posts.models.language import Language
 
 
 class ParagraphLanguageHighlighter(QSyntaxHighlighter):

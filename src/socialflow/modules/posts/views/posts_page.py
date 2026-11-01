@@ -71,7 +71,7 @@ from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller i
 from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )
-from socialflow.ui.dialogs.wordpress_tag_confirmation_dialog import (
+from socialflow.modules.posts.components.wordpress_tag_confirmation_dialog import (
     WordPressTagConfirmationDialog,
 )
 from socialflow.modules.posts.controllers.wordpress_tag_creation_controller import (
@@ -104,7 +104,7 @@ from socialflow.modules.posts.controllers.remote_media_loading_controller import
 from socialflow.modules.posts.views.create_post_view import CreatePostView
 from socialflow.modules.posts.views.my_posts_view import MyPostsView
 from socialflow.modules.posts.views.trash_view import TrashView
-from socialflow.ui.dialogs.wordpress_category_dialog import (
+from socialflow.modules.posts.components.wordpress_category_dialog import (
     WordPressCategoryDialog,
 )
 from socialflow.modules.posts.controllers.wordpress_category_creation_controller import (

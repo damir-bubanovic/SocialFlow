@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from socialflow.application.images.prepared_image import PreparedImage
+from socialflow.modules.posts.services.prepared_image import PreparedImage
 from socialflow.modules.posts.models.post import Post
 
 

@@ -4,16 +4,16 @@ from socialflow.modules.accounts.services.add_account import AddAccount
 from socialflow.modules.accounts.services.list_accounts import ListAccounts
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
 from socialflow.modules.accounts.services.update_account import UpdateAccount
-from socialflow.application.credentials.save_wordpress_credentials import (
+from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
-from socialflow.application.images.default_image_profiles import (
+from socialflow.modules.posts.services.default_image_profiles import (
     DEFAULT_IMAGE_PROFILES,
 )
-from socialflow.application.images.image_preparation_service import (
+from socialflow.modules.posts.services.image_preparation_service import (
     ImagePreparationService,
 )
-from socialflow.application.images.image_profile_provider import (
+from socialflow.modules.posts.services.image_profile_provider import (
     ImageProfileProvider,
 )
 from socialflow.modules.posts.services.list_recent_publications import (
@@ -60,16 +60,16 @@ from socialflow.modules.wordpress.api.urllib_wordpress_tag_client import (
 from socialflow.modules.posts.models.destination import (
     PublishingDestination,
 )
-from socialflow.infrastructure.accounts.json_account_repository import (
+from socialflow.modules.accounts.repositories.json_account_repository import (
     JsonAccountRepository,
 )
 from socialflow.infrastructure.credentials.keyring_credential_store import (
     KeyringCredentialStore,
 )
-from socialflow.infrastructure.publishing.json_publication_repository import (
+from socialflow.modules.posts.repositories.json_publication_repository import (
     JsonPublicationRepository,
 )
-from socialflow.infrastructure.publishing.uuid_publication_id_generator import (
+from socialflow.modules.posts.services.uuid_publication_id_generator import (
     UuidPublicationIdGenerator,
 )
 from socialflow.infrastructure.storage.app_paths import AppPaths
@@ -81,7 +81,7 @@ from socialflow.modules.wordpress.auth.wordpress_connection_verifier_factory imp
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
 from socialflow.modules.posts.views.posts_page import PostsPage
-from socialflow.application.credentials.delete_wordpress_credentials import (
+from socialflow.modules.accounts.services.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
 from socialflow.modules.wordpress.adapters.wordpress_publisher import (
@@ -129,7 +129,7 @@ from socialflow.modules.posts.services.list_remote_media import (
 from socialflow.modules.wordpress.adapters.wordpress_media_provider import (
     WordPressMediaProvider,
 )
-from socialflow.application.credentials.get_wordpress_credentials import (
+from socialflow.modules.accounts.services.get_wordpress_credentials import (
     GetWordPressCredentials,
 )
 

@@ -1,4 +1,4 @@
-from socialflow.application.language.post_language_classifier import (
+from socialflow.modules.posts.services.post_language_classifier import (
     PostLanguageClassification,
 )
 from socialflow.modules.posts.components.content_language_indicator import (

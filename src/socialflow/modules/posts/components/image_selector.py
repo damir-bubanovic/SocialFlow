@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QFrame,
 )
 
-from socialflow.application.images.image_validator import ImageValidator
+from socialflow.modules.posts.services.image_validator import ImageValidator
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
 
 

@@ -2,7 +2,7 @@ from socialflow.modules.posts.services.composite_publisher import (
     CompositePublisher,
 )
 from socialflow.modules.posts.services.publisher import Publisher
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 
 

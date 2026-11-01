@@ -38,7 +38,7 @@ def test_rejects_non_wordpress_account():
     credential_store.get.assert_not_called()
 
 def test_retrieves_posts_using_stored_wordpress_credentials():
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
     from socialflow.modules.wordpress.auth.wordpress_credential_keys import (
@@ -84,7 +84,7 @@ def test_retrieves_posts_using_stored_wordpress_credentials():
     )
 
 def test_rejects_missing_wordpress_application_password():
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
 
@@ -118,7 +118,7 @@ def test_rejects_missing_wordpress_application_password():
 def test_converts_wordpress_posts_to_remote_posts():
     from datetime import datetime
 
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
     from socialflow.modules.posts.models.remote_post import RemotePost
@@ -180,7 +180,7 @@ def test_converts_wordpress_posts_to_remote_posts():
 def test_retrieves_trashed_posts_using_stored_credentials():
     from datetime import datetime
 
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
     from socialflow.modules.wordpress.models.wordpress_post import (
@@ -260,7 +260,7 @@ def test_trashed_posts_reject_non_wordpress_account():
 
 
 def test_trashed_posts_reject_missing_password():
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
 
@@ -292,7 +292,7 @@ def test_trashed_posts_reject_missing_password():
 
 def test_recent_posts_preserve_empty_category_ids():
     from datetime import datetime
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
     from socialflow.modules.wordpress.models.wordpress_post import WordPressPost
@@ -330,7 +330,7 @@ def test_recent_posts_preserve_empty_category_ids():
 
 def test_trashed_posts_preserve_empty_category_ids():
     from datetime import datetime
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
     from socialflow.modules.wordpress.models.wordpress_post import WordPressPost

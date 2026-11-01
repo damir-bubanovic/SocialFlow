@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from collections.abc import Callable
 
-from socialflow.application.images.image_preparation_service import (
+from socialflow.modules.posts.services.image_preparation_service import (
     ImagePreparationService,
 )
 from socialflow.modules.posts.services.errors import (

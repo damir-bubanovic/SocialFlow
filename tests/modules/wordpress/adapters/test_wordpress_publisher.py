@@ -8,7 +8,7 @@ from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )
 from socialflow.modules.posts.services.prepared_post import PreparedPost
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.wordpress.models.wordpress_media import (
     WordPressMedia,

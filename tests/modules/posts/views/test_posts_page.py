@@ -27,13 +27,13 @@ from socialflow.modules.posts.services.null_tag_provider import NullTagProvider
 from socialflow.modules.posts.services.tag_provider import TagProvider
 from socialflow.application.time.clock import Clock
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.modules.posts.models.publication import Publication
 from socialflow.modules.posts.models.publication_id import PublicationId
-from socialflow.infrastructure.publishing.in_memory_publication_repository import (
+from socialflow.modules.posts.repositories.in_memory_publication_repository import (
     InMemoryPublicationRepository,
 )
 from socialflow.modules.posts.views.post_editor import PostEditor

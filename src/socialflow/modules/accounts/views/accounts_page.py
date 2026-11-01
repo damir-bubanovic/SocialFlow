@@ -18,19 +18,19 @@ from socialflow.modules.accounts.services.errors import (
 from socialflow.modules.accounts.services.list_accounts import ListAccounts
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
 from socialflow.modules.accounts.services.update_account import UpdateAccount
-from socialflow.application.connections.connection_verifier import (
+from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
-from socialflow.application.credentials.delete_wordpress_credentials import (
+from socialflow.modules.accounts.services.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
-from socialflow.application.credentials.get_wordpress_credentials import (
+from socialflow.modules.accounts.services.get_wordpress_credentials import (
     GetWordPressCredentials,
 )
-from socialflow.application.credentials.errors import (
+from socialflow.modules.accounts.services.credential_errors import (
     CredentialStorageError,
 )
-from socialflow.application.credentials.save_wordpress_credentials import (
+from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
 from socialflow.modules.accounts.models.account import Account

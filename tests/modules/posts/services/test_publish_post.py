@@ -6,12 +6,12 @@ from uuid import UUID
 
 from PIL import Image
 
-from socialflow.application.images.image_preparation_service import (
+from socialflow.modules.posts.services.image_preparation_service import (
     ImagePreparationService,
 )
-from socialflow.application.images.image_processor import ImageDimensions
-from socialflow.application.images.image_profile import ImageProfile
-from socialflow.application.images.image_profile_provider import (
+from socialflow.modules.posts.services.image_processor import ImageDimensions
+from socialflow.modules.posts.services.image_profile import ImageProfile
+from socialflow.modules.posts.services.image_profile_provider import (
     ImageProfileProvider,
 )
 from socialflow.modules.posts.services.errors import (
@@ -27,13 +27,13 @@ from socialflow.modules.posts.services.publisher import Publisher
 from socialflow.modules.posts.services.publisher_router import PublisherRouter
 from socialflow.application.time.clock import Clock
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.modules.posts.models.publication_id import PublicationId
 from socialflow.modules.posts.models.publish_request import PublishRequest
-from socialflow.infrastructure.publishing.in_memory_publication_repository import (
+from socialflow.modules.posts.repositories.in_memory_publication_repository import (
     InMemoryPublicationRepository,
 )
 
@@ -1573,7 +1573,7 @@ def test_publish_post_reports_progress_for_each_account() -> None:
 def test_wordpress_tag_resolution_failure_preserves_other_publications() -> None:
     from unittest.mock import Mock
 
-    from socialflow.domain.connections.wordpress_connection_config import (
+    from socialflow.modules.accounts.models.wordpress_connection_config import (
         WordPressConnectionConfig,
     )
     from socialflow.modules.posts.models.tag import Tag

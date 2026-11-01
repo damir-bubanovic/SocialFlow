@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.wordpress_connection_config import (
+from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 from socialflow.modules.posts.models.destination import (

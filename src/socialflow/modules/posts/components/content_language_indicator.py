@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QLabel
 
-from socialflow.application.language.post_language_classifier import (
+from socialflow.modules.posts.services.post_language_classifier import (
     PostLanguageClassification,
 )
 

@@ -6,10 +6,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSplitter
 
 
-from socialflow.application.credentials.get_wordpress_credentials import (
+from socialflow.modules.accounts.services.get_wordpress_credentials import (
     GetWordPressCredentials,
 )
-from socialflow.application.connections.connection_verifier import (
+from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
 from socialflow.modules.accounts.repositories.account_repository import AccountRepository
@@ -23,18 +23,18 @@ from socialflow.modules.accounts.views.account_status import AccountStatus
 from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
 from socialflow.modules.accounts.services.update_account import UpdateAccount
-from socialflow.application.credentials.save_wordpress_credentials import (
+from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
-from socialflow.application.credentials.errors import (
+from socialflow.modules.accounts.services.credential_errors import (
     CredentialStorageError,
 )
-from socialflow.application.credentials.delete_wordpress_credentials import (
+from socialflow.modules.accounts.services.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
-from socialflow.domain.connections.connection_result import ConnectionResult
-from socialflow.domain.connections.connection_status import ConnectionStatus
-from socialflow.domain.connections.wordpress_connection_config import (
+from socialflow.modules.accounts.models.connection_result import ConnectionResult
+from socialflow.modules.accounts.models.connection_status import ConnectionStatus
+from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 

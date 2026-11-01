@@ -1,4 +1,4 @@
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.components.language_controls import LanguageControls
 from socialflow.modules.posts.components.language_indicator import LanguageIndicator
 from socialflow.modules.posts.components.language_selector import LanguageSelector

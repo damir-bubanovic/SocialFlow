@@ -1,7 +1,7 @@
 
 from PySide6.QtWidgets import QLabel, QWidget
 
-from socialflow.domain.connections.connection_result import (
+from socialflow.modules.accounts.models.connection_result import (
     ConnectionResult,
 )
 

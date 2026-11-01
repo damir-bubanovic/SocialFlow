@@ -12,14 +12,14 @@ from PySide6.QtWidgets import (
 
 
 from socialflow.modules.posts.models.destination import PublishingDestination
-from socialflow.application.language.language_detector import LanguageDetector
-from socialflow.application.language.paragraph_language_detector import (
+from socialflow.modules.posts.services.language_detector import LanguageDetector
+from socialflow.modules.posts.services.paragraph_language_detector import (
     ParagraphLanguageDetector,
 )
 from socialflow.modules.posts.components.paragraph_language_highlighter import (
     ParagraphLanguageHighlighter,
 )
-from socialflow.application.language.post_language_classifier import (
+from socialflow.modules.posts.services.post_language_classifier import (
     PostLanguageClassification,
     PostLanguageClassifier,
 )
@@ -27,7 +27,7 @@ from socialflow.modules.posts.components.content_language_indicator import (
     ContentLanguageIndicator,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.posts.models.publish_request import PublishRequest
 from socialflow.modules.posts.components.destination_selector import DestinationSelector

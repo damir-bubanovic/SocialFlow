@@ -3,7 +3,7 @@ from threading import Event
 import pytest
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.wordpress_connection_config import (
+from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 from socialflow.modules.posts.models.tag import Tag

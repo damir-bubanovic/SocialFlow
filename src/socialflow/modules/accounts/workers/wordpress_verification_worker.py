@@ -3,14 +3,14 @@ import logging
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from socialflow.application.connections.connection_verifier import (
+from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
-from socialflow.application.credentials.errors import (
+from socialflow.modules.accounts.services.credential_errors import (
     CredentialStorageError,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.connection_result import (
+from socialflow.modules.accounts.models.connection_result import (
     ConnectionResult,
 )
 

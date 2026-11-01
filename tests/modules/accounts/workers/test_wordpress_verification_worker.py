@@ -1,17 +1,17 @@
 
 from unittest.mock import Mock
 
-from socialflow.application.connections.connection_verifier import (
+from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
-from socialflow.application.credentials.errors import (
+from socialflow.modules.accounts.services.credential_errors import (
     CredentialStorageError,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.connection_result import (
+from socialflow.modules.accounts.models.connection_result import (
     ConnectionResult,
 )
-from socialflow.domain.connections.connection_status import (
+from socialflow.modules.accounts.models.connection_status import (
     ConnectionStatus,
 )
 from socialflow.modules.posts.models.destination import (
@@ -96,7 +96,7 @@ def test_worker_emits_failure_for_unexpected_exception(
     """Unexpected verification errors emit failure, not Qt exceptions."""
     from unittest.mock import Mock
 
-    from socialflow.application.connections.connection_verifier import (
+    from socialflow.modules.accounts.services.connection_verifier import (
         ConnectionVerifier,
     )
     from socialflow.modules.accounts.models.account import Account

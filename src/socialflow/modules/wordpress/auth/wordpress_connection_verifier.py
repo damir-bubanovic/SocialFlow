@@ -4,20 +4,20 @@ from urllib.error import URLError
 from socialflow.modules.wordpress.api.wordpress_http_client import (
     WordPressHttpClient,
 )
-from socialflow.domain.connections.wordpress_connection_config import (
+from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
-from socialflow.application.connections.connection_verifier import (
+from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
 from socialflow.application.credentials.credential_store import (
     CredentialStore,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.connection_result import (
+from socialflow.modules.accounts.models.connection_result import (
     ConnectionResult,
 )
-from socialflow.domain.connections.connection_status import (
+from socialflow.modules.accounts.models.connection_status import (
     ConnectionStatus,
 )
 from socialflow.modules.wordpress.auth.wordpress_credential_keys import (

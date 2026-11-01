@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from socialflow.application.images.prepared_image import PreparedImage
+from socialflow.modules.posts.services.prepared_image import PreparedImage
 from socialflow.modules.posts.services.prepared_post import PreparedPost
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.posts.models.destination import PublishingDestination

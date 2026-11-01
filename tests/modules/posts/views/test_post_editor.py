@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QHBoxLayout
 
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.posts.models.destination import PublishingDestination
 from socialflow.modules.posts.models.publish_request import PublishRequest
@@ -13,7 +13,7 @@ from socialflow.modules.posts.components.language_controls import LanguageContro
 from socialflow.modules.posts.views.post_editor import PostEditor
 from socialflow.modules.posts.components.publish_button import PublishButton
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.application.language.post_language_classifier import (
+from socialflow.modules.posts.services.post_language_classifier import (
     PostLanguageClassification,
 )
 

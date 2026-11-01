@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QComboBox, QWidget
 
-from socialflow.domain.language.language import Language
+from socialflow.modules.posts.models.language import Language
 
 
 class LanguageSelector(QComboBox):

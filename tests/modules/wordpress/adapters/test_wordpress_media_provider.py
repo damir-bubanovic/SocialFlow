@@ -6,7 +6,7 @@ from socialflow.modules.posts.services.remote_media_provider import (
     RemoteMediaProvider,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.domain.connections.wordpress_connection_config import (
+from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 from socialflow.modules.posts.models.remote_media import RemoteMedia

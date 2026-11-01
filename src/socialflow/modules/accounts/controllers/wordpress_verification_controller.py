@@ -1,7 +1,7 @@
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from socialflow.application.connections.connection_verifier import (
+from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
 from socialflow.modules.accounts.models.account import Account
