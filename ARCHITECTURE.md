@@ -1379,3 +1379,36 @@ This is an illustrative ownership map, not a mandate to create every directory. 
 ### November 1 verification checkpoint
 
 Developer reported six passing live WordPress tests: category load, multi-category publish, category edit, category clear, Trash, and Restore as Draft. Developer reported complete headless pytest suite passing; numeric count unknown. This documentation edit did not execute tests. The prior October 31 pending-live-verification statements are historical for these six flows; additional failure recovery/account switching and packaging remain separate checks.
+
+---
+
+## November 1, 2026 — Feature-Aligned Test Architecture (Approved Target)
+
+**This section extends the feature-first modular target above; it is not the current implemented file layout.**
+
+```text
+src/socialflow/                     tests/
+├── core/                            ├── core/
+├── modules/                         ├── modules/
+│   ├── accounts/                    │   ├── accounts/
+│   ├── posts/                       │   ├── posts/
+│   ├── wordpress/                   │   ├── wordpress/
+│   ├── instagram/ (future)          │   ├── instagram/ (future)
+│   └── facebook/ (future)           │   └── facebook/ (future)
+├── infrastructure/                  ├── infrastructure/
+├── config/                          ├── integration/
+├── bootstrap/                       ├── fixtures/ (as needed)
+└── main.py                          └── conftest.py
+```
+
+Within a module, use Laravel-inspired, Python-appropriate responsibilities (`models`, `requests`, `controllers`, `services`, `views`, `components`, `workers`, `api`, `adapters`) **only where needed**. Example: a `modules/posts/controllers/publishing_controller.py` test may live in `tests/modules/posts/controllers/test_publishing_controller.py`. Cross-platform publishing and Trash/Restore workflows belong in `tests/integration/` when they span modules.
+
+**Test boundary rules:**
+- Unit tests should isolate domain/application behavior from PySide6 and network adapters where possible.
+- Platform adapter tests should use mocked HTTP boundaries; live WordPress checks remain explicitly controlled smoke tests.
+- Keep Qt UI/worker tests with the owning feature and retain thread cleanup, signal lifetime, and stale-result coverage.
+- Prefer feature-local fixtures; use shared fixtures only for genuinely shared setup.
+- Do not rename tests or rewrite assertions merely to achieve cosmetic symmetry.
+- Preserve pytest discovery and collected-test coverage across every migration batch.
+
+**Migration:** inspect source and test dependencies first; migrate cohesive source/test slices together; run focused tests, full-suite collection checks, and final WordPress live smoke checks. Current snapshot has **not** been refactored. Total provisional estimate is **41–67 engineering hours**, excluding Instagram/Facebook implementation. See ADR-078.

@@ -285,3 +285,13 @@ remote transaction rollback, or establish live WordPress compatibility.
 **Next priority is architectural refactoring, NOT Instagram/Facebook implementation yet.** Adopt a **feature-first, Laravel-inspired Python/PySide6 modular architecture**, retaining Clean Architecture boundaries. Keep feature-specific views, controllers, requests, services, workers, and components close together in `modules/<feature>/`; put reusable contracts and cross-cutting services in `core/`, external persistence/security in `infrastructure/`, and application wiring in `bootstrap/`. WordPress, Instagram, and Facebook should be independent platform modules behind shared contracts and capability declarations. Do not copy Laravel's PHP HTTP routing conventions into this desktop app.
 
 **Status:** design approved by developer; **no source refactoring has begun**. Preserve existing WordPress behavior, async/account guards, and the small recent-post limit (5–10, no pagination). Migrate in tested, reversible batches; inspect actual source and dependencies before moving anything. Preliminary refactor estimate **35–55 engineering hours**, excluding Instagram/Facebook implementation. See `ARCHITECTURE.md` (target architecture), `DECISIONS.md` (ADR-077), and `DEVELOPMENT.md` (migration plan). `AGENTS.md` remains local-only, never committed.
+
+---
+
+## November 1, 2026 — Approved Mirrored Test Architecture (Latest Handoff)
+
+**Current decision:** The feature-first Laravel-inspired refactor includes **both** `src/socialflow/` and `tests/`. The earlier 35–55-hour estimate is superseded by **41–67 engineering hours** (application restructuring plus 6–12 hours for test restructuring). This is a provisional estimate, not tracked work time. Instagram and Facebook implementation is excluded.
+
+Keep the test tree aligned with feature ownership: `tests/modules/accounts/`, `tests/modules/posts/`, `tests/modules/wordpress/`, and future `tests/modules/instagram/` and `tests/modules/facebook/`. Keep cross-module workflows under `tests/integration/`, infrastructure tests under `tests/infrastructure/`, and common test fixtures in appropriate shared `conftest.py` files or `tests/fixtures/`. Do not create empty directories or force a one-to-one correspondence where it reduces clarity.
+
+**Implementation has not begun.** Migrate source and related tests together in small batches, preserve existing WordPress functionality and Qt worker safety, and run pytest throughout. See `ARCHITECTURE.md`, `DEVELOPMENT.md`, and `DECISIONS.md` (ADR-078). `AGENTS.md` remains local-only.

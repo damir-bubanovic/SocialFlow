@@ -1076,3 +1076,57 @@ git status
 ```
 
 Before source changes, ask for a current snapshot if necessary; do not assume this proposal has already been implemented. Review Git status before any commit; only commit changed files intentionally.
+
+---
+
+## November 1, 2026 — Source and Tests Migration Plan (Latest Approved Plan)
+
+The previously approved feature-first, Laravel-inspired refactor **must also reorganize `tests/`**. The supplied November 1 ZIP contains 180 Python files under `tests/` (including package initializer files). This is a baseline inventory, not a pytest test-case count.
+
+### Target layout and ownership
+
+```text
+tests/
+├── conftest.py                 # Only truly shared fixtures
+├── core/                       # Shared contracts/services
+├── modules/
+│   ├── accounts/
+│   ├── posts/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── views/
+│   │   ├── components/
+│   │   └── workers/
+│   ├── wordpress/
+│   │   ├── api/
+│   │   ├── services/
+│   │   └── categories/
+│   ├── instagram/              # Future, only when tests exist
+│   └── facebook/               # Future, only when tests exist
+├── infrastructure/
+├── integration/                # Cross-module flows and lifecycles
+└── fixtures/                   # Reusable data/builders if needed
+```
+
+This is a **conceptual** layout, not a mandate to create every directory. Mirror feature ownership rather than blindly duplicating every source subfolder. Tests for common Qt widgets or truly shared infrastructure may live outside a platform module.
+
+### Required batch workflow
+
+1. Inspect the actual uploaded source, `tests/`, `pyproject.toml`, and pytest configuration; record `git status` and the baseline collected test count. Do not assume all tests are passing without a fresh run.
+2. Inventory current test-to-source mappings, `conftest.py` fixture scopes, test helper imports, package initializers, mocks, and Qt lifecycle cleanup.
+3. Define module boundaries and dependency direction before moving source files.
+4. Migrate **one cohesive feature slice and its tests together**, update imports/fixture paths, and run focused tests.
+5. Run `QT_QPA_PLATFORM=offscreen python -m pytest -q` at major milestones, compare test collection against the baseline, and investigate missing/deselected tests even if pytest reports green.
+6. Preserve asynchronous stale-account guards, worker lifetime safety, WordPress behavior, no-pagination recent-post policy, and category update semantics.
+7. Commit/push only after the developer confirms a stable milestone; keep `AGENTS.md` and credentials out of Git.
+8. At completion, run full pytest and controlled live WordPress smoke checks; update public docs at the end of the coding day.
+
+Useful commands:
+
+```bash
+git status
+QT_QPA_PLATFORM=offscreen python -m pytest --collect-only -q
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+```
+
+**Planning estimate:** 35–55 hours application structure + 6–12 hours tests = **41–67 engineering hours** overall. Estimates are provisional and exclude Instagram/Facebook feature implementation. No source or test moves have been performed by this documentation update.

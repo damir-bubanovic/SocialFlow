@@ -583,3 +583,18 @@ These checks close the **tested WordPress functional milestone**; they do not es
 - [ ] Verify WordPress live behavior again after structural migration.
 
 Scope: refactoring only, preliminary **35–55 engineering hours**, excluding actual Meta integration development.
+
+---
+
+## November 1, 2026 — Mirrored Test Refactoring Scope (Approved, Not Implemented)
+
+- [ ] Audit and inventory the current test tree (180 `.py` files, including `tests/__init__.py`, in the supplied November 1 archive; counts may change).
+- [ ] Organize unit/component tests by feature under `tests/modules/accounts/`, `posts/`, and `wordpress/`, with additional directories only as needed.
+- [ ] Prepare the same conventions for future Instagram and Facebook tests; **do not implement those platforms** during structural refactoring.
+- [ ] Keep cross-feature integration tests in `tests/integration/`, shared framework tests in `tests/core/`, and infrastructure tests in `tests/infrastructure/` when warranted.
+- [ ] Preserve pytest discovery, existing test names/intent, fixtures, parametrization, mocks, monkeypatching, Qt event-loop/thread cleanup, and coverage of account switching.
+- [ ] Move tests in the same batches as their corresponding source modules; run focused pytest and full-suite gates.
+- [ ] Update imports and fixture scopes without changing behavior; avoid duplicated fixtures and unnecessary directories.
+- [ ] Re-run controlled live WordPress smoke checks after the migration.
+
+**Revised provisional refactor budget: 41–67 engineering hours total**, including 6–12 additional hours for the test tree. Actual Meta platform implementation is not included. Prior 35–55-hour estimates refer only to the application refactor.

@@ -1835,3 +1835,34 @@ WordPress, Instagram, and Facebook will use shared platform contracts and explic
 ### Evidence boundary
 
 On November 1, 2026 the developer reported six successful live WordPress tests (category load, publish, edit, clear, Trash, Restore) and a passing full pytest suite, without an exact count. The documentation edit did not independently run tests or inspect Git status. Functional signoff is limited to the checks reported.
+
+---
+
+## ADR-078 — Mirror Feature-First Modules in the Test Suite
+
+**Date:** November 1, 2026  
+**Status:** Accepted — implementation pending  
+**Extends:** ADR-077 (Laravel-inspired feature-first Python/PySide6 architecture)
+
+### Context
+
+The developer approved a feature-first reorganization of SocialFlow and subsequently requested that the test tree follow the same discoverable structure. The supplied November 1 archive contains 180 Python files under `tests/` (including initializers), many currently grouped by technical layer (for example `tests/ui/`). A source-only reorganization would leave test navigation inconsistent.
+
+### Decision
+
+- Reorganize `tests/` alongside `src/socialflow/` into matching feature-owned modules: Accounts, Posts, WordPress, and future Instagram/Facebook.
+- Use `tests/core/` and `tests/infrastructure/` for truly shared concerns, and `tests/integration/` for cross-module workflows.
+- Keep reusable fixtures near their consumers, with shared fixtures only where needed; avoid a single oversized global `conftest.py`.
+- Mirror feature ownership **where practical**, not every source file or subdirectory mechanically.
+- Move source and corresponding tests in the same small, reversible batches; preserve existing test intent, discovery, fixture behavior, Qt worker/event-loop cleanup, and integration coverage.
+- Do not create empty placeholder folders or claim future platform tests exist.
+- Compare pytest collection with the pre-migration baseline; a green run with missing tests is not sufficient.
+- Verify WordPress live behavior after migration. No new Instagram/Facebook API work is part of this ADR.
+
+### Consequences
+
+Improved test discoverability and clearer module ownership; migration cost and risk from changed imports, fixtures, and pytest collection must be managed. Revised total estimate **41–67 engineering hours** (35–55 application + 6–12 tests), excluding future platform development. ADR-077 remains in force except that its earlier estimate covered application restructuring only.
+
+### Status and evidence
+
+Documentation-only decision. No Python source or test files have been moved by this update. Earlier live WordPress and full-suite success reports remain developer-reported; the current project snapshot has not been re-tested as part of this documentation revision.
