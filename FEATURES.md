@@ -1,5 +1,8 @@
 # SocialFlow --- Features
 
+> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
+
+
 **Current status (October 31, 2026):** See Section 28 for the latest completed WordPress features and remaining live verification. Earlier unchecked items are retained as historical phase snapshots.
 
 
@@ -598,3 +601,21 @@ Scope: refactoring only, preliminary **35–55 engineering hours**, excluding ac
 - [ ] Re-run controlled live WordPress smoke checks after the migration.
 
 **Revised provisional refactor budget: 41–67 engineering hours total**, including 6–12 additional hours for the test tree. Actual Meta platform implementation is not included. Prior 35–55-hour estimates refer only to the application refactor.
+
+---
+
+## 30. November 1, 2026 — Feature-First Refactor Completed
+
+The previously listed feature-first refactoring and mirrored-test tasks are **complete**, superseding the unchecked planning lists in Sections 29 and the mirrored-test scope above. They remain for historical traceability rather than representing outstanding work.
+
+- [x] Reorganize Accounts, Posts, and WordPress source into `src/socialflow/modules/`.
+- [x] Organize their tests under `tests/modules/accounts/`, `posts/`, and `wordpress/`.
+- [x] Retain cross-feature integration coverage under `tests/integration/`.
+- [x] Decouple Posts from WordPress implementation through Posts-owned contracts and WordPress adapters.
+- [x] Add/enforce architecture boundaries; final audit reported zero forbidden dependencies.
+- [x] Run full automated suite; developer reported **2,151 passed**.
+- [x] Perform application GUI smoke test; developer reported the app launches and works/looks correct.
+- [ ] Review, commit, and push updated public documentation.
+- [ ] Merge the refactoring branch into `main` after final checks.
+
+**Scope unchanged:** WordPress capabilities remain the implemented platform functionality. Instagram and Facebook integrations are still future features; this structural refactor did not add their API implementations. The prior 41–67-hour estimate was a planning budget, not tracked actual time. A successful GUI smoke test does not replace every possible live WordPress or failure-recovery test.

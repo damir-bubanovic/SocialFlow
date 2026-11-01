@@ -1,5 +1,8 @@
 # SocialFlow --- Architecture Decisions
 
+> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
+
+
 **Latest decisions:** ADR-072 through ADR-076 record the October 31, 2026 WordPress scope and verification handoff.
 
 
@@ -1866,3 +1869,31 @@ Improved test discoverability and clearer module ownership; migration cost and r
 ### Status and evidence
 
 Documentation-only decision. No Python source or test files have been moved by this update. Earlier live WordPress and full-suite success reports remain developer-reported; the current project snapshot has not been re-tested as part of this documentation revision.
+
+---
+
+## ADR-079 — Complete Feature-First Source and Test Migration
+
+**Date:** November 1, 2026  
+**Status:** Implemented and accepted  
+**Follows:** ADR-077 and ADR-078
+
+### Context
+
+ADR-077 approved a feature-first, Laravel-inspired organization for Python/PySide6; ADR-078 extended feature ownership to tests. Their original implementation-pending wording is historical. The migration was subsequently carried out in tested batches on `refactor/feature-first-architecture`.
+
+### Decision and implemented boundaries
+
+- Keep Accounts, Posts, and WordPress code under `src/socialflow/modules/` and corresponding feature tests under `tests/modules/`.
+- Keep application composition in `src/socialflow/ui/main_content.py` and shared credential, clock, logging, and path infrastructure outside feature modules.
+- Forbid Accounts importing Posts or WordPress, and Posts importing WordPress implementation modules.
+- Permit WordPress to depend on Posts-owned models/contracts and Accounts contracts, but not Posts UI, controllers, workers, or repositories.
+- Retain legitimate Posts dependencies on Accounts models, account lookup, and account serialization for publication persistence and legacy migration.
+- Keep `RemoteTagCreationPlan` and `RemoteTagCreationService` Posts-owned; WordPress implements the adapter and retains the older plan name as a compatibility alias.
+- Do not introduce empty Instagram/Facebook modules or claim those integrations are implemented.
+
+### Evidence and consequences
+
+The developer reported **2,151 passing automated tests**, **zero forbidden feature dependencies**, clean Git status and diff checks, and a successful desktop GUI smoke test. The latest refactoring milestone was reported as commit `23dcf3b`, synchronized with the remote branch before this documentation update. These results were not independently re-run from the supplied archive.
+
+The planned source/test restructuring is complete. Historical estimates in ADR-077/078 are not actual elapsed time. Remaining release tasks are documentation commit/push and controlled merge to `main`. Existing WordPress functional boundaries and future platform roadmap remain unchanged.

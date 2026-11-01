@@ -1,5 +1,8 @@
 # SocialFlow
 
+> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
+
+
 **Current status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
 
 
@@ -295,3 +298,21 @@ remote transaction rollback, or establish live WordPress compatibility.
 Keep the test tree aligned with feature ownership: `tests/modules/accounts/`, `tests/modules/posts/`, `tests/modules/wordpress/`, and future `tests/modules/instagram/` and `tests/modules/facebook/`. Keep cross-module workflows under `tests/integration/`, infrastructure tests under `tests/infrastructure/`, and common test fixtures in appropriate shared `conftest.py` files or `tests/fixtures/`. Do not create empty directories or force a one-to-one correspondence where it reduces clarity.
 
 **Implementation has not begun.** Migrate source and related tests together in small batches, preserve existing WordPress functionality and Qt worker safety, and run pytest throughout. See `ARCHITECTURE.md`, `DEVELOPMENT.md`, and `DECISIONS.md` (ADR-078). `AGENTS.md` remains local-only.
+
+---
+
+## November 1, 2026 — Implemented Feature-First Architecture (Current)
+
+The architecture migration described in the earlier November 1 planning sections **has now been completed**. Those earlier statements about implementation not having begun are historical, not the current project status.
+
+- Source features: `src/socialflow/modules/accounts/`, `posts/`, and `wordpress/`.
+- Feature-owned tests: `tests/modules/accounts/`, `posts/`, and `wordpress/`; cross-feature coverage includes `tests/integration/`.
+- Application composition: `src/socialflow/ui/main_content.py` connects the three feature modules.
+- Shared infrastructure and contracts remain outside feature modules where appropriate (including credential storage, clock, logging, and application paths).
+- Posts does not import WordPress implementation modules; Accounts does not import Posts or WordPress. WordPress adapters may depend on shared Posts contracts/models and Accounts contracts.
+- WordPress tag creation planning and service contracts are Posts-owned, with WordPress-specific implementations behind adapters; the legacy WordPress plan name remains as a compatibility alias.
+- Instagram and Facebook remain **future integrations**, not implemented by this refactor.
+
+**Verification reported from the working checkout:** `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,151 passed**; feature-dependency audit → **0 violations**; `git diff --check` clean; local branch synchronized with remote; desktop application launched and looked/worked correctly in a manual smoke test. These are developer-reported checks, not a new test run against this ZIP.
+
+**Next:** Review these documentation changes, commit/push them on `refactor/feature-first-architecture`, then merge to `main` after final Git checks. Do not commit `AGENTS.md` or credentials.

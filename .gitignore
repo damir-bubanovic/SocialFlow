@@ -66,11 +66,11 @@ temp/
 *.p12
 *.pfx
 
-# SocialFlow authentication and credentials
-tokens/
-auth/
-oauth/
-credentials/
+# SocialFlow local authentication data and secrets
+/tokens/
+/auth/
+/oauth/
+/credentials/
 credentials.json
 token.json
 

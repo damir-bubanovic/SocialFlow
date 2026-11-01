@@ -3,33 +3,33 @@ import json
 
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
-from socialflow.ui.accounts.accounts_page import AccountsPage
+from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
-from socialflow.ui.posts.posts_page import PostsPage
-from socialflow.domain.account.account import Account
-from socialflow.domain.publishing.destination import PublishingDestination
-from socialflow.infrastructure.accounts.json_account_repository import (
+from socialflow.modules.posts.views.posts_page import PostsPage
+from socialflow.modules.accounts.models.account import Account
+from socialflow.core.destination import PublishingDestination
+from socialflow.modules.accounts.repositories.json_account_repository import (
     JsonAccountRepository,
 )
-from socialflow.infrastructure.publishing.json_publication_repository import (
+from socialflow.modules.posts.repositories.json_publication_repository import (
     JsonPublicationRepository,
 )
-from socialflow.infrastructure.wordpress.wordpress_connection_verifier import (
+from socialflow.modules.wordpress.auth.wordpress_connection_verifier import (
     WordPressConnectionVerifier,
 )
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
-from socialflow.infrastructure.wordpress.wordpress_publisher import (
+from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
-from socialflow.application.publishing.trash_remote_post import (
+from socialflow.modules.posts.services.trash_remote_post import (
     TrashRemotePost,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
+from socialflow.modules.wordpress.adapters.wordpress_post_trasher import (
     WordPressPostTrasher,
 )
 

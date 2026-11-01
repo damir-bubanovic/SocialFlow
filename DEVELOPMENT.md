@@ -1,5 +1,8 @@
 # SocialFlow --- Development Guide
 
+> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
+
+
 **Latest handoff (October 31, 2026):** See Section 38 for the current source snapshot, test commands, and remaining WordPress live verification. Earlier checkpoint counts are historical.
 
 
@@ -1130,3 +1133,41 @@ QT_QPA_PLATFORM=offscreen python -m pytest -q
 ```
 
 **Planning estimate:** 35–55 hours application structure + 6–12 hours tests = **41–67 engineering hours** overall. Estimates are provisional and exclude Instagram/Facebook feature implementation. No source or test moves have been performed by this documentation update.
+
+---
+
+## 40. November 1, 2026 — Completed Refactor and Current Workflow
+
+**The feature-first source and mirrored-test migration is complete.** Earlier sections labeled *approved target*, *implementation pending*, or *no source/test moves performed* describe the pre-migration plan and are superseded by this checkpoint.
+
+### Where to make changes
+
+- Accounts: `src/socialflow/modules/accounts/`, tests in `tests/modules/accounts/`.
+- Posts and shared publishing/tag contracts: `src/socialflow/modules/posts/`, tests in `tests/modules/posts/`.
+- WordPress HTTP/API and adapters: `src/socialflow/modules/wordpress/`, tests in `tests/modules/wordpress/`.
+- Cross-feature integration tests: `tests/integration/`.
+- Composition: `src/socialflow/ui/main_content.py`.
+- Shared credential/clock contracts: `src/socialflow/application/`; implementations and logging/storage support: `src/socialflow/infrastructure/`.
+
+Keep Posts independent of WordPress implementation modules and Accounts independent of Posts/WordPress. WordPress can implement Posts contracts and use Accounts contracts; preserve existing architecture guard tests. Avoid moving legitimate shared infrastructure merely to eliminate cross-feature import counts.
+
+### Validation commands
+
+From the project root with the virtual environment active:
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+git diff --check
+git status -sb
+```
+
+The working checkout was reported to pass **2,151 tests** with **zero forbidden feature dependencies**. A manual GUI smoke test also passed. These results are reported from the developer's checkout; the documentation archive was not independently executed.
+
+### Documentation and merge workflow
+
+1. Copy the updated Markdown documents into the repository, inspect `git diff -- README.md ARCHITECTURE.md DEVELOPMENT.md FEATURES.md DECISIONS.md`.
+2. Run the full test suite and `git diff --check` again.
+3. Commit and push the documentation changes on `refactor/feature-first-architecture`; **exclude `AGENTS.md`**, credentials, local test secrets, and generated files.
+4. Confirm the target branch is `main` and both branches are up to date before merging. Merge only after clean verification.
+
+Earlier 41–67-hour figures are superseded *planning estimates*, not measured elapsed effort.

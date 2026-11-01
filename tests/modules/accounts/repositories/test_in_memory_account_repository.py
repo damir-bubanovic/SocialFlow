@@ -1,0 +1,54 @@
+from socialflow.modules.accounts.repositories.in_memory_account_repository import (
+    InMemoryAccountRepository,
+)
+from socialflow.modules.accounts.models.account import Account
+from socialflow.core.destination import PublishingDestination
+
+
+def test_in_memory_account_repository_is_empty_by_default() -> None:
+    repository = InMemoryAccountRepository()
+
+    assert repository.all() == ()
+
+
+def test_in_memory_account_repository_stores_accounts() -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository.add(account)
+
+    assert repository.all() == (account,)
+
+def test_in_memory_account_repository_removes_account() -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository.add(account)
+    repository.remove(account)
+
+    assert repository.all() == ()
+
+def test_in_memory_account_repository_updates_account() -> None:
+    repository = InMemoryAccountRepository()
+
+    current = Account(
+        name="SocialFlow Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    updated = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository.add(current)
+    repository.update(current, updated)
+
+    assert repository.all() == (updated,)

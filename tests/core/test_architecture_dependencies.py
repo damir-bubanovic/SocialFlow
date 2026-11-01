@@ -1,0 +1,186 @@
+
+"""Architecture dependency regression tests."""
+
+import ast
+from pathlib import Path
+
+
+SOURCE_ROOT = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "socialflow"
+)
+
+
+def _imports_from(path: Path) -> set[str]:
+    """Return absolute module names imported by a Python file."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    imports: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+
+        elif isinstance(node, ast.ImportFrom):
+
+            module_name = getattr(node, "module", None)
+
+            if node.level == 0 and module_name:
+                imports.add(module_name)
+
+    return imports
+
+
+def test_core_does_not_depend_on_feature_modules() -> None:
+    """Core must remain independent of Accounts, Posts and WordPress."""
+    core_root = SOURCE_ROOT / "core"
+
+    for path in core_root.rglob("*.py"):
+        for imported in _imports_from(path):
+            assert not imported.startswith(
+                "socialflow.modules."
+            ), f"{path} imports feature module {imported}"
+
+
+def test_accounts_does_not_depend_on_posts() -> None:
+    """Accounts must not import Posts implementation modules."""
+    accounts_root = SOURCE_ROOT / "modules" / "accounts"
+
+    for path in accounts_root.rglob("*.py"):
+        for imported in _imports_from(path):
+            assert not (
+                imported == "socialflow.modules.posts"
+                or imported.startswith("socialflow.modules.posts.")
+            ), f"{path} imports Posts module {imported}"
+
+
+def test_shared_destination_has_one_canonical_definition() -> None:
+    """PublishingDestination must be defined only in Core."""
+    from socialflow.core.destination import PublishingDestination
+
+    assert PublishingDestination.__module__ == "socialflow.core.destination"
+
+    assert not (
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "models"
+        / "destination.py"
+    ).exists()
+
+
+def test_accounts_does_not_depend_on_wordpress() -> None:
+    """Accounts must not import WordPress implementation modules."""
+    accounts_root = SOURCE_ROOT / "modules" / "accounts"
+
+    for path in accounts_root.rglob("*.py"):
+        for imported in _imports_from(path):
+            assert not (
+                imported == "socialflow.modules.wordpress"
+                or imported.startswith("socialflow.modules.wordpress.")
+            ), f"{path} imports WordPress module {imported}"
+
+
+def test_posts_category_creation_uses_provider_contract() -> None:
+    """Category creation must not import the WordPress provider."""
+    paths = (
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "controllers"
+        / "wordpress_category_creation_controller.py",
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "workers"
+        / "wordpress_category_creation_worker.py",
+    )
+
+    forbidden = (
+        "socialflow.modules.wordpress.adapters."
+        "wordpress_category_provider"
+    )
+
+    for path in paths:
+        assert forbidden not in _imports_from(path), (
+            f"{path} imports the concrete WordPress category provider"
+        )
+
+
+
+def test_remote_tag_creation_contract_does_not_import_wordpress() -> None:
+    """Posts tag workflow contract must remain WordPress-independent."""
+    path = (
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "services"
+        / "remote_tag_creation_service.py"
+    )
+
+    for imported in _imports_from(path):
+        assert not (
+            imported == "socialflow.modules.wordpress"
+            or imported.startswith("socialflow.modules.wordpress.")
+        ), f"{path} imports WordPress module {imported}"
+
+
+
+def test_posts_tag_workers_and_controllers_do_not_import_wordpress_api() -> None:
+    """Tag orchestration must use the Posts service contract."""
+    posts_root = SOURCE_ROOT / "modules" / "posts"
+
+    paths = (
+        posts_root / "workers" / "wordpress_tag_preparation_worker.py",
+        posts_root / "workers" / "wordpress_tag_creation_worker.py",
+        posts_root / "controllers" / "wordpress_tag_preparation_controller.py",
+        posts_root / "controllers" / "wordpress_tag_creation_controller.py",
+    )
+
+    forbidden_prefixes = (
+        "socialflow.modules.wordpress.api",
+        "socialflow.modules.wordpress.adapters",
+        "socialflow.modules.wordpress.mappers",
+    )
+
+    for path in paths:
+        for imported in _imports_from(path):
+            assert not imported.startswith(forbidden_prefixes), (
+                f"{path} imports WordPress implementation {imported}"
+            )
+
+
+def test_posts_does_not_import_wordpress_modules() -> None:
+    """Posts must not depend on WordPress modules."""
+    posts_root = SOURCE_ROOT / "modules" / "posts"
+
+    for source_file in posts_root.rglob("*.py"):
+        for imported in _imports_from(source_file):
+            assert not (
+                imported == "socialflow.modules.wordpress"
+                or imported.startswith("socialflow.modules.wordpress.")
+            ), (
+                f"{source_file} imports WordPress module {imported}"
+            )
+
+
+def test_wordpress_does_not_depend_on_posts_implementation() -> None:
+    """WordPress may use Posts contracts, but not its UI or orchestration."""
+    wordpress_root = SOURCE_ROOT / "modules" / "wordpress"
+
+    forbidden_prefixes = (
+        "socialflow.modules.posts.views",
+        "socialflow.modules.posts.components",
+        "socialflow.modules.posts.controllers",
+        "socialflow.modules.posts.workers",
+        "socialflow.modules.posts.repositories",
+    )
+
+    for source_file in wordpress_root.rglob("*.py"):
+        for imported in _imports_from(source_file):
+            assert not any(
+                imported == prefix or imported.startswith(prefix + ".")
+                for prefix in forbidden_prefixes
+            ), (
+                f"{source_file} imports Posts implementation {imported}"
+            )

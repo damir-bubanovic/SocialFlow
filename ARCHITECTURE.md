@@ -1,5 +1,8 @@
 # SocialFlow --- Architecture
 
+> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
+
+
 **Current implementation checkpoint:** See Section 42 for WordPress Categories, post lifecycle, and current asynchronous guards; earlier sections document historical evolution.
 
 
@@ -1412,3 +1415,49 @@ Within a module, use Laravel-inspired, Python-appropriate responsibilities (`mod
 - Preserve pytest discovery and collected-test coverage across every migration batch.
 
 **Migration:** inspect source and test dependencies first; migrate cohesive source/test slices together; run focused tests, full-suite collection checks, and final WordPress live smoke checks. Current snapshot has **not** been refactored. Total provisional estimate is **41–67 engineering hours**, excluding Instagram/Facebook implementation. See ADR-078.
+
+---
+
+## 44. Implemented Feature-First Architecture — November 1, 2026
+
+**Status: implemented.** This section supersedes the earlier *target-only* and *migration-pending* wording in Sections 43 and the feature-aligned test architecture handoff. Those sections remain as historical design context.
+
+### Verified source and test ownership
+
+```text
+src/socialflow/
+├── modules/
+│   ├── accounts/           # Account models, repositories, services, UI
+│   ├── posts/              # Composer, publishing, publications, tags, UI
+│   └── wordpress/          # WordPress API, adapters, platform behavior
+├── ui/
+│   └── main_content.py     # Feature composition
+├── core/                   # Shared contracts and primitives
+├── application/            # Shared credential and clock contracts
+└── infrastructure/         # Keyring, logging, paths, system clock
+
+tests/
+├── modules/
+│   ├── accounts/
+│   ├── posts/
+│   └── wordpress/
+└── integration/            # Cross-feature workflows
+```
+
+This is a *representative* ownership map, not an exhaustive directory listing. Keep existing shared folders and test infrastructure as implemented; do not create empty Instagram/Facebook placeholders.
+
+### Enforced dependency direction
+
+- **Accounts → Posts/WordPress:** forbidden.
+- **Posts → WordPress:** forbidden; platform-specific behavior is supplied through contracts/adapters.
+- **WordPress → Posts:** permitted for shared Posts models and service contracts, not Posts UI, controllers, workers, or repositories.
+- **Posts → Accounts:** permitted for account models, account lookup, and account serialization used in publication history and migration.
+- **WordPress → Accounts:** permitted for account/credential contracts.
+- **Composition:** `socialflow.ui.main_content` connects Accounts, Posts, and WordPress.
+- **Shared infrastructure:** credential store, clock, keyring, logging, and paths stay outside feature modules.
+
+Posts owns `RemoteTagCreationPlan` and `RemoteTagCreationService`; WordPress supplies its platform adapter. The historical `WordPressTagCreationPlan` name is retained as a compatibility alias.
+
+### Verification and limits
+
+The developer reported **2,151 passing pytest tests**, **zero forbidden feature dependency violations**, clean Git checks, and a successful manual application GUI smoke test on `refactor/feature-first-architecture`. This establishes completion of the planned structural migration; it is not a guarantee that every possible runtime scenario or external WordPress API failure has been tested. Instagram/Facebook remain future work. Earlier migration estimates are historical planning figures, not actual recorded effort.

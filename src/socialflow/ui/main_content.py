@@ -1,135 +1,138 @@
 from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
-from socialflow.application.accounts.add_account import AddAccount
-from socialflow.application.accounts.list_accounts import ListAccounts
-from socialflow.application.accounts.remove_account import RemoveAccount
-from socialflow.application.accounts.update_account import UpdateAccount
-from socialflow.application.credentials.save_wordpress_credentials import (
+from socialflow.modules.accounts.services.add_account import AddAccount
+from socialflow.modules.accounts.services.list_accounts import ListAccounts
+from socialflow.modules.accounts.services.remove_account import RemoveAccount
+from socialflow.modules.accounts.services.update_account import UpdateAccount
+from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
-from socialflow.application.images.default_image_profiles import (
+from socialflow.modules.wordpress.adapters.wordpress_tag_creation_service import (
+    WordPressTagCreationService,
+)
+from socialflow.modules.posts.services.default_image_profiles import (
     DEFAULT_IMAGE_PROFILES,
 )
-from socialflow.application.images.image_preparation_service import (
+from socialflow.modules.posts.services.image_preparation_service import (
     ImagePreparationService,
 )
-from socialflow.application.images.image_profile_provider import (
+from socialflow.modules.posts.services.image_profile_provider import (
     ImageProfileProvider,
 )
-from socialflow.application.publishing.list_recent_publications import (
+from socialflow.modules.posts.services.list_recent_publications import (
     ListRecentPublications,
 )
-from socialflow.application.publishing.list_remote_posts import (
+from socialflow.modules.posts.services.list_remote_posts import (
     ListRemotePosts,
 )
-from socialflow.application.publishing.list_trashed_remote_posts import (
+from socialflow.modules.posts.services.list_trashed_remote_posts import (
     ListTrashedRemotePosts,
 )
-from socialflow.application.publishing.restore_remote_post import (
+from socialflow.modules.posts.services.restore_remote_post import (
     RestoreRemotePost,
 )
-from socialflow.ui.workers.wordpress_category_creation_controller import (
+from socialflow.modules.posts.controllers.wordpress_category_creation_controller import (
     WordPressCategoryCreationController,
 )
-from socialflow.application.publishing.publish_post import PublishPost
-from socialflow.application.publishing.publisher_router import PublisherRouter
-from socialflow.application.publishing.unconfigured_publisher import (
+from socialflow.modules.posts.services.publish_post import PublishPost
+from socialflow.modules.posts.services.publisher_router import PublisherRouter
+from socialflow.modules.posts.services.unconfigured_publisher import (
     UnconfiguredPublisher,
 )
-from socialflow.application.tags.create_tag import CreateTag
-from socialflow.application.tags.list_tags import ListTags
-from socialflow.application.tags.null_tag_provider import NullTagProvider
-from socialflow.application.tags.routing_tag_provider import (
+from socialflow.modules.posts.services.create_tag import CreateTag
+from socialflow.modules.posts.services.list_tags import ListTags
+from socialflow.modules.posts.services.null_tag_provider import NullTagProvider
+from socialflow.modules.posts.services.routing_tag_provider import (
     RoutingTagProvider,
 )
-from socialflow.infrastructure.wordpress.wordpress_tag_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_tag_provider import (
     WordPressTagProvider,
 )
-from socialflow.infrastructure.wordpress.wordpress_category_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_category_provider import (
     WordPressCategoryProvider,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_category_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_category_client import (
     UrllibWordPressCategoryClient,
 )
-from socialflow.application.categories.list_remote_categories import (
+from socialflow.modules.posts.services.list_remote_categories import (
     ListRemoteCategories,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_tag_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
-from socialflow.domain.publishing.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
-from socialflow.infrastructure.accounts.json_account_repository import (
+from socialflow.modules.accounts.repositories.json_account_repository import (
     JsonAccountRepository,
 )
 from socialflow.infrastructure.credentials.keyring_credential_store import (
     KeyringCredentialStore,
 )
-from socialflow.infrastructure.publishing.json_publication_repository import (
+from socialflow.modules.posts.repositories.json_publication_repository import (
     JsonPublicationRepository,
 )
-from socialflow.infrastructure.publishing.uuid_publication_id_generator import (
+from socialflow.modules.posts.services.uuid_publication_id_generator import (
     UuidPublicationIdGenerator,
 )
 from socialflow.infrastructure.storage.app_paths import AppPaths
 from socialflow.infrastructure.storage.data_directory import data_directory
 from socialflow.infrastructure.time.system_clock import SystemClock
-from socialflow.infrastructure.wordpress.wordpress_connection_verifier_factory import (
+from socialflow.modules.wordpress.auth.wordpress_connection_verifier_factory import (
     WordPressConnectionVerifierFactory,
 )
-from socialflow.ui.accounts.accounts_page import AccountsPage
+from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.ui.navigation import Navigation
-from socialflow.ui.posts.posts_page import PostsPage
-from socialflow.application.credentials.delete_wordpress_credentials import (
+from socialflow.modules.posts.views.posts_page import PostsPage
+from socialflow.modules.accounts.services.delete_wordpress_credentials import (
     DeleteWordPressCredentials,
 )
-from socialflow.infrastructure.wordpress.wordpress_publisher import (
+from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )
-from socialflow.infrastructure.wordpress.urllib_wordpress_post_client import (
+from socialflow.modules.wordpress.api.urllib_wordpress_post_client import (
     UrllibWordPressPostClient,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_parser import (
+from socialflow.modules.wordpress.mappers.wordpress_post_parser import (
     WordPressPostParser,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_retriever import (
+from socialflow.modules.wordpress.adapters.wordpress_post_retriever import (
     WordPressPostRetriever,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_post_provider import (
     WordPressPostProvider,
 )
-from socialflow.application.publishing.update_remote_post import (
+from socialflow.modules.posts.services.update_remote_post import (
     UpdateRemotePost,
 )
-from socialflow.application.publishing.trash_remote_post import (
+from socialflow.modules.posts.services.trash_remote_post import (
     TrashRemotePost,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_trasher import (
+from socialflow.modules.wordpress.adapters.wordpress_post_trasher import (
     WordPressPostTrasher,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_restorer import (
+from socialflow.modules.wordpress.adapters.wordpress_post_restorer import (
     WordPressPostRestorer,
 )
-from socialflow.infrastructure.wordpress.wordpress_post_updater import (
+from socialflow.modules.wordpress.adapters.wordpress_post_updater import (
     WordPressPostUpdater,
 )
-from socialflow.ui.workers.wordpress_tag_preparation_controller import (
+from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller import (
     WordPressTagPreparationController,
 )
-from socialflow.ui.workers.wordpress_tag_creation_controller import (
+from socialflow.modules.posts.controllers.wordpress_tag_creation_controller import (
     WordPressTagCreationController,
 )
-from socialflow.application.tags.list_remote_tags import (
+from socialflow.modules.posts.services.list_remote_tags import (
     ListRemoteTags,
 )
-from socialflow.application.publishing.list_remote_media import (
+from socialflow.modules.posts.services.list_remote_media import (
     ListRemoteMedia,
 )
-from socialflow.infrastructure.wordpress.wordpress_media_provider import (
+from socialflow.modules.wordpress.adapters.wordpress_media_provider import (
     WordPressMediaProvider,
 )
-from socialflow.application.credentials.get_wordpress_credentials import (
+from socialflow.modules.accounts.services.get_wordpress_credentials import (
     GetWordPressCredentials,
 )
 
@@ -190,6 +193,11 @@ class MainContent(QWidget):
 
         # Tag services.
         wordpress_tag_client = UrllibWordPressTagClient()
+
+        wordpress_tag_creation_service = WordPressTagCreationService(
+            tag_client=wordpress_tag_client,
+            credential_store=credential_store,
+        )
 
         wordpress_tag_provider = WordPressTagProvider(
             tag_client=wordpress_tag_client,
@@ -324,12 +332,10 @@ class MainContent(QWidget):
             list_trashed_remote_posts=list_trashed_remote_posts,
             restore_remote_post=restore_remote_post,
             wordpress_tag_preparation_controller=WordPressTagPreparationController(
-                credential_store=credential_store,
-                tag_client=wordpress_tag_client,
+                tag_creation_service=wordpress_tag_creation_service,
             ),
             wordpress_tag_creation_controller=WordPressTagCreationController(
-                credential_store=credential_store,
-                tag_client=wordpress_tag_client,
+                tag_creation_service=wordpress_tag_creation_service,
             ),
             list_remote_tags=list_remote_tags,
             list_remote_categories=list_remote_categories,

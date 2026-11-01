@@ -1,0 +1,922 @@
+import json
+from datetime import datetime, timedelta
+from uuid import UUID
+import pytest
+from unittest.mock import patch
+
+from socialflow.modules.accounts.models.account import Account
+from socialflow.modules.posts.models.language import Language
+from socialflow.modules.posts.models.post import Post
+from socialflow.core.destination import PublishingDestination
+from socialflow.modules.posts.models.publication import Publication
+from socialflow.modules.posts.models.publication_id import PublicationId
+from socialflow.modules.posts.repositories.json_publication_repository import (
+    JsonPublicationRepository,
+)
+from socialflow.modules.posts.models.image_attachment import ImageAttachment
+
+
+def create_publication(
+    account: Account,
+    text: str,
+    published_at: datetime,
+    publication_id: UUID | None = None,
+) -> Publication:
+    return Publication(
+        id=PublicationId(
+            publication_id
+            or UUID("12345678-1234-5678-1234-567812345678")
+        ),
+        account=account,
+        post=Post(
+            text=text,
+            language=Language.ENGLISH,
+        ),
+        published_at=published_at,
+    )
+
+
+def test_repository_returns_empty_history_when_file_does_not_exist(
+    tmp_path,
+) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    assert repository.recent_for_account(account) == ()
+
+
+def test_repository_persists_publication(tmp_path) -> None:
+    file_path = tmp_path / "publications.json"
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    publication = create_publication(
+        account,
+        "Hello from SocialFlow",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    repository = JsonPublicationRepository(file_path)
+    repository.add(publication)
+
+    reloaded_repository = JsonPublicationRepository(file_path)
+
+    assert reloaded_repository.recent_for_account(account) == (
+        publication,
+    )
+
+
+def test_repository_returns_requested_account_only(tmp_path) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    facebook = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress = Account(
+        name="Main WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    published_at = datetime(2026, 10, 5, 21, 30)
+
+    facebook_publication = create_publication(
+        facebook,
+        "Facebook post",
+        published_at,
+        UUID("11111111-1111-1111-1111-111111111111"),
+    )
+    wordpress_publication = create_publication(
+        wordpress,
+        "WordPress post",
+        published_at,
+        UUID("22222222-2222-2222-2222-222222222222"),
+    )
+
+    repository.add(facebook_publication)
+    repository.add(wordpress_publication)
+
+    assert repository.recent_for_account(facebook) == (
+        facebook_publication,
+    )
+
+
+def test_repository_returns_newest_publications_first(tmp_path) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    start = datetime(2026, 10, 5, 21, 0)
+
+    older = create_publication(
+        account,
+        "Older post",
+        start,
+        UUID("11111111-1111-1111-1111-111111111111"),
+    )
+    newer = create_publication(
+        account,
+        "Newer post",
+        start + timedelta(minutes=1),
+        UUID("22222222-2222-2222-2222-222222222222"),
+    )
+
+    repository.add(older)
+    repository.add(newer)
+
+    assert repository.recent_for_account(account) == (
+        newer,
+        older,
+    )
+
+
+def test_repository_returns_five_publications_by_default(
+    tmp_path,
+) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    start = datetime(2026, 10, 5, 21, 0)
+
+    publication_ids = (
+        UUID("00000000-0000-0000-0000-000000000001"),
+        UUID("00000000-0000-0000-0000-000000000002"),
+        UUID("00000000-0000-0000-0000-000000000003"),
+        UUID("00000000-0000-0000-0000-000000000004"),
+        UUID("00000000-0000-0000-0000-000000000005"),
+        UUID("00000000-0000-0000-0000-000000000006"),
+    )
+
+    publications = [
+        create_publication(
+            account,
+            f"Post {index}",
+            start + timedelta(minutes=index),
+            publication_ids[index],
+        )
+        for index in range(6)
+    ]
+
+    for publication in publications:
+        repository.add(publication)
+
+    assert repository.recent_for_account(account) == tuple(
+        reversed(publications[1:])
+    )
+
+
+def test_repository_respects_custom_limit(tmp_path) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    start = datetime(2026, 10, 5, 21, 0)
+
+    publication_ids = (
+        UUID("00000000-0000-0000-0000-000000000001"),
+        UUID("00000000-0000-0000-0000-000000000002"),
+        UUID("00000000-0000-0000-0000-000000000003"),
+    )
+
+    publications = [
+        create_publication(
+            account,
+            f"Post {index}",
+            start + timedelta(minutes=index),
+            publication_ids[index],
+        )
+        for index in range(3)
+    ]
+
+    for publication in publications:
+        repository.add(publication)
+
+    assert repository.recent_for_account(
+        account,
+        limit=2,
+    ) == (
+        publications[2],
+        publications[1],
+    )
+
+
+def test_repository_migrates_legacy_publication_without_id(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+
+    legacy_data = [
+        {
+            "account": {
+                "name": "Main Facebook",
+                "destination": "facebook",
+            },
+            "post": {
+                "text": "Legacy publication",
+                "language": "EN",
+            },
+            "published_at": "2026-10-05T21:30:00",
+        }
+    ]
+
+    file_path.write_text(
+        json.dumps(
+            legacy_data,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository = JsonPublicationRepository(file_path)
+
+    first_load = repository.recent_for_account(account)
+
+    assert len(first_load) == 1
+    assert isinstance(first_load[0].id, PublicationId)
+
+    migrated_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert "id" in migrated_data[0]
+    assert migrated_data[0]["id"] == str(first_load[0].id)
+
+    reloaded_repository = JsonPublicationRepository(file_path)
+    second_load = reloaded_repository.recent_for_account(account)
+
+    assert len(second_load) == 1
+    assert second_load[0].id == first_load[0].id
+    assert second_load[0] == first_load[0]
+
+def test_repository_preserves_images_after_original_is_deleted(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"original image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+
+    repository = JsonPublicationRepository(file_path)
+    repository.add(publication)
+
+    source.unlink()
+
+    reloaded = JsonPublicationRepository(file_path)
+    history = reloaded.recent_for_account(account)
+
+    assert len(history) == 1
+    assert len(history[0].post.images) == 1
+
+    stored_image = history[0].post.images[0]
+
+    assert stored_image.path.is_file()
+    assert stored_image.path.read_bytes() == (
+        b"original image content"
+    )
+    assert stored_image.path != source
+
+def test_repository_removes_copied_images_when_save_fails(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+    repository = JsonPublicationRepository(file_path)
+
+    with patch.object(
+            repository,
+            "_write_data",
+            side_effect=OSError("Simulated save failure"),
+    ):
+        with pytest.raises(OSError, match="Simulated save failure"):
+            repository.add(publication)
+
+    managed_directory = tmp_path / "publication_images"
+
+    assert not list(managed_directory.glob("*"))
+    assert source.is_file()
+
+def test_repository_preserves_existing_json_when_replace_fails(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    repository = JsonPublicationRepository(file_path)
+
+    first = create_publication(
+        account,
+        "Original publication",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    repository.add(first)
+
+    original_content = file_path.read_text(encoding="utf-8")
+
+    second = create_publication(
+        account,
+        "New publication",
+        datetime(2026, 10, 6, 10, 0),
+    )
+
+    with patch(
+        "socialflow.modules.posts.repositories.json_publication_repository.os.replace",
+        side_effect=OSError("Simulated replace failure"),
+    ):
+        with pytest.raises(
+            OSError,
+            match="Simulated replace failure",
+        ):
+            repository.add(second)
+
+    assert file_path.read_text(encoding="utf-8") == (
+        original_content
+    )
+
+    assert not list(tmp_path.glob(".publications_*.tmp"))
+
+def test_repository_rolls_back_when_second_image_copy_fails(
+    tmp_path,
+) -> None:
+    first_path = tmp_path / "first.png"
+    second_path = tmp_path / "second.png"
+
+    first_path.write_bytes(b"first image")
+    second_path.write_bytes(b"second image")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with two images",
+        datetime(2026, 10, 8, 15, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(
+                ImageAttachment(path=first_path),
+                ImageAttachment(path=second_path),
+            ),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+    repository = JsonPublicationRepository(file_path)
+
+    original_store = repository._image_storage.store
+    calls = 0
+
+    def failing_store(image):
+        nonlocal calls
+        calls += 1
+
+        if calls == 2:
+            raise OSError("Second image copy failed")
+
+        return original_store(image)
+
+    with patch.object(
+        repository._image_storage,
+        "store",
+        side_effect=failing_store,
+    ):
+        with pytest.raises(
+            OSError,
+            match="Second image copy failed",
+        ):
+            repository.add(publication)
+
+    managed_directory = tmp_path / "publication_images"
+
+    assert not list(managed_directory.glob("*"))
+    assert first_path.is_file()
+    assert second_path.is_file()
+    assert not file_path.exists()
+
+def test_repository_loads_publication_when_stored_image_is_missing(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with missing image",
+        datetime(2026, 10, 8, 15, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    file_path = tmp_path / "publications.json"
+    repository = JsonPublicationRepository(file_path)
+
+    repository.add(publication)
+
+    history = repository.recent_for_account(account)
+
+    assert len(history) == 1
+    assert len(history[0].post.images) == 1
+
+    managed_image = history[0].post.images[0].path
+    managed_image.unlink()
+
+    reloaded_repository = JsonPublicationRepository(file_path)
+    recovered_history = reloaded_repository.recent_for_account(
+        account
+    )
+
+    assert len(recovered_history) == 1
+
+    recovered = recovered_history[0]
+
+    assert recovered.id == publication.id
+    assert recovered.post.text == publication.post.text
+    assert recovered.post.language == publication.post.language
+    assert recovered.post.images == ()
+    assert recovered.account == publication.account
+    assert recovered.published_at == publication.published_at
+
+def test_legacy_migration_preserves_missing_image_paths(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+    missing_image = tmp_path / "deleted.png"
+
+    legacy_record = {
+        "account": {
+            "name": "Main Facebook",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Legacy post with missing image",
+            "language": "EN",
+            "tags": [],
+            "images": [str(missing_image)],
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    file_path.write_text(
+        json.dumps([legacy_record]),
+        encoding="utf-8",
+    )
+
+    repository = JsonPublicationRepository(file_path)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    history = repository.recent_for_account(account)
+
+    assert len(history) == 1
+    assert history[0].post.images == ()
+
+    saved_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert "id" in saved_data[0]
+    assert saved_data[0]["post"]["images"] == [
+        str(missing_image)
+    ]
+
+def test_adding_publication_preserves_existing_missing_image_paths(
+    tmp_path,
+) -> None:
+    file_path = tmp_path / "publications.json"
+    missing_image = tmp_path / "deleted.png"
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    first = create_publication(
+        account,
+        "Original publication",
+        datetime(2026, 10, 5, 21, 30),
+    )
+
+    repository = JsonPublicationRepository(file_path)
+    repository.add(first)
+
+    data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    data[0]["post"]["images"] = [str(missing_image)]
+
+    file_path.write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
+
+    second = create_publication(
+        account,
+        "Second publication",
+        datetime(2026, 10, 8, 16, 0),
+    )
+
+    repository.add(second)
+
+    saved_data = json.loads(
+        file_path.read_text(encoding="utf-8")
+    )
+
+    assert len(saved_data) == 2
+    assert saved_data[0]["post"]["images"] == [
+        str(missing_image)
+    ]
+    assert saved_data[1]["post"]["text"] == (
+        "Second publication"
+    )
+
+def test_repository_detects_missing_publication_images(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 8, 16, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+    repository.add(publication)
+
+    stored = repository.recent_for_account(account)[0]
+    stored_path = stored.post.images[0].path
+
+    stored_path.unlink()
+
+    missing = repository.missing_images_for_publication(
+        publication.id
+    )
+
+    assert missing == (stored_path,)
+
+
+def test_repository_returns_no_missing_images_when_files_exist(
+    tmp_path,
+) -> None:
+    source = tmp_path / "original.png"
+    source.write_bytes(b"image content")
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    original = create_publication(
+        account,
+        "Post with image",
+        datetime(2026, 10, 8, 16, 0),
+    )
+
+    publication = Publication(
+        id=original.id,
+        account=original.account,
+        post=Post(
+            text=original.post.text,
+            language=original.post.language,
+            images=(ImageAttachment(path=source),),
+        ),
+        published_at=original.published_at,
+    )
+
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+    repository.add(publication)
+
+    assert repository.missing_images_for_publication(
+        publication.id
+    ) == ()
+
+
+def test_repository_returns_no_missing_images_for_unknown_id(
+    tmp_path,
+) -> None:
+    repository = JsonPublicationRepository(
+        tmp_path / "publications.json"
+    )
+
+    unknown_id = PublicationId(
+        UUID("99999999-9999-9999-9999-999999999999")
+    )
+
+    assert repository.missing_images_for_publication(
+        unknown_id
+    ) == ()
+
+def test_migrated_publication_remains_accessible_after_account_rename(
+    tmp_path,
+) -> None:
+    from socialflow.modules.accounts.repositories.json_account_repository import (
+        JsonAccountRepository,
+    )
+
+    account_repository = JsonAccountRepository(
+        tmp_path / "accounts.json"
+    )
+
+    original_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    account_repository.add(original_account)
+
+    file_path = tmp_path / "publications.json"
+
+    legacy_data = [
+        {
+            "id": "12345678-1234-5678-1234-567812345678",
+            "account": {
+                "name": "Main Facebook",
+                "destination": "facebook",
+            },
+            "post": {
+                "text": "Legacy publication",
+                "language": "EN",
+            },
+            "published_at": "2026-10-05T21:30:00",
+        }
+    ]
+
+    file_path.write_text(
+        json.dumps(legacy_data),
+        encoding="utf-8",
+    )
+
+    publication_repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    # Load history to trigger migration.
+    original_history = publication_repository.recent_for_account(
+        original_account
+    )
+
+    assert len(original_history) == 1
+
+    renamed_account = Account(
+        name="Renamed Facebook",
+        destination=PublishingDestination.FACEBOOK,
+        id=original_account.id,
+    )
+
+    account_repository.update(original_account, renamed_account)
+
+    # Reopen the repository to simulate restarting SocialFlow.
+    reloaded_repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    renamed_history = reloaded_repository.recent_for_account(
+        renamed_account
+    )
+
+    assert len(renamed_history) == 1
+    assert renamed_history[0].account.id == original_account.id
+    assert renamed_history[0].post.text == "Legacy publication"
+
+    stored = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert stored[0]["account"]["id"] == str(original_account.id)
+
+def test_legacy_publication_without_matching_account_is_not_assigned_id(
+    tmp_path,
+) -> None:
+    from socialflow.modules.accounts.repositories.json_account_repository import (
+        JsonAccountRepository,
+    )
+
+    account_repository = JsonAccountRepository(
+        tmp_path / "accounts.json"
+    )
+
+    file_path = tmp_path / "publications.json"
+
+    legacy_record = {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "account": {
+            "name": "Deleted Facebook Account",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Historical publication",
+            "language": "EN",
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    file_path.write_text(
+        json.dumps([legacy_record]),
+        encoding="utf-8",
+    )
+
+    repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    publications = repository._load()
+
+    assert len(publications) == 1
+    assert publications[0].account.id.value.int == 0
+
+    stored = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert "id" not in stored[0]["account"]
+    assert stored[0]["post"]["text"] == "Historical publication"
+
+def test_legacy_publication_is_not_migrated_when_account_match_is_ambiguous(
+    tmp_path,
+) -> None:
+    from socialflow.modules.accounts.repositories.json_account_repository import (
+        JsonAccountRepository,
+    )
+
+    account_repository = JsonAccountRepository(
+        tmp_path / "accounts.json"
+    )
+
+    first_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    second_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    assert first_account.id != second_account.id
+
+    account_repository.add(first_account)
+    account_repository.add(second_account)
+
+    file_path = tmp_path / "publications.json"
+
+    legacy_record = {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "account": {
+            "name": "Main Facebook",
+            "destination": "facebook",
+        },
+        "post": {
+            "text": "Ambiguous legacy publication",
+            "language": "EN",
+        },
+        "published_at": "2026-10-05T21:30:00",
+    }
+
+    file_path.write_text(
+        json.dumps([legacy_record]),
+        encoding="utf-8",
+    )
+
+    repository = JsonPublicationRepository(
+        file_path,
+        account_repository=account_repository,
+    )
+
+    publications = repository._load()
+
+    assert len(publications) == 1
+    assert publications[0].account.id.value.int == 0
+
+    stored = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert "id" not in stored[0]["account"]
+    assert stored[0]["post"]["text"] == "Ambiguous legacy publication"
