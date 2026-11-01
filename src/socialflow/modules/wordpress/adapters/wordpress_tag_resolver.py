@@ -2,8 +2,8 @@ from collections.abc import Iterable
 
 from socialflow.modules.posts.models.tag import Tag
 from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 from socialflow.modules.wordpress.mappers.wordpress_tag_name_normalizer import (
     WordPressTagNameNormalizer,
@@ -23,7 +23,7 @@ class WordPressTagResolver:
             cls,
             selected_tags: Iterable[Tag],
             remote_tags: Iterable[WordPressTag],
-    ) -> WordPressTagCreationPlan:
+    ) -> RemoteTagCreationPlan:
         """Prepare missing tags and reject ambiguous remote matches."""
 
         selected_tags = tuple(selected_tags)
@@ -50,7 +50,7 @@ class WordPressTagResolver:
             remote_tags=remote_tags,
         )
 
-        return WordPressTagCreationPlan(
+        return RemoteTagCreationPlan(
             missing_tags=missing,
         )
 

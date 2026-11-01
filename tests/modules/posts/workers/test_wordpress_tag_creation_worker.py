@@ -14,6 +14,10 @@ from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
 from socialflow.modules.posts.workers.wordpress_tag_creation_worker import (
     WordPressTagCreationWorker,
 )
+from socialflow.modules.posts.models.remote_tag import RemoteTag
+from socialflow.modules.wordpress.adapters.wordpress_tag_creation_service import (
+    WordPressTagCreationService,
+)
 
 
 def make_worker(tag_names: tuple[str, ...]):
@@ -39,11 +43,15 @@ def make_worker(tag_names: tuple[str, ...]):
         missing_tags=tuple(Tag(name) for name in tag_names),
     )
 
+    service = WordPressTagCreationService(
+        tag_client=client,
+        credential_store=credentials,
+    )
+
     worker = WordPressTagCreationWorker(
         account=account,
         plan=plan,
-        credential_store=credentials,
-        tag_client=client,
+        tag_creation_service=service,
     )
 
     return worker, client
@@ -333,7 +341,7 @@ def test_worker_accepts_unicode_equivalent_created_tag_name() -> None:
 
     assert errors == []
     assert results == [
-        (WordPressTag(id=101, name="C\u030Cakovec"),)
+        (RemoteTag(remote_id=101, name="C\u030Cakovec"),)
     ]
 
     client.create_tag.assert_called_once()
@@ -382,7 +390,7 @@ def test_worker_accepts_case_insensitive_created_tag_name() -> None:
 
     assert errors == []
     assert results == [
-        (WordPressTag(id=101, name="socialflow"),)
+        (RemoteTag(remote_id=101, name="socialflow"),)
     ]
 
     client.create_tag.assert_called_once()

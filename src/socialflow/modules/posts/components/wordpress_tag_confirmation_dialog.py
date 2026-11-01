@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 
 
@@ -15,7 +15,7 @@ class WordPressTagConfirmationDialog(QDialog):
 
     def __init__(
         self,
-        plan: WordPressTagCreationPlan,
+        plan: RemoteTagCreationPlan,
         parent=None,
     ) -> None:
         super().__init__(parent)

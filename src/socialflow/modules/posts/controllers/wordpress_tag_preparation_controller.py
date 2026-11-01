@@ -1,10 +1,9 @@
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
-from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.modules.wordpress.api.wordpress_tag_client import (
-    WordPressTagClient,
+from socialflow.modules.posts.services.remote_tag_creation_service import (
+    RemoteTagCreationService,
 )
 from socialflow.modules.posts.workers.wordpress_tag_preparation_worker import (
     WordPressTagPreparationWorker,
@@ -20,14 +19,12 @@ class WordPressTagPreparationController(QObject):
 
     def __init__(
         self,
-        credential_store: CredentialStore,
-        tag_client: WordPressTagClient,
+        tag_creation_service: RemoteTagCreationService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
 
-        self._credential_store = credential_store
-        self._tag_client = tag_client
+        self._tag_creation_service = tag_creation_service
         self._thread: QThread | None = None
         self._worker: WordPressTagPreparationWorker | None = None
         self._shutting_down = False
@@ -48,8 +45,7 @@ class WordPressTagPreparationController(QObject):
         worker = WordPressTagPreparationWorker(
             account=account,
             selected_tags=selected_tags,
-            credential_store=self._credential_store,
-            tag_client=self._tag_client,
+            tag_creation_service=self._tag_creation_service,
         )
         worker.moveToThread(thread)
 

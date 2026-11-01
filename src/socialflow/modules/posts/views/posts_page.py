@@ -68,8 +68,8 @@ from socialflow.modules.posts.controllers.remote_post_updating_controller import
 from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller import (
     WordPressTagPreparationController,
 )
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 from socialflow.modules.posts.components.wordpress_tag_confirmation_dialog import (
     WordPressTagConfirmationDialog,
@@ -281,7 +281,7 @@ class PostsPage(QWidget):
 
         self._approved_wordpress_tag_plans: dict[
             object,
-            WordPressTagCreationPlan,
+            RemoteTagCreationPlan,
         ] = {}
 
         self._wordpress_tag_creation_failed = False
@@ -2337,7 +2337,7 @@ class PostsPage(QWidget):
 
     def _on_wordpress_tag_plan_ready(
             self,
-            plan: WordPressTagCreationPlan,
+            plan: RemoteTagCreationPlan,
     ) -> None:
         """Request confirmation for missing WordPress tags."""
         if (

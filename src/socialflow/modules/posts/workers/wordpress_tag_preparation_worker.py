@@ -1,22 +1,20 @@
+
+"""Prepare remote tag creation plans outside the UI thread."""
+
 from PySide6.QtCore import QObject, Signal, Slot
 
-from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.core.destination import PublishingDestination
-from socialflow.modules.accounts.services.wordpress_credential_keys import (
-    WordPressCredentialKeys,
+from socialflow.modules.posts.services.remote_tag_creation_service import (
+    RemoteTagCreationService,
 )
-from socialflow.modules.wordpress.api.wordpress_tag_client import (
-    WordPressTagClient,
-)
-from socialflow.modules.wordpress.adapters.wordpress_tag_resolver import (
-    WordPressTagResolver,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 
 
 class WordPressTagPreparationWorker(QObject):
-    """Prepare missing WordPress tags outside the UI thread."""
+    """Prepare missing tags using a platform service."""
 
     finished = Signal(object)
     failed = Signal(str)
@@ -25,15 +23,13 @@ class WordPressTagPreparationWorker(QObject):
         self,
         account: Account,
         selected_tags: tuple[Tag, ...],
-        credential_store: CredentialStore,
-        tag_client: WordPressTagClient,
+        tag_creation_service: RemoteTagCreationService,
     ) -> None:
         super().__init__()
 
         self._account = account
         self._selected_tags = selected_tags
-        self._credential_store = credential_store
-        self._tag_client = tag_client
+        self._tag_creation_service = tag_creation_service
 
     @Slot()
     def run(self) -> None:
@@ -45,31 +41,12 @@ class WordPressTagPreparationWorker(QObject):
 
         self.finished.emit(plan)
 
-    def _prepare(self):
-        if self._account.destination is not PublishingDestination.WORDPRESS:
-            raise ValueError("A WordPress account is required.")
-
-        config = self._account.wordpress_config
-
-        if config is None or not config.is_complete():
-            raise ValueError("WordPress connection settings are incomplete.")
-
-        config = config.normalized()
-
-        password = self._credential_store.get(
-            WordPressCredentialKeys.application_password(self._account)
-        )
-
-        if not password:
-            raise ValueError("WordPress application password is missing.")
-
-        remote_tags = self._tag_client.list_tags(
-            site_url=config.site_url,
-            username=config.username,
-            application_password=password,
-        )
-
-        return WordPressTagResolver.prepare_creation_plan(
+    def _prepare(self) -> RemoteTagCreationPlan:
+        missing_tags = self._tag_creation_service.prepare_creation(
+            account=self._account,
             selected_tags=self._selected_tags,
-            remote_tags=remote_tags,
+        )
+
+        return RemoteTagCreationPlan(
+            missing_tags=missing_tags,
         )

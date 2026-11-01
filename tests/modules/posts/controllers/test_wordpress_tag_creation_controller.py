@@ -15,6 +15,11 @@ from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
 from socialflow.modules.posts.controllers.wordpress_tag_creation_controller import (
     WordPressTagCreationController,
 )
+from socialflow.modules.posts.models.remote_tag import RemoteTag
+from socialflow.modules.wordpress.adapters.wordpress_tag_creation_service import (
+    WordPressTagCreationService,
+)
+
 
 
 def make_controller():
@@ -27,9 +32,13 @@ def make_controller():
         name="SocialFlow",
     )
 
-    controller = WordPressTagCreationController(
-        credential_store=credentials,
+    service = WordPressTagCreationService(
         tag_client=client,
+        credential_store=credentials,
+    )
+
+    controller = WordPressTagCreationController(
+        tag_creation_service=service,
     )
 
     account = Account(
@@ -355,7 +364,9 @@ def test_normal_tag_creation_forwards_result_before_completion(qtbot):
         assert events[1] == ("finished", None)
 
         received_tags = events[0][1]
-        assert received_tags == (WordPressTag(id=42, name="SocialFlow"),)
+        assert received_tags == (
+            RemoteTag(remote_id=42, name="SocialFlow"),
+        )
 
         assert not controller.is_running
         client.create_tag.assert_called_once()

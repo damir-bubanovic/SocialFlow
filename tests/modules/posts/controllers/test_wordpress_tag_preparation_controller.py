@@ -11,6 +11,10 @@ from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
 from socialflow.modules.posts.controllers.wordpress_tag_preparation_controller import (
     WordPressTagPreparationController,
 )
+from socialflow.modules.wordpress.adapters.wordpress_tag_creation_service import (
+    WordPressTagCreationService,
+)
+
 
 
 def make_controller():
@@ -22,9 +26,13 @@ def make_controller():
         WordPressTag(id=12, name="Python"),
     )
 
-    controller = WordPressTagPreparationController(
-        credential_store=credentials,
+    service = WordPressTagCreationService(
         tag_client=tag_client,
+        credential_store=credentials,
+    )
+
+    controller = WordPressTagPreparationController(
+        tag_creation_service=service,
     )
 
     account = Account(

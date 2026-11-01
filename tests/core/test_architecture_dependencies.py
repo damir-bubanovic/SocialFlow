@@ -105,3 +105,60 @@ def test_posts_category_creation_uses_provider_contract() -> None:
         assert forbidden not in _imports_from(path), (
             f"{path} imports the concrete WordPress category provider"
         )
+
+
+
+def test_remote_tag_creation_contract_does_not_import_wordpress() -> None:
+    """Posts tag workflow contract must remain WordPress-independent."""
+    path = (
+        SOURCE_ROOT
+        / "modules"
+        / "posts"
+        / "services"
+        / "remote_tag_creation_service.py"
+    )
+
+    for imported in _imports_from(path):
+        assert not (
+            imported == "socialflow.modules.wordpress"
+            or imported.startswith("socialflow.modules.wordpress.")
+        ), f"{path} imports WordPress module {imported}"
+
+
+
+def test_posts_tag_workers_and_controllers_do_not_import_wordpress_api() -> None:
+    """Tag orchestration must use the Posts service contract."""
+    posts_root = SOURCE_ROOT / "modules" / "posts"
+
+    paths = (
+        posts_root / "workers" / "wordpress_tag_preparation_worker.py",
+        posts_root / "workers" / "wordpress_tag_creation_worker.py",
+        posts_root / "controllers" / "wordpress_tag_preparation_controller.py",
+        posts_root / "controllers" / "wordpress_tag_creation_controller.py",
+    )
+
+    forbidden_prefixes = (
+        "socialflow.modules.wordpress.api",
+        "socialflow.modules.wordpress.adapters",
+        "socialflow.modules.wordpress.mappers",
+    )
+
+    for path in paths:
+        for imported in _imports_from(path):
+            assert not imported.startswith(forbidden_prefixes), (
+                f"{path} imports WordPress implementation {imported}"
+            )
+
+
+def test_posts_does_not_import_wordpress_modules() -> None:
+    """Posts must not depend on WordPress modules."""
+    posts_root = SOURCE_ROOT / "modules" / "posts"
+
+    for source_file in posts_root.rglob("*.py"):
+        for imported in _imports_from(source_file):
+            assert not (
+                imported == "socialflow.modules.wordpress"
+                or imported.startswith("socialflow.modules.wordpress.")
+            ), (
+                f"{source_file} imports WordPress module {imported}"
+            )

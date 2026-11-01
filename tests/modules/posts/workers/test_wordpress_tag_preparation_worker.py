@@ -10,6 +10,9 @@ from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
 from socialflow.modules.posts.workers.wordpress_tag_preparation_worker import (
     WordPressTagPreparationWorker,
 )
+from socialflow.modules.wordpress.adapters.wordpress_tag_creation_service import (
+    WordPressTagCreationService,
+)
 
 
 def make_worker(
@@ -31,11 +34,15 @@ def make_worker(
     client = Mock()
     client.list_tags.return_value = remote_tags
 
+    service = WordPressTagCreationService(
+        tag_client=client,
+        credential_store=credentials,
+    )
+
     worker = WordPressTagPreparationWorker(
         account=account,
         selected_tags=selected_tags,
-        credential_store=credentials,
-        tag_client=client,
+        tag_creation_service=service,
     )
 
     return worker, client
@@ -137,8 +144,7 @@ def test_new_preparation_fetches_updated_tags_after_failure():
     second_worker = WordPressTagPreparationWorker(
         account=first_worker._account,
         selected_tags=selected_tags,
-        credential_store=first_worker._credential_store,
-        tag_client=client,
+        tag_creation_service=first_worker._tag_creation_service,
     )
 
     second_plans = []

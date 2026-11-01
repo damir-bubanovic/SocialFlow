@@ -7,6 +7,9 @@ from socialflow.modules.accounts.services.update_account import UpdateAccount
 from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
+from socialflow.modules.wordpress.adapters.wordpress_tag_creation_service import (
+    WordPressTagCreationService,
+)
 from socialflow.modules.posts.services.default_image_profiles import (
     DEFAULT_IMAGE_PROFILES,
 )
@@ -191,6 +194,11 @@ class MainContent(QWidget):
         # Tag services.
         wordpress_tag_client = UrllibWordPressTagClient()
 
+        wordpress_tag_creation_service = WordPressTagCreationService(
+            tag_client=wordpress_tag_client,
+            credential_store=credential_store,
+        )
+
         wordpress_tag_provider = WordPressTagProvider(
             tag_client=wordpress_tag_client,
             credential_store=credential_store,
@@ -324,12 +332,10 @@ class MainContent(QWidget):
             list_trashed_remote_posts=list_trashed_remote_posts,
             restore_remote_post=restore_remote_post,
             wordpress_tag_preparation_controller=WordPressTagPreparationController(
-                credential_store=credential_store,
-                tag_client=wordpress_tag_client,
+                tag_creation_service=wordpress_tag_creation_service,
             ),
             wordpress_tag_creation_controller=WordPressTagCreationController(
-                credential_store=credential_store,
-                tag_client=wordpress_tag_client,
+                tag_creation_service=wordpress_tag_creation_service,
             ),
             list_remote_tags=list_remote_tags,
             list_remote_categories=list_remote_categories,

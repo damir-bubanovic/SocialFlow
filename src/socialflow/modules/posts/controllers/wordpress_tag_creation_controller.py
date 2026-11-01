@@ -1,12 +1,11 @@
 from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 
-from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.wordpress.api.wordpress_tag_client import (
-    WordPressTagClient,
+from socialflow.modules.posts.services.remote_tag_creation_service import (
+    RemoteTagCreationService,
 )
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 from socialflow.modules.posts.workers.wordpress_tag_creation_worker import (
     WordPressTagCreationWorker,
@@ -22,14 +21,12 @@ class WordPressTagCreationController(QObject):
 
     def __init__(
         self,
-        credential_store: CredentialStore,
-        tag_client: WordPressTagClient,
+        tag_creation_service: RemoteTagCreationService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
 
-        self._credential_store = credential_store
-        self._tag_client = tag_client
+        self._tag_creation_service = tag_creation_service
         self._thread: QThread | None = None
         self._worker: WordPressTagCreationWorker | None = None
         self._shutting_down = False
@@ -42,7 +39,7 @@ class WordPressTagCreationController(QObject):
     def start(
         self,
         account: Account,
-        plan: WordPressTagCreationPlan,
+        plan: RemoteTagCreationPlan,
     ) -> None:
         if self._shutting_down or self.is_running:
             return
@@ -56,8 +53,7 @@ class WordPressTagCreationController(QObject):
         worker = WordPressTagCreationWorker(
             account=account,
             plan=plan,
-            credential_store=self._credential_store,
-            tag_client=self._tag_client,
+            tag_creation_service=self._tag_creation_service,
         )
         worker.moveToThread(thread)
 

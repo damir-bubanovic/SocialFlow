@@ -1,18 +1,8 @@
-from dataclasses import dataclass
 
-from socialflow.modules.posts.models.tag import Tag
+"""Backward-compatible import for the remote tag creation plan."""
 
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
+)
 
-@dataclass(frozen=True, slots=True)
-class WordPressTagCreationPlan:
-    """Represent missing tags awaiting user confirmation."""
-
-    missing_tags: tuple[Tag, ...]
-
-    @property
-    def requires_confirmation(self) -> bool:
-        return bool(self.missing_tags)
-
-    @property
-    def tag_names(self) -> tuple[str, ...]:
-        return tuple(tag.name for tag in self.missing_tags)
+WordPressTagCreationPlan = RemoteTagCreationPlan

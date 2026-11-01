@@ -1,25 +1,20 @@
+
+"""Create approved remote tags outside the UI thread."""
+
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
-from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.accounts.models.account import Account
-from socialflow.core.destination import PublishingDestination
-from socialflow.modules.accounts.services.wordpress_credential_keys import (
-    WordPressCredentialKeys,
+from socialflow.modules.posts.models.remote_tag import RemoteTag
+from socialflow.modules.posts.services.remote_tag_creation_service import (
+    RemoteTagCreationService,
 )
-from socialflow.modules.wordpress.api.wordpress_tag_client import (
-    WordPressTagClient,
-)
-from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
-    WordPressTagCreationPlan,
-)
-from socialflow.modules.wordpress.models.wordpress_tag import WordPressTag
-from socialflow.modules.wordpress.mappers.wordpress_tag_name_normalizer import (
-    WordPressTagNameNormalizer,
+from socialflow.modules.posts.models.remote_tag_creation_plan import (
+    RemoteTagCreationPlan,
 )
 
 
 class WordPressTagCreationWorker(QObject):
-    """Create explicitly approved WordPress tags in a background thread."""
+    """Create approved tags while respecting thread interruption."""
 
     finished = Signal(object)
     failed = Signal(str)
@@ -27,16 +22,14 @@ class WordPressTagCreationWorker(QObject):
     def __init__(
         self,
         account: Account,
-        plan: WordPressTagCreationPlan,
-        credential_store: CredentialStore,
-        tag_client: WordPressTagClient,
+        plan: RemoteTagCreationPlan,
+        tag_creation_service: RemoteTagCreationService,
     ) -> None:
         super().__init__()
 
         self._account = account
         self._plan = plan
-        self._credential_store = credential_store
-        self._tag_client = tag_client
+        self._tag_creation_service = tag_creation_service
 
     @Slot()
     def run(self) -> None:
@@ -48,27 +41,10 @@ class WordPressTagCreationWorker(QObject):
 
         self.finished.emit(created_tags)
 
-    def _create_tags(self) -> tuple:
-        if self._account.destination is not PublishingDestination.WORDPRESS:
-            raise ValueError("A WordPress account is required.")
+    def _create_tags(self) -> tuple[RemoteTag, ...]:
+        created_tags: list[RemoteTag] = []
 
-        config = self._account.wordpress_config
-
-        if config is None or not config.is_complete():
-            raise ValueError("WordPress connection settings are incomplete.")
-
-        config = config.normalized()
-
-        password = self._credential_store.get(
-            WordPressCredentialKeys.application_password(self._account)
-        )
-
-        if not password:
-            raise ValueError("WordPress application password is missing.")
-
-        created_tags = []
-
-        for name in self._plan.tag_names:
+        for tag in self._plan.missing_tags:
             thread = QThread.currentThread()
 
             if thread.isInterruptionRequested():
@@ -76,28 +52,16 @@ class WordPressTagCreationWorker(QObject):
                     "WordPress tag creation was interrupted."
                 )
 
-            created_tag = self._tag_client.create_tag(
-                site_url=config.site_url,
-                username=config.username,
-                application_password=password,
-                name=name,
+            result = self._tag_creation_service.create_approved_tags(
+                account=self._account,
+                approved_tags=(tag,),
             )
 
-            if not isinstance(created_tag, WordPressTag):
+            if len(result) != 1 or not isinstance(result[0], RemoteTag):
                 raise ValueError(
-                    f"Invalid WordPress tag creation result for '{name}'."
+                    f"Invalid remote tag creation result for '{tag.name}'."
                 )
 
-            if (
-                WordPressTagNameNormalizer.normalize(created_tag.name)
-                != WordPressTagNameNormalizer.normalize(name)
-            ):
-                raise ValueError(
-                    f"Invalid WordPress tag creation result for '{name}': "
-                    f"received '{created_tag.name}'."
-                )
-
-            created_tags.append(created_tag)
+            created_tags.append(result[0])
 
         return tuple(created_tags)
-
