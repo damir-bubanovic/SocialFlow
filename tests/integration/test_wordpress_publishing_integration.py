@@ -6,7 +6,7 @@ from socialflow.modules.posts.services.publisher_router import PublisherRouter
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )

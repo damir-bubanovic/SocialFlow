@@ -4,7 +4,7 @@ from socialflow.modules.accounts.services.errors import AccountNotFoundError
 from socialflow.modules.accounts.repositories.account_repository import AccountRepository
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 class InMemoryAccountRepository(AccountRepository):

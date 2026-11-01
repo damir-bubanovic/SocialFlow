@@ -6,7 +6,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt
 
 from socialflow.modules.posts.models.remote_post import RemotePost
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.components.remote_posts_panel import RemotePostsPanel
 
 

@@ -7,7 +7,7 @@ from socialflow.modules.posts.services.list_remote_tags import (
 )
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.remote_tag import RemoteTag
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.controllers.remote_tag_loading_controller import (

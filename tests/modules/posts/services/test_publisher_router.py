@@ -10,7 +10,7 @@ from socialflow.modules.posts.services.publisher import Publisher
 from socialflow.modules.posts.services.publisher_router import PublisherRouter
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.post import Post
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 class RecordingPublisher(Publisher):

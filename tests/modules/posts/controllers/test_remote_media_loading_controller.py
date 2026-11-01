@@ -2,7 +2,7 @@ from threading import Event
 from unittest.mock import Mock
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.controllers.remote_media_loading_controller import (

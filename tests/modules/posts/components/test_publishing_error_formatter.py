@@ -5,7 +5,7 @@ from socialflow.modules.posts.services.errors import (
 )
 from socialflow.modules.posts.services.publish_result import PublishResult
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.components.publishing_error_formatter import (
     PublishingErrorFormatter,
 )

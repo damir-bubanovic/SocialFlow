@@ -3,7 +3,7 @@ from dataclasses import field
 from uuid import uuid4
 
 from socialflow.modules.accounts.models.account_id import AccountId
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )

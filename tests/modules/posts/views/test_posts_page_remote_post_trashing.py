@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from PySide6.QtWidgets import QMessageBox
 
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.views.posts_page import PostsPage
 
 

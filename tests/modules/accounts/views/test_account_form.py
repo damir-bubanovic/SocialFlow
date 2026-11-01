@@ -69,7 +69,7 @@ def test_account_form_can_load_account(qtbot) -> None:
     )
 
 
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.accounts.views.account_form import AccountForm

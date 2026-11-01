@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.services.language_detector import LanguageDetector
 from socialflow.modules.posts.services.paragraph_language_detector import (
     ParagraphLanguageDetector,

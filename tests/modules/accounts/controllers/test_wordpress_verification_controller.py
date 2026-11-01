@@ -14,7 +14,7 @@ from socialflow.modules.accounts.models.connection_result import (
 from socialflow.modules.accounts.models.connection_status import (
     ConnectionStatus,
 )
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.accounts.controllers.wordpress_verification_controller import (

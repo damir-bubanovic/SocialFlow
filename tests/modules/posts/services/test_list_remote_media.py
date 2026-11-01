@@ -7,7 +7,7 @@ from socialflow.modules.posts.services.list_remote_media import (
 )
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.remote_media import RemoteMedia
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 

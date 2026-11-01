@@ -6,7 +6,7 @@ from socialflow.modules.posts.services.list_remote_posts import (
 )
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.remote_post import RemotePost
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 

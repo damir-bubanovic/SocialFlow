@@ -11,7 +11,7 @@ from socialflow.modules.posts.services.image_profile_provider import (
 )
 from socialflow.modules.posts.services.prepared_image import PreparedImage
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 logger = logging.getLogger(__name__)

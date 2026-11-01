@@ -6,7 +6,7 @@ from socialflow.application.credentials.credential_store import CredentialStore
 from socialflow.modules.posts.services.prepared_post import PreparedPost
 from socialflow.modules.posts.services.publisher import Publisher
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.auth.wordpress_credential_keys import WordPressCredentialKeys
 from socialflow.modules.wordpress.api.wordpress_post_client import WordPressPostClient
 from socialflow.modules.wordpress.api.wordpress_tag_client import (

@@ -46,7 +46,7 @@ from socialflow.modules.posts.controllers.tag_loading_controller import (
 from socialflow.modules.posts.controllers.remote_post_loading_controller import (
     RemotePostLoadingController,
 )
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.services.update_remote_post import (
     UpdateRemotePost,
 )

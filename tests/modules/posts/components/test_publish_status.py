@@ -1,7 +1,7 @@
 from socialflow.modules.posts.components.publish_status import PublishStatus
 from socialflow.modules.posts.services.publish_result import PublishResult
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_publish_status_is_empty_by_default(qtbot) -> None:

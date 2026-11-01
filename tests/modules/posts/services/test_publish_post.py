@@ -30,7 +30,7 @@ from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.modules.posts.models.post import Post
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.models.publication_id import PublicationId
 from socialflow.modules.posts.models.publish_request import PublishRequest
 from socialflow.modules.posts.repositories.in_memory_publication_repository import (

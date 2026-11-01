@@ -7,7 +7,7 @@ from socialflow.application.credentials.credential_store import (
 )
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.remote_category import RemoteCategory
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.api.wordpress_category_client import (
     WordPressCategoryClient,
 )

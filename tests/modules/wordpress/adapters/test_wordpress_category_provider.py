@@ -8,7 +8,7 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 from socialflow.modules.posts.models.remote_category import RemoteCategory
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.models.wordpress_category import (
     WordPressCategory,
 )

@@ -7,7 +7,7 @@ from PySide6.QtNetwork import QNetworkReply
 from PySide6.QtWidgets import QDialog
 
 from socialflow.modules.posts.models.remote_media import RemoteMedia
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.components.remote_media_selection_dialog import (

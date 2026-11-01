@@ -2,7 +2,7 @@ from unittest.mock import Mock
 from typing import cast
 
 from socialflow.modules.posts.views.posts_page import PostsPage
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_remote_post_save_starts_update_for_selected_post():

@@ -2,7 +2,7 @@ from socialflow.modules.posts.services.null_tag_provider import NullTagProvider
 from socialflow.modules.posts.services.tag_provider import TagProvider
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_null_tag_provider_implements_tag_provider() -> None:

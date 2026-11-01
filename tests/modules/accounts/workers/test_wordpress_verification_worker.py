@@ -14,7 +14,7 @@ from socialflow.modules.accounts.models.connection_result import (
 from socialflow.modules.accounts.models.connection_status import (
     ConnectionStatus,
 )
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.accounts.workers.wordpress_verification_worker import (
@@ -100,7 +100,7 @@ def test_worker_emits_failure_for_unexpected_exception(
         ConnectionVerifier,
     )
     from socialflow.modules.accounts.models.account import Account
-    from socialflow.modules.posts.models.destination import (
+    from socialflow.core.destination import (
         PublishingDestination,
     )
     from socialflow.modules.accounts.workers.wordpress_verification_worker import (

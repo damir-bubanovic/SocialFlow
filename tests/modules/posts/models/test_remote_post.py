@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from socialflow.modules.posts.models.remote_post import RemotePost
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 

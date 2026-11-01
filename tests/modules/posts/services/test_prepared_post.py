@@ -5,7 +5,7 @@ from socialflow.modules.posts.services.prepared_post import PreparedPost
 from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
 from socialflow.modules.posts.models.post import Post
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_prepared_post_preserves_source_and_prepared_images(

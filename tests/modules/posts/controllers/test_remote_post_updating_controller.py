@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.controllers.remote_post_updating_controller import (

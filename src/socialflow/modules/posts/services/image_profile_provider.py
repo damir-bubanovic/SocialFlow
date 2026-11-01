@@ -1,5 +1,5 @@
 from socialflow.modules.posts.services.image_profile import ImageProfile
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 class ImageProfileProvider:

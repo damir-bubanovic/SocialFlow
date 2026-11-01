@@ -26,7 +26,7 @@ def real_background_workers(qtbot):
     from socialflow.modules.accounts.models.connection_status import (
         ConnectionStatus,
     )
-    from socialflow.modules.posts.models.destination import (
+    from socialflow.core.destination import (
         PublishingDestination,
     )
     from socialflow.modules.posts.models.publish_request import PublishRequest
@@ -232,7 +232,7 @@ def test_main_window_closes_after_active_verification_finishes(
     from socialflow.modules.accounts.models.connection_status import (
         ConnectionStatus,
     )
-    from socialflow.modules.posts.models.destination import (
+    from socialflow.core.destination import (
         PublishingDestination,
     )
     from socialflow.modules.accounts.controllers.wordpress_verification_controller import (

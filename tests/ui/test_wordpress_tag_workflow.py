@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QDialog
 
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.models.wordpress_tag_creation_plan import (
     WordPressTagCreationPlan,
 )

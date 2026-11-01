@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.workers.remote_post_loading_worker import (

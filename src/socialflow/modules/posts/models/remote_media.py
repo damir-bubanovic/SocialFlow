@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 

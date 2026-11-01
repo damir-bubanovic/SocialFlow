@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from socialflow.modules.posts.services.list_tags import ListTags
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.controllers.tag_loading_controller import (
     TagLoadingController,
 )

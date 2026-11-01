@@ -1,4 +1,4 @@
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_supported_publishing_destinations() -> None:

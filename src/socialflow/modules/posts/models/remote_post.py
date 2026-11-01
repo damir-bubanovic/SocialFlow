@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 

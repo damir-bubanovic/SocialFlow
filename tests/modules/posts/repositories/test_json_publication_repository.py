@@ -7,7 +7,7 @@ from unittest.mock import patch
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.models.publication import Publication
 from socialflow.modules.posts.models.publication_id import PublicationId
 from socialflow.modules.posts.repositories.json_publication_repository import (

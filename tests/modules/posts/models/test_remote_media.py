@@ -1,7 +1,7 @@
 import pytest
 
 from socialflow.modules.posts.models.remote_media import RemoteMedia
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 

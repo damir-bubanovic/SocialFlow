@@ -3,7 +3,7 @@ from unittest.mock import Mock
 from pathlib import Path
 import pytest
 
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.wordpress.adapters.wordpress_publisher import (
     WordPressPublisher,
 )

@@ -3,7 +3,7 @@ import pytest
 from socialflow.modules.accounts.repositories.account_repository import AccountRepository
 from socialflow.modules.accounts.services.add_account import AddAccount
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.accounts.services.errors import (
     DuplicateAccountError,
     InvalidAccountError,

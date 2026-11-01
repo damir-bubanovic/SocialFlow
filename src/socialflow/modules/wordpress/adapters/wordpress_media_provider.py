@@ -6,7 +6,7 @@ from socialflow.modules.posts.services.remote_media_provider import (
 )
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.remote_media import RemoteMedia
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.wordpress.auth.wordpress_credential_keys import (

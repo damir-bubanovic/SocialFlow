@@ -6,7 +6,7 @@ from socialflow.modules.posts.services.errors import (
     PublisherNotConfiguredError,
 )
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 PublisherFactory = Callable[[Account], Publisher]

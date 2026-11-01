@@ -2,7 +2,7 @@ from pathlib import Path
 
 from socialflow.modules.posts.services.prepared_image import PreparedImage
 from socialflow.modules.posts.models.image_attachment import ImageAttachment
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_prepared_image_contains_source_destination_and_path(

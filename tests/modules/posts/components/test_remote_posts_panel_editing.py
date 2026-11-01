@@ -7,7 +7,7 @@ from dataclasses import replace
 from socialflow.modules.posts.views.posts_page import PostsPage
 
 from socialflow.modules.posts.models.remote_post import RemotePost
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.components.remote_posts_panel import RemotePostsPanel

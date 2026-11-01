@@ -57,7 +57,7 @@ from socialflow.modules.posts.services.list_remote_categories import (
 from socialflow.modules.wordpress.api.urllib_wordpress_tag_client import (
     UrllibWordPressTagClient,
 )
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.accounts.repositories.json_account_repository import (

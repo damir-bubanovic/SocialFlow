@@ -1,5 +1,5 @@
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.wordpress.auth.wordpress_credential_keys import (

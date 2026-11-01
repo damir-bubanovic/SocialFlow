@@ -1,7 +1,7 @@
 from socialflow.modules.posts.services.error_classifier import ErrorCategory
 from socialflow.modules.posts.services.publish_result import PublishResult
 from socialflow.modules.accounts.models.account import Account
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 
 
 def test_publish_result_represents_success() -> None:

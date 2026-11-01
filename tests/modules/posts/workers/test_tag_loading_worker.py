@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.posts.models.tag import Tag
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.workers.tag_loading_worker import TagLoadingWorker
 
 

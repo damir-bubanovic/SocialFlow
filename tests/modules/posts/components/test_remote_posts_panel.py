@@ -2,7 +2,7 @@ from datetime import datetime
 import pytest
 
 from socialflow.modules.posts.models.remote_post import RemotePost
-from socialflow.modules.posts.models.destination import PublishingDestination
+from socialflow.core.destination import PublishingDestination
 from socialflow.modules.posts.components.remote_posts_panel import RemotePostsPanel
 from socialflow.modules.posts.models.remote_tag import RemoteTag
 from PySide6.QtCore import Qt

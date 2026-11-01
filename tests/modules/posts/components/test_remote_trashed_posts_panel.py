@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from socialflow.modules.posts.models.remote_post import RemotePost
-from socialflow.modules.posts.models.destination import (
+from socialflow.core.destination import (
     PublishingDestination,
 )
 from socialflow.modules.posts.components.remote_trashed_posts_panel import (
