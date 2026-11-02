@@ -1,17 +1,17 @@
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
 class FacebookApiError(Exception):
     """A structured failure returned by the Facebook Graph API."""
 
-    message: str
+    message: str = field(repr=False)
     status_code: int | None = None
     code: int | None = None
     subcode: int | None = None
     is_transient: bool = False
-    error_type: str | None = None
+    error_type: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.message, str) or not self.message.strip():
