@@ -6,6 +6,9 @@ from socialflow.modules.accounts.repositories.account_serializer import (
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
+from socialflow.modules.accounts.models.facebook_page_config import (
+    FacebookPageConfig,
+)
 
 
 def test_account_serializer_converts_account_to_dict() -> None:
@@ -95,3 +98,51 @@ def test_account_serializer_preserves_wordpress_config() -> None:
     assert restored.name == account.name
     assert restored.destination == PublishingDestination.WORDPRESS
     assert restored.wordpress_config == config
+
+
+
+def test_account_serializer_preserves_facebook_config() -> None:
+    config = FacebookPageConfig(
+        page_id="123456789",
+        page_name="SocialFlow Test Page",
+    )
+    account = Account(
+        name="Facebook Account",
+        destination=PublishingDestination.FACEBOOK,
+        facebook_config=config,
+    )
+
+    serialized = AccountSerializer.to_dict(account)
+    restored = AccountSerializer.from_dict(serialized)
+
+    assert serialized["facebook_config"] == {
+        "page_id": "123456789",
+        "page_name": "SocialFlow Test Page",
+    }
+    assert restored == account
+    assert restored.id == account.id
+
+
+def test_account_serializer_omits_missing_facebook_config() -> None:
+    account = Account(
+        name="WordPress Account",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    serialized = AccountSerializer.to_dict(account)
+
+    assert "facebook_config" not in serialized
+    assert AccountSerializer.from_dict(serialized) == account
+
+
+def test_account_serializer_rejects_incomplete_facebook_data() -> None:
+    import pytest
+
+    with pytest.raises(KeyError):
+        AccountSerializer.from_dict({
+            "name": "Facebook Account",
+            "destination": "facebook",
+            "facebook_config": {
+                "page_name": "Missing Page ID",
+            },
+        })

@@ -7,6 +7,9 @@ from socialflow.core.destination import PublishingDestination
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
+from socialflow.modules.accounts.models.facebook_page_config import (
+    FacebookPageConfig,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +22,7 @@ class Account:
     id: AccountId = field(
         default_factory=lambda: AccountId(uuid4()),
     )
+    facebook_config: FacebookPageConfig | None = None
 
     def has_name(self) -> bool:
         """Return whether the account has a meaningful name."""
@@ -33,6 +37,11 @@ class Account:
             wordpress_config=(
                 self.wordpress_config.normalized()
                 if self.wordpress_config is not None
+                else None
+            ),
+            facebook_config=(
+                self.facebook_config.normalized()
+                if self.facebook_config is not None
                 else None
             ),
         )

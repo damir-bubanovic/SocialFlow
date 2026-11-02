@@ -13,6 +13,9 @@ from socialflow.modules.posts.repositories.json_publication_repository import (
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
+from socialflow.modules.accounts.models.facebook_page_config import (
+    FacebookPageConfig,
+)
 
 
 def test_json_account_repository_is_empty_when_file_does_not_exist(
@@ -333,3 +336,97 @@ def test_json_account_repository_persists_wordpress_config(
     assert "password" not in file_path.read_text(
         encoding="utf-8"
     ).lower()
+
+
+
+def test_repository_persists_facebook_page_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(path)
+
+    account = Account(
+        name="Facebook Test",
+        destination=PublishingDestination.FACEBOOK,
+        facebook_config=FacebookPageConfig(
+            page_id="123456789",
+            page_name="SocialFlow Page",
+        ),
+    )
+
+    repository.add(account)
+
+    assert JsonAccountRepository(path).all() == (account,)
+
+    stored = json.loads(path.read_text(encoding="utf-8"))
+
+    assert stored[0]["facebook_config"] == {
+        "page_id": "123456789",
+        "page_name": "SocialFlow Page",
+    }
+    assert "access_token" not in stored[0]
+
+
+def test_legacy_migration_preserves_facebook_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+
+    path.write_text(
+        json.dumps([{
+            "name": "Legacy Facebook",
+            "destination": "facebook",
+            "facebook_config": {
+                "page_id": "123456789",
+                "page_name": "Legacy Page",
+            },
+        }]),
+        encoding="utf-8",
+    )
+
+    repository = JsonAccountRepository(path)
+    first = repository.all()
+    second = repository.all()
+
+    assert first == second
+    assert first[0].facebook_config == FacebookPageConfig(
+        page_id="123456789",
+        page_name="Legacy Page",
+    )
+
+
+def test_legacy_migration_preserves_wordpress_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+
+    path.write_text(
+        json.dumps([{
+            "name": "Legacy WordPress",
+            "destination": "wordpress",
+            "wordpress_config": {
+                "site_url": "https://example.com",
+                "username": "admin",
+            },
+        }]),
+        encoding="utf-8",
+    )
+
+    restored = JsonAccountRepository(path).all()[0]
+
+    assert restored.wordpress_config == WordPressConnectionConfig(
+        site_url="https://example.com",
+        username="admin",
+    )
+
+
+def test_repository_rejects_invalid_facebook_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+
+    path.write_text(
+        json.dumps([{
+            "name": "Invalid Facebook",
+            "destination": "facebook",
+            "facebook_config": {
+                "page_name": "No Page ID",
+            },
+        }]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AccountStorageError):
+        JsonAccountRepository(path).all()
