@@ -9,6 +9,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from socialflow.modules.accounts.models.account import Account
+from socialflow.modules.accounts.models.facebook_page_config import (
+    FacebookPageConfig,
+)
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
@@ -32,6 +35,15 @@ class AccountForm(QWidget):
         self._add_destination(PublishingDestination.INSTAGRAM)
         self._add_destination(PublishingDestination.WORDPRESS)
 
+        self.facebook_page_id_input = QLineEdit(self)
+        self.facebook_page_id_input.setPlaceholderText(
+            "Facebook Page ID"
+        )
+
+        self.facebook_page_name_input = QLineEdit(self)
+        self.facebook_page_name_input.setPlaceholderText(
+            "Facebook Page name"
+        )
         self.wordpress_site_url_input = QLineEdit(self)
         self.wordpress_site_url_input.setPlaceholderText(
             "https://example.com"
@@ -78,6 +90,18 @@ class AccountForm(QWidget):
         layout.addRow("Name", self.name_input)
         layout.addRow("Platform", self.destination_input)
 
+        self.facebook_page_id_label = QLabel("Page ID", self)
+        self.facebook_page_name_label = QLabel("Page name", self)
+
+        layout.addRow(
+            self.facebook_page_id_label,
+            self.facebook_page_id_input,
+        )
+        layout.addRow(
+            self.facebook_page_name_label,
+            self.facebook_page_name_input,
+        )
+
         self.wordpress_site_url_label = QLabel("Site URL", self)
         self.wordpress_username_label = QLabel("Username", self)
         self.wordpress_password_label = QLabel(
@@ -101,9 +125,9 @@ class AccountForm(QWidget):
         self.setLayout(layout)
 
         self.destination_input.currentIndexChanged.connect(
-            self._update_wordpress_fields
+            self._update_platform_fields
         )
-        self._update_wordpress_fields()
+        self._update_platform_fields()
 
     def _toggle_password_visibility(self) -> None:
         """Toggle the WordPress password between masked and visible."""
@@ -128,6 +152,11 @@ class AccountForm(QWidget):
             wordpress_config=(
                 self.wordpress_connection_config()
                 if destination == PublishingDestination.WORDPRESS
+                else None
+            ),
+            facebook_config=(
+                self.facebook_page_config()
+                if destination == PublishingDestination.FACEBOOK
                 else None
             ),
         )
@@ -165,6 +194,19 @@ class AccountForm(QWidget):
         # Clear settings from the previously selected account.
         self.wordpress_site_url_input.clear()
         self.wordpress_username_input.clear()
+        self.facebook_page_id_input.clear()
+        self.facebook_page_name_input.clear()
+
+        if (
+                account.destination == PublishingDestination.FACEBOOK
+                and account.facebook_config is not None
+        ):
+            self.facebook_page_id_input.setText(
+                account.facebook_config.page_id
+            )
+            self.facebook_page_name_input.setText(
+                account.facebook_config.page_name
+            )
 
         # Restore saved WordPress connection settings.
         if (
@@ -193,12 +235,31 @@ class AccountForm(QWidget):
 
         self.wordpress_site_url_input.clear()
         self.wordpress_username_input.clear()
+        self.facebook_page_id_input.clear()
+        self.facebook_page_name_input.clear()
         self.wordpress_application_password_input.clear()
         self.wordpress_application_password_input.setEchoMode(
             QLineEdit.EchoMode.Password
         )
         self.password_visibility_button.setText("Show")
         self.password_visibility_button.setToolTip("Show password")
+
+    def _update_platform_fields(self) -> None:
+        """Show fields for the selected publishing platform."""
+        is_facebook = (
+                self.selected_destination()
+                == PublishingDestination.FACEBOOK
+        )
+
+        for widget in (
+                self.facebook_page_id_label,
+                self.facebook_page_id_input,
+                self.facebook_page_name_label,
+                self.facebook_page_name_input,
+        ):
+            widget.setVisible(is_facebook)
+
+        self._update_wordpress_fields()
 
     def _update_wordpress_fields(self) -> None:
         """Show WordPress-specific fields only for WordPress accounts."""
@@ -230,3 +291,11 @@ class AccountForm(QWidget):
     def wordpress_application_password(self) -> str:
         """Return the application password entered by the user."""
         return self.wordpress_application_password_input.text()
+
+
+    def facebook_page_config(self) -> FacebookPageConfig:
+        """Return normalized, non-secret Facebook Page settings."""
+        return FacebookPageConfig(
+            page_id=self.facebook_page_id_input.text(),
+            page_name=self.facebook_page_name_input.text(),
+        ).normalized()

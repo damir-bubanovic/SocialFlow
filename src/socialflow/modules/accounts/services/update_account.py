@@ -40,6 +40,14 @@ class UpdateAccount:
                 )
                 else None
             ),
+            facebook_config=(
+                updated.facebook_config.normalized()
+                if (
+                        updated.destination == PublishingDestination.FACEBOOK
+                        and updated.facebook_config is not None
+                )
+                else None
+            ),
         )
 
         if any(
