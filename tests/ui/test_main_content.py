@@ -4,6 +4,24 @@ import json
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
+from socialflow.modules.accounts.services.save_facebook_credentials import (
+    SaveFacebookCredentials,
+)
+from socialflow.modules.accounts.services.get_facebook_credentials import (
+    GetFacebookCredentials,
+)
+from socialflow.modules.accounts.services.delete_facebook_credentials import (
+    DeleteFacebookCredentials,
+)
+from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
+    FacebookPageDiscoveryController,
+)
+from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+    FacebookPageDiscoveryService,
+)
+from socialflow.modules.facebook.api.facebook_graph_client import (
+    FacebookGraphClient,
+)
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
 from socialflow.modules.posts.views.posts_page import PostsPage
@@ -75,6 +93,41 @@ def test_main_content_contains_accounts_page(qtbot) -> None:
     qtbot.addWidget(content)
 
     assert isinstance(content.accounts_page, AccountsPage)
+
+
+def test_main_content_wires_facebook_account_services(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    accounts_page = content.accounts_page
+
+    assert isinstance(
+        accounts_page._save_facebook_credentials,
+        SaveFacebookCredentials,
+    )
+    assert isinstance(
+        accounts_page._get_facebook_credentials,
+        GetFacebookCredentials,
+    )
+    assert isinstance(
+        accounts_page._delete_facebook_credentials,
+        DeleteFacebookCredentials,
+    )
+
+    controller = accounts_page._facebook_discovery_controller
+
+    assert isinstance(
+        controller,
+        FacebookPageDiscoveryController,
+    )
+    assert isinstance(
+        controller._discovery_service,
+        FacebookPageDiscoveryService,
+    )
+    assert isinstance(
+        controller._discovery_service._client,
+        FacebookGraphClient,
+    )
 
 
 def test_posts_page_is_selected_by_default(qtbot) -> None:

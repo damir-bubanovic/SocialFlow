@@ -135,6 +135,21 @@ from socialflow.modules.wordpress.adapters.wordpress_media_provider import (
 from socialflow.modules.accounts.services.get_wordpress_credentials import (
     GetWordPressCredentials,
 )
+from socialflow.modules.accounts.services.save_facebook_credentials import (
+    SaveFacebookCredentials,
+)
+from socialflow.modules.accounts.services.get_facebook_credentials import (
+    GetFacebookCredentials,
+)
+from socialflow.modules.facebook.api.facebook_graph_client import (
+    FacebookGraphClient,
+)
+from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+    FacebookPageDiscoveryService,
+)
+from socialflow.modules.accounts.services.delete_facebook_credentials import (
+    DeleteFacebookCredentials,
+)
 
 
 
@@ -157,6 +172,24 @@ class MainContent(QWidget):
         )
         delete_wordpress_credentials = DeleteWordPressCredentials(
             credential_store=credential_store,
+        )
+        # Facebook Page credentials use the existing shared keyring store.
+        save_facebook_credentials = SaveFacebookCredentials(
+            credential_store=credential_store,
+        )
+        get_facebook_credentials = GetFacebookCredentials(
+            credential_store=credential_store,
+        )
+        delete_facebook_credentials = DeleteFacebookCredentials(
+            credential_store=credential_store,
+        )
+        # Facebook Graph API services.
+        facebook_graph_client = FacebookGraphClient(
+            api_version="v24.0",
+        )
+
+        facebook_page_discovery_service = FacebookPageDiscoveryService(
+            client=facebook_graph_client,
         )
 
         self.wordpress_connection_verifier = (
@@ -347,8 +380,7 @@ class MainContent(QWidget):
             list_remote_media=list_remote_media,
         )
 
-
-        # Accounts page with WordPress credential management.
+        # Accounts page with WordPress and Facebook credential management.
         self.accounts_page = AccountsPage(
             add_account=add_account,
             list_accounts=list_accounts,
@@ -359,6 +391,10 @@ class MainContent(QWidget):
             save_wordpress_credentials=save_wordpress_credentials,
             delete_wordpress_credentials=delete_wordpress_credentials,
             get_wordpress_credentials=get_wordpress_credentials,
+            save_facebook_credentials=save_facebook_credentials,
+            get_facebook_credentials=get_facebook_credentials,
+            delete_facebook_credentials=delete_facebook_credentials,
+            facebook_page_discovery_service=facebook_page_discovery_service,
         )
 
         self.accounts_page.accounts_changed.connect(

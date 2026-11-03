@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.accounts.models.facebook_page_config import (
     FacebookPageConfig,
@@ -18,10 +18,15 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 from socialflow.core.destination import (
     PublishingDestination,
 )
+from socialflow.modules.facebook.models.discovered_facebook_page import (
+    DiscoveredFacebookPage,
+)
+
 
 
 class AccountForm(QWidget):
     """Form for entering a publishing account."""
+    facebook_discovery_requested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -44,6 +49,40 @@ class AccountForm(QWidget):
         self.facebook_page_name_input.setPlaceholderText(
             "Facebook Page name"
         )
+        self.facebook_user_token_input = QLineEdit(self)
+        self.facebook_user_token_input.setPlaceholderText(
+            "Temporary Facebook user access token"
+        )
+        self.facebook_user_token_input.setEchoMode(
+            QLineEdit.EchoMode.Password
+        )
+
+        self.facebook_discover_button = QPushButton(
+            "Discover Pages", self
+        )
+        self.facebook_discover_button.clicked.connect(
+            self._request_facebook_discovery
+        )
+
+        self.facebook_page_selector = QComboBox(self)
+        self.facebook_page_selector.addItem(
+            "Select discovered Page...", None
+        )
+        self.facebook_page_selector.setEnabled(False)
+        self.facebook_page_selector.currentIndexChanged.connect(
+            self._select_discovered_facebook_page
+        )
+
+        self._discovered_facebook_pages: list[
+            DiscoveredFacebookPage
+        ] = []
+        self._selected_facebook_page_token = ""
+        self._selected_facebook_page_id = ""
+
+        self.facebook_page_id_input.textChanged.connect(
+            self._invalidate_facebook_page_token
+        )
+
         self.wordpress_site_url_input = QLineEdit(self)
         self.wordpress_site_url_input.setPlaceholderText(
             "https://example.com"
@@ -92,6 +131,22 @@ class AccountForm(QWidget):
 
         self.facebook_page_id_label = QLabel("Page ID", self)
         self.facebook_page_name_label = QLabel("Page name", self)
+        self.facebook_user_token_label = QLabel(
+            "User access token", self
+        )
+        self.facebook_page_selector_label = QLabel(
+            "Discovered Pages", self
+        )
+
+        layout.addRow(
+            self.facebook_user_token_label,
+            self.facebook_user_token_input,
+        )
+        layout.addRow(self.facebook_discover_button)
+        layout.addRow(
+            self.facebook_page_selector_label,
+            self.facebook_page_selector,
+        )
 
         layout.addRow(
             self.facebook_page_id_label,
@@ -182,6 +237,10 @@ class AccountForm(QWidget):
 
     def set_account(self, account: Account) -> None:
         """Populate the form with an existing account."""
+        self.clear_discovered_facebook_pages()
+        self.facebook_user_token_input.clear()
+        self.set_facebook_discovery_running(False)
+
         self.name_input.setText(account.name)
 
         index = self.destination_input.findData(
@@ -230,6 +289,10 @@ class AccountForm(QWidget):
 
     def clear(self) -> None:
         """Reset the account form."""
+        self.clear_discovered_facebook_pages()
+        self.facebook_user_token_input.clear()
+        self.set_facebook_discovery_running(False)
+
         self.name_input.clear()
         self.destination_input.setCurrentIndex(0)
 
@@ -251,7 +314,16 @@ class AccountForm(QWidget):
                 == PublishingDestination.FACEBOOK
         )
 
+        if not is_facebook:
+            self.facebook_user_token_input.clear()
+            self.clear_discovered_facebook_pages()
+
         for widget in (
+                self.facebook_user_token_label,
+                self.facebook_user_token_input,
+                self.facebook_discover_button,
+                self.facebook_page_selector_label,
+                self.facebook_page_selector,
                 self.facebook_page_id_label,
                 self.facebook_page_id_input,
                 self.facebook_page_name_label,
@@ -291,6 +363,82 @@ class AccountForm(QWidget):
     def wordpress_application_password(self) -> str:
         """Return the application password entered by the user."""
         return self.wordpress_application_password_input.text()
+
+
+    def _request_facebook_discovery(self) -> None:
+        """Request Page discovery using the temporary user token."""
+        token = self.facebook_user_token_input.text().strip()
+        self.facebook_user_token_input.clear()
+
+        if not token:
+            return
+
+        self.clear_discovered_facebook_pages()
+        self.facebook_discover_button.setEnabled(False)
+        self.facebook_discovery_requested.emit(token)
+
+    def set_facebook_discovery_running(self, running: bool) -> None:
+        """Update the discovery button state."""
+        self.facebook_discover_button.setEnabled(not running)
+
+    def set_discovered_facebook_pages(
+        self,
+        pages: list[DiscoveredFacebookPage],
+    ) -> None:
+        """Populate the discovered Facebook Pages dropdown."""
+        self.clear_discovered_facebook_pages()
+
+        self._discovered_facebook_pages = list(pages)
+
+        for discovered in pages:
+            self.facebook_page_selector.addItem(
+                discovered.page.name,
+                discovered.page.id,
+            )
+
+        self.facebook_page_selector.setEnabled(bool(pages))
+
+    def _select_discovered_facebook_page(self, index: int) -> None:
+        """Populate Page settings from the selected discovery result."""
+        if index <= 0:
+            self._selected_facebook_page_token = ""
+            return
+
+        page_index = index - 1
+        if page_index >= len(self._discovered_facebook_pages):
+            return
+
+        discovered = self._discovered_facebook_pages[page_index]
+
+        self._selected_facebook_page_id = discovered.page.id
+
+        self.facebook_page_id_input.setText(discovered.page.id)
+        self.facebook_page_name_input.setText(discovered.page.name)
+        self._selected_facebook_page_token = discovered.access_token
+
+    def _invalidate_facebook_page_token(self, page_id: str) -> None:
+        """Discard the token if the Page ID no longer matches."""
+        if page_id.strip() != self._selected_facebook_page_id:
+            self._selected_facebook_page_token = ""
+
+    def selected_facebook_page_token(self) -> str:
+        """Return the selected Page token for secure storage."""
+        return self._selected_facebook_page_token
+
+    def clear_discovered_facebook_pages(self) -> None:
+        """Discard discovered Pages and their temporary tokens."""
+        self._selected_facebook_page_token = ""
+        self._selected_facebook_page_id = ""
+        self._discovered_facebook_pages.clear()
+
+        self.facebook_page_selector.blockSignals(True)
+        self.facebook_page_selector.clear()
+        self.facebook_page_selector.addItem(
+            "Select discovered Page...", None
+        )
+        self.facebook_page_selector.blockSignals(False)
+
+        self.facebook_page_selector.setEnabled(False)
 
 
     def facebook_page_config(self) -> FacebookPageConfig:
