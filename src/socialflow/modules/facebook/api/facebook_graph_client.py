@@ -62,6 +62,90 @@ class FacebookGraphClient:
     ) -> dict[str, Any]:
         """Request a JSON object from the Graph API."""
 
+        self._validate_request_inputs(
+            path,
+            access_token,
+            params,
+        )
+
+        query = urlencode(params or {})
+        url = f"{self.BASE_URL}/{self._api_version}/{path}"
+
+        if query:
+            url = f"{url}?{query}"
+
+        try:
+            response = self._transport.get(
+                url=url,
+                headers={
+                    "Authorization": (
+                        f"Bearer {access_token.strip()}"
+                    ),
+                    "Accept": "application/json",
+                },
+                timeout=self._timeout,
+            )
+        except (TimeoutError, URLError, OSError):
+            raise FacebookApiError(
+                message="Facebook network request failed.",
+                is_transient=True,
+            ) from None
+
+        return self._parse_response(response)
+
+    def post(
+        self,
+        path: str,
+        access_token: str,
+        params: dict[str, str],
+    ) -> dict[str, Any]:
+        """POST form-encoded data to the Graph API."""
+
+        if not isinstance(params, dict):
+            raise ValueError(
+                "Graph API parameters must be a dictionary."
+            )
+
+        self._validate_request_inputs(
+            path,
+            access_token,
+            params,
+        )
+
+        url = f"{self.BASE_URL}/{self._api_version}/{path}"
+        body = urlencode(params).encode("utf-8")
+
+        try:
+            response = self._transport.post(
+                url=url,
+                headers={
+                    "Authorization": (
+                        f"Bearer {access_token.strip()}"
+                    ),
+                    "Accept": "application/json",
+                    "Content-Type": (
+                        "application/x-www-form-urlencoded"
+                    ),
+                },
+                body=body,
+                timeout=self._timeout,
+            )
+        except (TimeoutError, URLError, OSError):
+            raise FacebookApiError(
+                message="Facebook network request failed.",
+                is_transient=True,
+            ) from None
+
+        return self._parse_response(response)
+
+    @staticmethod
+    def _validate_request_inputs(
+        path: str,
+        access_token: str,
+        params: dict[str, str] | None,
+    ) -> None:
+        """Validate Graph API paths, tokens, and parameters."""
+
         if (
             not isinstance(path, str)
             or not path
@@ -92,10 +176,10 @@ class FacebookGraphClient:
                 )
 
             if any(
-                    not isinstance(key, str)
-                    or not key
-                    or not isinstance(value, str)
-                    for key, value in params.items()
+                not isinstance(key, str)
+                or not key
+                or not isinstance(value, str)
+                for key, value in params.items()
             ):
                 raise ValueError(
                     "Graph API parameters must contain "
@@ -103,38 +187,13 @@ class FacebookGraphClient:
                 )
 
             if any(
-                    key.lower() == "access_token"
-                    for key in params
+                key.lower() == "access_token"
+                for key in params
             ):
                 raise ValueError(
                     "Access tokens must be sent in the "
                     "Authorization header."
                 )
-
-        query = urlencode(params or {})
-        url = f"{self.BASE_URL}/{self._api_version}/{path}"
-
-        if query:
-            url = f"{url}?{query}"
-
-        try:
-            response = self._transport.get(
-                url=url,
-                headers={
-                    "Authorization": (
-                        f"Bearer {access_token.strip()}"
-                    ),
-                    "Accept": "application/json",
-                },
-                timeout=self._timeout,
-            )
-        except (TimeoutError, URLError, OSError):
-            raise FacebookApiError(
-                message="Facebook network request failed.",
-                is_transient=True,
-            ) from None
-
-        return self._parse_response(response)
 
     @staticmethod
     def _optional_int(value: Any) -> int | None:
@@ -156,8 +215,8 @@ class FacebookGraphClient:
         status = response.status_code
 
         if (
-                type(status) is not int
-                or not 100 <= status <= 599
+            type(status) is not int
+            or not 100 <= status <= 599
         ):
             raise FacebookApiError(
                 message="Invalid Facebook HTTP response status.",

@@ -34,6 +34,17 @@ class FakeFacebookTransport(FacebookHttpTransport):
         self.requests.append((url, dict(headers), timeout))
         return self.response
 
+    def post(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes,
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        raise NotImplementedError(
+            "POST is not supported by this test transport."
+        )
+
 
 def test_graph_client_uses_versioned_url() -> None:
     transport = FakeFacebookTransport()

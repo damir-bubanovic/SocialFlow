@@ -40,6 +40,40 @@ class UrllibFacebookHttpTransport(FacebookHttpTransport):
         headers: Mapping[str, str],
         timeout: float,
     ) -> FacebookHttpResponse:
+        return self._request(
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            method="GET",
+        )
+
+    def post(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes,
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        if not isinstance(body, bytes):
+            raise ValueError("HTTP request body must be bytes.")
+
+        return self._request(
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            method="POST",
+            body=body,
+        )
+
+    @staticmethod
+    def _request(
+        *,
+        url: str,
+        headers: Mapping[str, str],
+        timeout: float,
+        method: str,
+        body: bytes | None = None,
+    ) -> FacebookHttpResponse:
         parsed = urlsplit(url)
 
         if (
@@ -52,10 +86,10 @@ class UrllibFacebookHttpTransport(FacebookHttpTransport):
             raise ValueError("A valid HTTPS URL is required.")
 
         if (
-                isinstance(timeout, bool)
-                or not isinstance(timeout, (int, float))
-                or not math.isfinite(timeout)
-                or timeout <= 0
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
         ):
             raise ValueError(
                 "HTTP timeout must be positive and finite."
@@ -75,8 +109,9 @@ class UrllibFacebookHttpTransport(FacebookHttpTransport):
 
         request = Request(
             url,
+            data=body,
             headers=dict(headers),
-            method="GET",
+            method=method,
         )
 
         opener = build_opener(
@@ -92,11 +127,11 @@ class UrllibFacebookHttpTransport(FacebookHttpTransport):
                 )
         except HTTPError as error:
             try:
-                body = error.read()
+                response_body = error.read()
             finally:
                 error.close()
 
             return FacebookHttpResponse(
                 status_code=error.code,
-                body=body,
+                body=response_body,
             )

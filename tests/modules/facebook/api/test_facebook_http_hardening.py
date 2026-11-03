@@ -45,6 +45,17 @@ class StubTransport(FacebookHttpTransport):
             body=self.body,
         )
 
+    def post(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes,
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        raise NotImplementedError(
+            "POST is not supported by this test transport."
+        )
+
 
 @pytest.mark.parametrize(
     "params",
@@ -252,6 +263,17 @@ def test_network_error_does_not_expose_exception_chain() -> None:
             timeout: float,
         ) -> FacebookHttpResponse:
             raise TimeoutError("secret-token")
+
+        def post(
+                self,
+                url: str,
+                headers: Mapping[str, str],
+                body: bytes,
+                timeout: float,
+        ) -> FacebookHttpResponse:
+            raise NotImplementedError(
+                "POST is not supported by this test transport."
+            )
 
     client = FacebookGraphClient(
         "v24.0",

@@ -63,6 +63,17 @@ class DiscoveryTransport(FacebookHttpTransport):
             body=json.dumps(self.payload).encode("utf-8"),
         )
 
+    def post(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes,
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        raise NotImplementedError(
+            "POST is not supported by this test transport."
+        )
+
 
 def make_service(
     transport: DiscoveryTransport,

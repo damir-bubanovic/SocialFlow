@@ -23,3 +23,13 @@ class FacebookHttpTransport(ABC):
         timeout: float,
     ) -> FacebookHttpResponse:
         """Perform an HTTPS GET request without following redirects."""
+
+    @abstractmethod
+    def post(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes,
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        """Perform an HTTPS POST request without following redirects."""
