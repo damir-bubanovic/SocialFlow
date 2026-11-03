@@ -11,6 +11,9 @@ from socialflow.modules.facebook.api.facebook_publishing_service import (
 )
 from socialflow.modules.posts.services.prepared_post import PreparedPost
 from socialflow.modules.posts.services.publisher import Publisher
+from socialflow.modules.posts.services.errors import (
+    PublisherNotConfiguredError,
+)
 
 
 class FacebookPublisher(Publisher):
@@ -34,7 +37,7 @@ class FacebookPublisher(Publisher):
         config = self._account.facebook_config
 
         if config is None or not config.is_complete():
-            raise ValueError(
+            raise PublisherNotConfiguredError(
                 "Facebook Page connection settings are incomplete."
             )
 

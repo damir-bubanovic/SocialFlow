@@ -50,6 +50,12 @@ from socialflow.modules.posts.services.trash_remote_post import (
 from socialflow.modules.wordpress.adapters.wordpress_post_trasher import (
     WordPressPostTrasher,
 )
+from socialflow.modules.facebook.adapters.facebook_publisher import (
+    FacebookPublisher,
+)
+from socialflow.modules.facebook.api.facebook_publishing_service import (
+    FacebookPublishingService,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -455,4 +461,32 @@ def test_main_content_trash_controller_uses_wordpress_trasher(qtbot):
     assert isinstance(
         use_case._trasher,
         WordPressPostTrasher,
+    )
+
+def test_main_content_wires_facebook_publisher(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    account = Account(
+        name="Facebook Page Test",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    router = (
+        content.posts_page
+        ._publishing_controller
+        ._publish_post
+        ._publisher_router
+    )
+
+    publisher = router.publisher_for_account(account)
+
+    assert isinstance(publisher, FacebookPublisher)
+    assert isinstance(
+        publisher._publishing_service,
+        FacebookPublishingService,
+    )
+    assert isinstance(
+        publisher._publishing_service._client,
+        FacebookGraphClient,
     )

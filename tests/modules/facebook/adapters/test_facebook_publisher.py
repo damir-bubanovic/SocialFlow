@@ -12,6 +12,9 @@ from socialflow.modules.facebook.adapters.facebook_publisher import (
 from socialflow.modules.posts.models.language import Language
 from socialflow.modules.posts.models.post import Post
 from socialflow.modules.posts.services.prepared_post import PreparedPost
+from socialflow.modules.posts.services.errors import (
+    PublisherNotConfiguredError,
+)
 
 
 def make_account():
@@ -84,8 +87,8 @@ def test_rejects_missing_facebook_configuration() -> None:
     )
 
     with pytest.raises(
-        ValueError,
-        match="Facebook Page connection settings are incomplete",
+            PublisherNotConfiguredError,
+            match="Facebook Page connection settings are incomplete",
     ):
         publisher.publish(make_post())
 
@@ -102,8 +105,8 @@ def test_rejects_incomplete_facebook_configuration() -> None:
     )
 
     with pytest.raises(
-        ValueError,
-        match="Facebook Page connection settings are incomplete",
+            PublisherNotConfiguredError,
+            match="Facebook Page connection settings are incomplete",
     ):
         publisher.publish(make_post())
 

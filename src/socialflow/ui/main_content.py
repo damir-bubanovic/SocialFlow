@@ -150,7 +150,12 @@ from socialflow.modules.facebook.api.facebook_page_discovery_service import (
 from socialflow.modules.accounts.services.delete_facebook_credentials import (
     DeleteFacebookCredentials,
 )
-
+from socialflow.modules.facebook.adapters.facebook_publisher import (
+    FacebookPublisher,
+)
+from socialflow.modules.facebook.api.facebook_publishing_service import (
+    FacebookPublishingService,
+)
 
 
 class MainContent(QWidget):
@@ -189,6 +194,9 @@ class MainContent(QWidget):
         )
 
         facebook_page_discovery_service = FacebookPageDiscoveryService(
+            client=facebook_graph_client,
+        )
+        facebook_publishing_service = FacebookPublishingService(
             client=facebook_graph_client,
         )
 
@@ -322,6 +330,13 @@ class MainContent(QWidget):
                 PublishingDestination.WORDPRESS: publisher,
             },
             account_factories={
+                PublishingDestination.FACEBOOK: (
+                    lambda account: FacebookPublisher(
+                        account=account,
+                        credential_store=credential_store,
+                        publishing_service=facebook_publishing_service,
+                    )
+                ),
                 PublishingDestination.WORDPRESS: (
                     lambda account: WordPressPublisher(
                         account=account,

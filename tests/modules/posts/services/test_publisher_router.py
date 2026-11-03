@@ -136,3 +136,41 @@ def test_different_wordpress_accounts_get_separate_publishers() -> None:
         ((first_account,), {}),
         ((second_account,), {}),
     ]
+
+def test_different_facebook_accounts_get_separate_publishers() -> None:
+    first_account = Account(
+        name="Facebook Page One",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    second_account = Account(
+        name="Facebook Page Two",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    first_publisher = Mock(spec=Publisher)
+    second_publisher = Mock(spec=Publisher)
+
+    facebook_factory = Mock(
+        side_effect=[first_publisher, second_publisher]
+    )
+
+    router = PublisherRouter(
+        publishers={},
+        account_factories={
+            PublishingDestination.FACEBOOK: facebook_factory,
+        },
+    )
+
+    result_one = router.publisher_for_account(first_account)
+    result_two = router.publisher_for_account(second_account)
+
+    assert result_one is first_publisher
+    assert result_two is second_publisher
+    assert result_one is not result_two
+
+    assert facebook_factory.call_count == 2
+    assert facebook_factory.call_args_list == [
+        ((first_account,), {}),
+        ((second_account,), {}),
+    ]
