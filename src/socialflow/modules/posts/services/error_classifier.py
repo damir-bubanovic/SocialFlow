@@ -5,6 +5,9 @@ from socialflow.modules.posts.services.errors import (
     ImagePreparationNotConfiguredError,
     PublisherNotConfiguredError,
 )
+from socialflow.modules.facebook.api.facebook_api_error import (
+    FacebookApiError,
+)
 
 
 class ErrorCategory(str, Enum):
@@ -24,13 +27,20 @@ class ErrorClassifier:
         if isinstance(error, (ConnectionError, TimeoutError)):
             return ErrorCategory.TRANSIENT
 
+        if isinstance(error, FacebookApiError):
+            return (
+                ErrorCategory.TRANSIENT
+                if error.is_transient
+                else ErrorCategory.PERMANENT
+            )
+
         if isinstance(
-            error,
-            (
-                EmptyPostError,
-                ImagePreparationNotConfiguredError,
-                PublisherNotConfiguredError,
-            ),
+                error,
+                (
+                        EmptyPostError,
+                        ImagePreparationNotConfiguredError,
+                        PublisherNotConfiguredError,
+                ),
         ):
             return ErrorCategory.PERMANENT
 
