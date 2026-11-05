@@ -1,7 +1,6 @@
 # SocialFlow --- Development Guide
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
 
 **Latest handoff (October 31, 2026):** See Section 38 for the current source snapshot, test commands, and remaining WordPress live verification. Earlier checkpoint counts are historical.
 
@@ -1171,3 +1170,37 @@ The working checkout was reported to pass **2,151 tests** with **zero forbidden 
 4. Confirm the target branch is `main` and both branches are up to date before merging. Merge only after clean verification.
 
 Earlier 41–67-hour figures are superseded *planning estimates*, not measured elapsed effort.
+
+---
+
+## 41. November 4, 2026 — Facebook Publishing Handoff
+
+### Current baseline
+
+- Repository: `https://github.com/damir-bubanovic/SocialFlow`
+- Working branch: `feature/facebook-pages-integration`
+- Latest commit: `f233571` — `test(facebook): verify text publishing integration and error classification`
+- Previous milestone: `2af2717` — `feat(facebook): register Page publisher in application runtime`
+- Remote: `origin/feature/facebook-pages-integration`, synchronized at the last Git verification
+- Working tree: clean at the last Git verification
+- Full suite: **2,598 passed in 7.08 seconds** on the developer's Linux Mint / Python virtual environment
+
+### Completed work
+
+**Phase 22.4D — Runtime Publisher Registration:** `src/socialflow/ui/main_content.py` composes `FacebookPublishingService` with the existing `FacebookGraphClient` and registers an account factory for `PublishingDestination.FACEBOOK` in `PublisherRouter`. Existing WordPress and Instagram fallback behavior was preserved. `FacebookPublisher` now raises `PublisherNotConfiguredError` for incomplete Page settings. Tests cover separate account publishers and MainContent wiring. Commit `2af2717`.
+
+**Phase 22.4E — Text Publishing End-to-End Verification:** `tests/integration/test_facebook_text_publishing.py` uses real `PublishPost`, `PublisherRouter`, `FacebookPublisher`, `FacebookPublishingService`, and `FacebookGraphClient` with mocked credential storage and HTTP transport. Three tests verify the outgoing URL/body/Bearer header and successful result; a 400 OAuth rejection with permanent classification; and a 503 response with transient classification. `src/socialflow/modules/posts/services/error_classifier.py` now uses `FacebookApiError.is_transient`; `tests/modules/posts/services/test_error_classifier.py` includes both classifications. Commit `f233571`.
+
+### Commands and next work
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m pytest -q tests/integration/test_facebook_text_publishing.py
+QT_QPA_PLATFORM=offscreen python -m pytest -q tests/modules/posts/services/test_error_classifier.py
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+git diff --check
+git status -sb
+```
+
+Next: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Inspect the current Posts UI, publishing controller, result formatter, and MainContent composition before adding tests or changing production code. Use small file-specific edits and focused tests; run the full suite before any commit. Do not claim live Facebook publishing has been verified. Never stage credentials or local-only `AGENTS.md`.
+
+The tests and Git status above are **developer-reported verification of the working checkout**, not tests executed by this documentation edit.

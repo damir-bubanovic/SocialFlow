@@ -1,7 +1,6 @@
 # SocialFlow
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
 
 **Current status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
 
@@ -316,3 +315,21 @@ The architecture migration described in the earlier November 1 planning sections
 **Verification reported from the working checkout:** `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,151 passed**; feature-dependency audit → **0 violations**; `git diff --check` clean; local branch synchronized with remote; desktop application launched and looked/worked correctly in a manual smoke test. These are developer-reported checks, not a new test run against this ZIP.
 
 **Next:** Review these documentation changes, commit/push them on `refactor/feature-first-architecture`, then merge to `main` after final Git checks. Do not commit `AGENTS.md` or credentials.
+
+---
+
+## November 4, 2026 — Facebook Pages Integration Checkpoint
+
+**Current branch:** `feature/facebook-pages-integration`
+**Latest verified commit:** `f233571` — `test(facebook): verify text publishing integration and error classification` (pushed)
+**Verification:** `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,598 passed** (developer's working checkout); Git branch synchronized and working tree clean.
+
+Facebook Pages integration now includes account configuration and persistence, keyring-backed Page access-token services, Graph API HTTP GET/POST support, Page discovery, Accounts GUI configuration/discovery integration, a Facebook text publishing service, and account-specific runtime publisher registration. The Posts publishing workflow routes configured Facebook accounts to `FacebookPublisher` via `PublisherRouter`; the publisher validates the Page configuration, retrieves the selected account's token, and sends a text-only post through the Graph API service.
+
+**Phase 22.4D:** Registered `FacebookPublishingService` and account-specific `FacebookPublisher` in `src/socialflow/ui/main_content.py`, with router and GUI composition tests. Missing/incomplete Page configuration raises `PublisherNotConfiguredError`, retaining the existing user-facing configuration classification. Commit `2af2717`.
+
+**Phase 22.4E:** Added `tests/integration/test_facebook_text_publishing.py` for a successful request, an HTTP 400 OAuth rejection, and an HTTP 503 temporary failure. Updated the Posts error classifier to use `FacebookApiError.is_transient` (`TRANSIENT` when true, otherwise `PERMANENT`); added focused classifier tests. Commit `f233571`.
+
+**Limits:** These are automated, mocked-transport verifications, **not evidence of a successful live Facebook publication**. Image publishing, tag publishing, and Instagram integration are not established by this checkpoint. Phase 22.5 will audit and validate the Facebook publishing GUI, account selection, progress, success, and error presentation before making scoped changes.
+
+Earlier statements that Facebook remains wholly unimplemented, or that the feature-first migration is still pending, are historical.

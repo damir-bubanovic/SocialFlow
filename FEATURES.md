@@ -1,7 +1,6 @@
 # SocialFlow --- Features
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
 
 **Current status (October 31, 2026):** See Section 28 for the latest completed WordPress features and remaining live verification. Earlier unchecked items are retained as historical phase snapshots.
 
@@ -619,3 +618,31 @@ The previously listed feature-first refactoring and mirrored-test tasks are **co
 - [ ] Merge the refactoring branch into `main` after final checks.
 
 **Scope unchanged:** WordPress capabilities remain the implemented platform functionality. Instagram and Facebook integrations are still future features; this structural refactor did not add their API implementations. The prior 41–67-hour estimate was a planning budget, not tracked actual time. A successful GUI smoke test does not replace every possible live WordPress or failure-recovery test.
+
+---
+
+## 45. Facebook Pages Integration — Current Feature Status (November 4, 2026)
+
+This section supersedes historical references to Facebook as entirely future work.
+
+### Completed and tested
+
+- [x] Facebook Page account model/configuration and JSON persistence.
+- [x] Facebook Page token credential-key and storage/retrieval/deletion services.
+- [x] Versioned Facebook Graph API client, HTTP transport contracts, structured API errors, and HTTP request hardening.
+- [x] Facebook Page discovery service, parsing, validation, and integration tests.
+- [x] Accounts GUI Page configuration and discovery integration.
+- [x] Graph API form-encoded POST support and Facebook Page text publishing service.
+- [x] `FacebookPublisher` adapter and account-specific `PublisherRouter` runtime registration (Phase 22.4D).
+- [x] Missing/incomplete Facebook Page configuration produces `PublisherNotConfiguredError`.
+- [x] Text publishing integration tests: success, permanent OAuth rejection, and transient HTTP 503 (Phase 22.4E).
+- [x] Facebook API error classification based on `FacebookApiError.is_transient`.
+
+### Remaining / not yet verified
+
+- [ ] Phase 22.5: audit and verify Facebook account selection, publishing progress, success feedback, and error presentation in the Posts GUI.
+- [ ] Controlled live Facebook Page text publication and API permission/token verification.
+- [ ] Facebook image publishing and tag publishing (currently explicitly rejected by the text-only publisher).
+- [ ] Instagram integration.
+
+**Verification:** Full pytest suite **2,598 passed** on November 4, 2026, as reported from the developer's checkout. Phase 22.4D commit `2af2717` and Phase 22.4E commit `f233571` were pushed to `origin/feature/facebook-pages-integration`. The working tree was clean. Do not infer live API success from mocked tests.

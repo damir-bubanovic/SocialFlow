@@ -1,7 +1,6 @@
 # SocialFlow --- Architecture
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
 
 **Current implementation checkpoint:** See Section 42 for WordPress Categories, post lifecycle, and current asynchronous guards; earlier sections document historical evolution.
 
@@ -1461,3 +1460,37 @@ Posts owns `RemoteTagCreationPlan` and `RemoteTagCreationService`; WordPress sup
 ### Verification and limits
 
 The developer reported **2,151 passing pytest tests**, **zero forbidden feature dependency violations**, clean Git checks, and a successful manual application GUI smoke test on `refactor/feature-first-architecture`. This establishes completion of the planned structural migration; it is not a guarantee that every possible runtime scenario or external WordPress API failure has been tested. Instagram/Facebook remain future work. Earlier migration estimates are historical planning figures, not actual recorded effort.
+
+---
+
+## 45. Facebook Pages Runtime Publishing Architecture — November 4, 2026
+
+**Implemented through Phase 22.4E.** The earlier feature-first diagram and statements describing Facebook as future-only are historical; `src/socialflow/modules/facebook/` and `tests/modules/facebook/` now exist.
+
+### Ownership and flow
+
+```text
+Posts publishing workflow
+  PublishRequest -> PublishPost -> PublisherRouter
+                                    |
+                                    +-- account factory (FACEBOOK)
+                                          -> FacebookPublisher
+                                               |-- Account.facebook_config (Page ID)
+                                               |-- CredentialStore / FacebookCredentialKeys
+                                               +-- FacebookPublishingService
+                                                     -> FacebookGraphClient
+                                                          -> FacebookHttpTransport
+                                                               -> HTTPS Graph API
+```
+
+- **Composition:** `src/socialflow/ui/main_content.py` creates the Facebook Graph client and publishing service, and registers a Facebook account-specific publisher factory alongside existing routing.
+- **Accounts:** `src/socialflow/modules/accounts/models/facebook_page_config.py`, account persistence, and Facebook credential services own non-secret Page configuration and token-key management.
+- **Facebook:** `modules/facebook/api/` owns Graph HTTP behavior and structured `FacebookApiError`; `modules/facebook/adapters/facebook_publisher.py` implements the Posts publishing contract. The publisher supports text-only posts and rejects images/tags.
+- **Posts:** `PublishPost` handles per-account results; `PublisherRouter` resolves publishers. `modules/posts/services/error_classifier.py` classifies `FacebookApiError` as transient when `is_transient` is true, otherwise permanent. It does not implement retries.
+- **Integration boundary:** `tests/integration/test_facebook_text_publishing.py` exercises real application/publisher/API components with a mocked HTTP transport; it does not make live Facebook calls.
+
+### Verification and limitations
+
+Phase 22.4D: runtime registration and configuration-error behavior, commit `2af2717`. Phase 22.4E: success/OAuth rejection/HTTP 503 integration tests and classifier support, commit `f233571`. Full developer-reported suite: **2,598 passed**; latest branch synchronized and clean. **Phase 22.5** will validate user-facing Posts publishing GUI behavior. No live Facebook post or completed GUI end-to-end validation is asserted here.
+
+Preserve the feature-first dependency direction: Posts may use Accounts models/contracts but must not import Facebook platform implementation; composition and the platform adapter bridge those boundaries.
