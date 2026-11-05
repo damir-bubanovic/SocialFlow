@@ -1016,3 +1016,42 @@ def test_post_editor_allows_categories_for_one_wordpress_account(
     editor.destination_selector._checkboxes[1].setChecked(False)
 
     assert editor.post().category_ids == (10, 20)
+
+
+def test_mixed_facebook_wordpress_requires_title(qtbot) -> None:
+    editor = PostEditor()
+    qtbot.addWidget(editor)
+
+    facebook = create_facebook_account()
+    wordpress = Account(
+        name="WordPress Test",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    editor.set_accounts((facebook, wordpress))
+    editor.text_editor.setPlainText("Shared post content")
+
+    editor.destination_selector._checkboxes[0].setChecked(True)
+    assert editor.publish_button.isEnabled()
+    assert editor.title_editor.isHidden()
+
+    editor.destination_selector._checkboxes[1].setChecked(True)
+    assert not editor.publish_button.isEnabled()
+    assert not editor.title_editor.isHidden()
+
+    editor.title_editor.setText("Shared post title")
+    assert editor.publish_button.isEnabled()
+
+    with qtbot.waitSignal(editor.publish_requested) as blocker:
+        editor.publish_button.click()
+
+    request = blocker.args[0]
+    assert request.accounts == (facebook, wordpress)
+    assert request.post.text == "Shared post content"
+    assert request.post.title == "Shared post title"
+
+    editor.destination_selector._checkboxes[1].setChecked(False)
+    editor.title_editor.clear()
+
+    assert editor.title_editor.isHidden()
+    assert editor.publish_button.isEnabled()
