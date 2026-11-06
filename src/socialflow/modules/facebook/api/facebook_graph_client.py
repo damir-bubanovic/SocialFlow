@@ -1,4 +1,3 @@
-
 import json
 import re
 from typing import Any
@@ -14,6 +13,9 @@ from socialflow.modules.facebook.api.facebook_http_transport import (
 )
 from socialflow.modules.facebook.api.urllib_facebook_http_transport import (
     UrllibFacebookHttpTransport,
+)
+from socialflow.modules.facebook.api.facebook_multipart_encoder import (
+    FacebookMultipartEncoder,
 )
 
 
@@ -137,6 +139,86 @@ class FacebookGraphClient:
             ) from None
 
         return self._parse_response(response)
+
+    def delete(
+        self,
+        path: str,
+        access_token: str,
+    ) -> dict[str, Any]:
+        """DELETE a resource through the Facebook Graph API."""
+
+        self._validate_request_inputs(
+            path,
+            access_token,
+            None,
+        )
+
+        url = f"{self.BASE_URL}/{self._api_version}/{path}"
+
+        try:
+            response = self._transport.delete(
+                url=url,
+                headers={
+                    "Authorization": (
+                        f"Bearer {access_token.strip()}"
+                    ),
+                    "Accept": "application/json",
+                },
+                timeout=self._timeout,
+            )
+        except (TimeoutError, URLError, OSError):
+            raise FacebookApiError(
+                message="Facebook network request failed.",
+                is_transient=True,
+            ) from None
+
+        return self._parse_response(response)
+
+    def post_multipart(
+        self,
+        path: str,
+        access_token: str,
+        fields: dict[str, str],
+        filename: str,
+        image_data: bytes,
+    ) -> dict[str, Any]:
+        """POST an image using multipart/form-data."""
+
+        self._validate_request_inputs(
+            path,
+            access_token,
+            fields,
+        )
+
+        payload = FacebookMultipartEncoder.encode(
+            fields=fields,
+            filename=filename,
+            image_data=image_data,
+        )
+
+        url = f"{self.BASE_URL}/{self._api_version}/{path}"
+
+        try:
+            response = self._transport.post(
+                url=url,
+                headers={
+                    "Authorization": (
+                        f"Bearer {access_token.strip()}"
+                    ),
+                    "Accept": "application/json",
+                    "Content-Type": payload.content_type,
+                },
+                body=payload.body,
+                timeout=self._timeout,
+            )
+        except (TimeoutError, URLError, OSError):
+            raise FacebookApiError(
+                message="Facebook network request failed.",
+                is_transient=True,
+            ) from None
+
+        return self._parse_response(response)
+
 
     @staticmethod
     def _validate_request_inputs(

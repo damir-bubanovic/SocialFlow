@@ -118,3 +118,44 @@ def test_transport_post_rejects_non_bytes_body(body: Any) -> None:
             body,
             5.0,
         )
+
+
+def test_transport_delete_sends_correct_method_and_headers() -> None:
+    response = MagicMock()
+    response.status = 200
+    response.read.return_value = b'{"success":true}'
+    response.__enter__.return_value = response
+
+    opener = MagicMock()
+    opener.open.return_value = response
+
+    with patch(
+        "socialflow.modules.facebook.api."
+        "urllib_facebook_http_transport.build_opener",
+        return_value=opener,
+    ):
+        result = UrllibFacebookHttpTransport().delete(
+            "https://graph.facebook.com/v24.0/123456",
+            {"Authorization": "Bearer secret-token"},
+            5.0,
+        )
+
+    request = opener.open.call_args.args[0]
+
+    assert request.get_method() == "DELETE"
+    assert request.data is None
+    assert request.get_header("Authorization") == "Bearer secret-token"
+    assert opener.open.call_args.kwargs["timeout"] == 5.0
+    assert result.status_code == 200
+    assert result.body == b'{"success":true}'
+
+
+def test_transport_delete_rejects_insecure_url() -> None:
+    transport = UrllibFacebookHttpTransport()
+
+    with pytest.raises(ValueError, match="HTTPS"):
+        transport.delete(
+            "http://graph.facebook.com/v24.0/123456",
+            {"Authorization": "Bearer token"},
+            5.0,
+        )

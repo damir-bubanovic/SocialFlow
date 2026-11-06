@@ -33,3 +33,15 @@ class FacebookHttpTransport(ABC):
         timeout: float,
     ) -> FacebookHttpResponse:
         """Perform an HTTPS POST request without following redirects."""
+
+
+    def delete(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        """Perform an HTTPS DELETE request without following redirects."""
+        raise NotImplementedError(
+            "DELETE is not supported by this HTTP transport."
+        )

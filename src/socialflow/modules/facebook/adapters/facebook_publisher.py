@@ -14,6 +14,9 @@ from socialflow.modules.posts.services.publisher import Publisher
 from socialflow.modules.posts.services.errors import (
     PublisherNotConfiguredError,
 )
+from socialflow.modules.posts.models.image_attachment import (
+    ImageAttachment,
+)
 
 
 class FacebookPublisher(Publisher):
@@ -32,8 +35,9 @@ class FacebookPublisher(Publisher):
         self._credential_store = credential_store
         self._publishing_service = publishing_service
 
+
     def publish(self, post: PreparedPost) -> None:
-        """Publish a text-only post to the configured Facebook Page."""
+        """Publish a text post or a single photo to a Facebook Page."""
         config = self._account.facebook_config
 
         if config is None or not config.is_complete():
@@ -43,18 +47,51 @@ class FacebookPublisher(Publisher):
 
         config = config.normalized()
 
-        if post.source.images or post.images:
-            raise ValueError(
-                "Facebook image publishing is not supported yet."
-            )
-
         if post.source.tags:
             raise ValueError(
                 "Facebook tag publishing is not supported yet."
             )
 
-        if not post.source.text.strip():
+
+        attachments: tuple[ImageAttachment, ...]
+
+        if post.images:
+            if len(post.images) != len(post.source.images):
+                raise ValueError(
+                    "Facebook prepared image count does not match source images."
+                )
+
+            for prepared, source in zip(
+                post.images,
+                post.source.images,
+            ):
+                if prepared.source != source:
+                    raise ValueError(
+                        "Facebook image attachments are inconsistent."
+                    )
+
+                if (
+                    prepared.destination
+                    is not PublishingDestination.FACEBOOK
+                ):
+                    raise ValueError(
+                        "Prepared image is not intended for Facebook."
+                    )
+
+            attachments = tuple(
+                ImageAttachment(path=prepared.path)
+                for prepared in post.images
+            )
+        else:
+            attachments = post.source.images
+
+        if not attachments and not post.source.text.strip():
             raise ValueError("Facebook post text is required.")
+
+        if len(attachments) > 10:
+            raise ValueError(
+                "Facebook multiple-photo publishing requires 2 to 10 images."
+            )
 
         token = self._credential_store.get(
             FacebookCredentialKeys.page_access_token(self._account)
@@ -62,6 +99,24 @@ class FacebookPublisher(Publisher):
 
         if not token or not token.strip():
             raise ValueError("Facebook Page access token is missing.")
+
+        if len(attachments) > 1:
+            self._publishing_service.publish_multiple_photos(
+                page_id=config.page_id,
+                access_token=token,
+                attachments=attachments,
+                message=post.source.text,
+            )
+            return
+
+        if attachments:
+            self._publishing_service.publish_photo(
+                page_id=config.page_id,
+                access_token=token,
+                attachment=attachments[0],
+                caption=post.source.text,
+            )
+            return
 
         self._publishing_service.publish_text(
             page_id=config.page_id,

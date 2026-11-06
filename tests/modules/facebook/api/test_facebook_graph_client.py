@@ -46,6 +46,28 @@ class FakeFacebookTransport(FacebookHttpTransport):
         )
 
 
+class FakeDeleteTransport(FakeFacebookTransport):
+    def __init__(
+        self,
+        status_code: int = 200,
+        body: bytes = b'{"success":true}',
+    ) -> None:
+        super().__init__(status_code=status_code, body=body)
+        self.delete_requests: list[
+            tuple[str, dict[str, str], float]
+        ] = []
+
+    def delete(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        self.delete_requests.append(
+            (url, dict(headers), timeout)
+        )
+        return self.response
+
 def test_graph_client_uses_versioned_url() -> None:
     transport = FakeFacebookTransport()
     client = FacebookGraphClient("v24.0", transport=transport)
@@ -174,3 +196,77 @@ def test_graph_client_returns_json_object() -> None:
     client = FacebookGraphClient("v24.0", transport=transport)
 
     assert client.get("me/accounts", "test-token") == payload
+
+
+def test_graph_client_delete_uses_versioned_url_and_auth() -> None:
+    transport = FakeDeleteTransport()
+    client = FacebookGraphClient(
+        "v24.0",
+        transport=transport,
+        timeout=7.5,
+    )
+
+    result = client.delete("123456", " secret-token ")
+
+    assert result == {"success": True}
+    assert len(transport.delete_requests) == 1
+
+    url, headers, timeout = transport.delete_requests[0]
+
+    assert url == "https://graph.facebook.com/v24.0/123456"
+    assert headers["Authorization"] == "Bearer secret-token"
+    assert headers["Accept"] == "application/json"
+    assert timeout == 7.5
+    assert "secret-token" not in url
+
+
+@pytest.mark.parametrize(
+    "invalid_path",
+    ["", "/123", "../123", "123?token=x", "123/../456"],
+)
+def test_graph_client_delete_rejects_invalid_paths(
+    invalid_path: str,
+) -> None:
+    transport = FakeDeleteTransport()
+    client = FacebookGraphClient("v24.0", transport=transport)
+
+    with pytest.raises(ValueError, match="path"):
+        client.delete(invalid_path, "token")
+
+    assert transport.delete_requests == []
+
+
+@pytest.mark.parametrize("invalid_token", ["", " ", "\t"])
+def test_graph_client_delete_rejects_blank_token(
+    invalid_token: str,
+) -> None:
+    transport = FakeDeleteTransport()
+    client = FacebookGraphClient("v24.0", transport=transport)
+
+    with pytest.raises(ValueError, match="token"):
+        client.delete("123456", invalid_token)
+
+    assert transport.delete_requests == []
+
+
+def test_graph_client_delete_reports_graph_api_error() -> None:
+    transport = FakeDeleteTransport(
+        status_code=400,
+        body=b'{"error":{"message":"Deletion denied","code":100}}',
+    )
+    client = FacebookGraphClient("v24.0", transport=transport)
+
+    with pytest.raises(FacebookApiError) as exc_info:
+        client.delete("123456", "secret-token")
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == 100
+    assert "secret-token" not in str(exc_info.value)
+
+
+def test_graph_client_delete_rejects_invalid_json_response() -> None:
+    transport = FakeDeleteTransport(body=b"not-json")
+    client = FacebookGraphClient("v24.0", transport=transport)
+
+    with pytest.raises(FacebookApiError):
+        client.delete("123456", "token")

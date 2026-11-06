@@ -65,6 +65,22 @@ class UrllibFacebookHttpTransport(FacebookHttpTransport):
             body=body,
         )
 
+
+    def delete(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout: float,
+    ) -> FacebookHttpResponse:
+        """Perform an HTTPS DELETE request without following redirects."""
+        return self._request(
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            method="DELETE",
+        )
+
+
     @staticmethod
     def _request(
         *,
