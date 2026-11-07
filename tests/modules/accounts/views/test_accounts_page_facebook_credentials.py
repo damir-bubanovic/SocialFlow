@@ -222,6 +222,96 @@ def test_removing_facebook_account_deletes_token(qtbot) -> None:
     assert repository.all() == ()
     assert key not in store.secrets
 
+def test_failed_facebook_account_removal_preserves_token(
+    qtbot,
+) -> None:
+    """Failed account removal must not delete Facebook credentials."""
+    store = FakeCredentialStore()
+    page, repository = create_page(store)
+    qtbot.addWidget(page)
+
+    create_facebook_account(page)
+    account = repository.all()[0]
+    key = FacebookCredentialKeys.page_access_token(account)
+
+    assert store.secrets[key] == "secret-page-token"
+
+    page.account_list.setCurrentRow(0)
+
+    # Simulate an account removed externally after the UI loaded it.
+    repository.remove(account)
+
+    page.remove_button.click()
+
+    # The account no longer exists in the repository.
+    assert repository.all() == ()
+
+    # The failed UI removal must not delete stored credentials.
+    assert store.secrets[key] == "secret-page-token"
+
+    # The UI reports the failed removal.
+    assert page.account_status.property("status") == "error"
+
+def test_facebook_repository_io_failure_preserves_token(
+    qtbot,
+    monkeypatch,
+) -> None:
+    """Repository I/O failure must not trigger credential cleanup."""
+    store = FakeCredentialStore()
+    page, repository = create_page(store)
+    qtbot.addWidget(page)
+
+    create_facebook_account(page)
+    account = repository.all()[0]
+    key = FacebookCredentialKeys.page_access_token(account)
+
+    def fail_remove(_account: Account) -> None:
+        raise OSError("Simulated repository write failure")
+
+    monkeypatch.setattr(repository, "remove", fail_remove)
+
+    page.account_list.setCurrentRow(0)
+    page.remove_button.click()
+
+    assert repository.all() == (account,)
+    assert store.secrets[key] == "secret-page-token"
+    assert page.account_status.property("status") == "error"
+
+def test_facebook_token_deletion_failure_after_account_removal(
+    qtbot,
+) -> None:
+    """Failed token deletion must report incomplete account cleanup."""
+    store = FakeCredentialStore()
+    page, repository = create_page(store)
+    qtbot.addWidget(page)
+
+    create_facebook_account(page)
+    account = repository.all()[0]
+    key = FacebookCredentialKeys.page_access_token(account)
+
+    assert store.secrets[key] == "secret-page-token"
+
+    store.fail_delete = True
+
+    page.account_list.setCurrentRow(0)
+
+    with qtbot.waitSignal(page.accounts_changed):
+        page.remove_button.click()
+
+    # Account removal succeeded before credential cleanup failed.
+    assert repository.all() == ()
+    assert page.account_list.count() == 0
+
+    # Failed credential deletion leaves the token in secure storage.
+    assert store.secrets[key] == "secret-page-token"
+
+    # The UI must not report complete success.
+    assert page.account_status.property("status") == "error"
+
+    # The account selection and form are reset.
+    assert page.account_list.selected_account() is None
+    assert page.account_form.name_input.text() == ""
+
 def test_failed_facebook_token_save_and_account_rollback_reports_error(
     qtbot,
     monkeypatch,

@@ -728,7 +728,7 @@ class AccountsPage(QWidget):
 
         try:
             self._remove_account.execute(account)
-        except AccountNotFoundError:
+        except (AccountNotFoundError, OSError):
             self.account_status.show_remove_error()
             return
 
