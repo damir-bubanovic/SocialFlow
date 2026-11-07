@@ -22,6 +22,12 @@ from socialflow.modules.facebook.api.facebook_page_discovery_service import (
 from socialflow.modules.facebook.api.facebook_graph_client import (
     FacebookGraphClient,
 )
+from socialflow.modules.facebook.services.facebook_connection_verifier import (
+    FacebookConnectionVerifier,
+)
+from socialflow.modules.accounts.controllers.facebook_verification_controller import (
+    FacebookVerificationController,
+)
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
 from socialflow.modules.posts.views.posts_page import PostsPage
@@ -100,6 +106,31 @@ def test_main_content_contains_accounts_page(qtbot) -> None:
 
     assert isinstance(content.accounts_page, AccountsPage)
 
+def test_main_content_wires_facebook_connection_verifier(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    verifier = content.facebook_connection_verifier
+
+    assert isinstance(
+        verifier,
+        FacebookConnectionVerifier,
+    )
+
+    controller = (
+        content.accounts_page._facebook_verification_controller
+    )
+
+    assert isinstance(
+        controller,
+        FacebookVerificationController,
+    )
+    assert controller._verifier is verifier
+    assert isinstance(
+        verifier._graph_client,
+        FacebookGraphClient,
+    )
+    assert not controller.is_running
 
 def test_main_content_wires_facebook_account_services(qtbot) -> None:
     content = MainContent()

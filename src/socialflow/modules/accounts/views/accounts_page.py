@@ -52,6 +52,9 @@ from socialflow.modules.accounts.views.account_status import AccountStatus
 from socialflow.modules.accounts.controllers.wordpress_verification_controller import (
     WordPressVerificationController,
 )
+from socialflow.modules.accounts.controllers.facebook_verification_controller import (
+    FacebookVerificationController,
+)
 from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
     FacebookPageDiscoveryController,
 )
@@ -85,6 +88,7 @@ class AccountsPage(QWidget):
         save_facebook_credentials: SaveFacebookCredentials | None = None,
         delete_facebook_credentials: DeleteFacebookCredentials | None = None,
         get_facebook_credentials: GetFacebookCredentials | None = None,
+        facebook_connection_verifier: ConnectionVerifier | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -105,6 +109,15 @@ class AccountsPage(QWidget):
                 parent=self,
             )
             if wordpress_connection_verifier is not None
+            else None
+        )
+
+        self._facebook_verification_controller = (
+            FacebookVerificationController(
+                facebook_connection_verifier,
+                parent=self,
+            )
+            if facebook_connection_verifier is not None
             else None
         )
 
@@ -247,6 +260,21 @@ class AccountsPage(QWidget):
                 self._update_account_buttons
             )
             self._verification_controller.finished.connect(
+                self.verification_finished.emit
+            )
+
+        if self._facebook_verification_controller is not None:
+            controller = self._facebook_verification_controller
+            controller.result_ready.connect(
+                self.account_status.show_connection_result
+            )
+            controller.error_occurred.connect(
+                self.account_status.show_connection_error
+            )
+            controller.finished.connect(
+                self._update_account_buttons
+            )
+            controller.finished.connect(
                 self.verification_finished.emit
             )
 
@@ -735,16 +763,19 @@ class AccountsPage(QWidget):
         self.accounts_changed.emit()
 
     def _handle_verify_connection(self) -> None:
-        """Start verification of the selected WordPress account."""
+        """Start verification of the selected publishing account."""
         account = self.account_list.selected_account()
-        controller = self._verification_controller
+        if account is None:
+            return
 
-        if (
-            account is None
-            or account.destination != PublishingDestination.WORDPRESS
-            or controller is None
-            or controller.is_running
-        ):
+        if account.destination == PublishingDestination.WORDPRESS:
+            controller = self._verification_controller
+        elif account.destination == PublishingDestination.FACEBOOK:
+            controller = self._facebook_verification_controller
+        else:
+            return
+
+        if controller is None or self.verification_is_running:
             return
 
         self.verify_button.setEnabled(False)
@@ -785,11 +816,18 @@ class AccountsPage(QWidget):
         self.update_button.setEnabled(has_selection)
         self.remove_button.setEnabled(has_selection)
 
+        can_verify = False
+
+        if account is not None:
+            if account.destination == PublishingDestination.WORDPRESS:
+                can_verify = self._verification_controller is not None
+            elif account.destination == PublishingDestination.FACEBOOK:
+                can_verify = (
+                        self._facebook_verification_controller is not None
+                )
+
         self.verify_button.setEnabled(
-            account is not None
-            and account.destination == PublishingDestination.WORDPRESS
-            and self._verification_controller is not None
-            and not self._verification_controller.is_running
+            can_verify and not self.verification_is_running
         )
 
     def _refresh_accounts(self) -> None:
@@ -801,16 +839,24 @@ class AccountsPage(QWidget):
 
     @property
     def verification_is_running(self) -> bool:
-        """Report whether WordPress verification is still active."""
-        return (
+        """Report whether any connection verification is active."""
+        wordpress_running = (
                 self._verification_controller is not None
                 and self._verification_controller.is_running
         )
+        facebook_running = (
+                self._facebook_verification_controller is not None
+                and self._facebook_verification_controller.is_running
+        )
+        return wordpress_running or facebook_running
 
     def shutdown(self) -> None:
         """Safely finish active account background operations."""
         if self._verification_controller is not None:
             self._verification_controller.shutdown()
+
+        if self._facebook_verification_controller is not None:
+            self._facebook_verification_controller.shutdown()
 
         if self._facebook_discovery_controller is not None:
             self._facebook_discovery_controller.shutdown()

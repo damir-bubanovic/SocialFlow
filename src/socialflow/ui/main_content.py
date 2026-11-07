@@ -144,6 +144,9 @@ from socialflow.modules.accounts.services.get_facebook_credentials import (
 from socialflow.modules.facebook.api.facebook_graph_client import (
     FacebookGraphClient,
 )
+from socialflow.modules.facebook.services.facebook_connection_verifier import (
+    FacebookConnectionVerifier,
+)
 from socialflow.modules.facebook.api.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
 )
@@ -204,6 +207,11 @@ class MainContent(QWidget):
             WordPressConnectionVerifierFactory.create(
                 credential_store=credential_store,
             )
+        )
+
+        self.facebook_connection_verifier = FacebookConnectionVerifier(
+            credential_store=credential_store,
+            graph_client=facebook_graph_client,
         )
 
         # Persistent application storage.
@@ -403,6 +411,7 @@ class MainContent(QWidget):
             update_account=update_account,
             parent=self,
             wordpress_connection_verifier=self.wordpress_connection_verifier,
+            facebook_connection_verifier=self.facebook_connection_verifier,
             save_wordpress_credentials=save_wordpress_credentials,
             delete_wordpress_credentials=delete_wordpress_credentials,
             get_wordpress_credentials=get_wordpress_credentials,
