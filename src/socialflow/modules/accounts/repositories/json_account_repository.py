@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 from pathlib import Path
 from uuid import uuid4
 
@@ -97,7 +99,36 @@ class JsonAccountRepository(AccountRepository):
             indent=2,
         )
 
-        self._file_path.write_text(
-            content,
-            encoding="utf-8",
+        file_descriptor, temporary_path = tempfile.mkstemp(
+            prefix=f".{self._file_path.name}.",
+            suffix=".tmp",
+            dir=self._file_path.parent,
         )
+
+        try:
+            try:
+                with os.fdopen(
+                        file_descriptor,
+                        "w",
+                        encoding="utf-8",
+                ) as temporary_file:
+                    temporary_file.write(content)
+            except BaseException:
+                # fdopen() may fail before taking ownership of the descriptor.
+                try:
+                    os.close(file_descriptor)
+                except OSError:
+                    pass
+                raise
+
+            os.replace(
+                temporary_path,
+                self._file_path,
+            )
+        finally:
+            # After successful replacement the temporary path no longer exists.
+            # After failure, remove any remaining temporary file.
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass

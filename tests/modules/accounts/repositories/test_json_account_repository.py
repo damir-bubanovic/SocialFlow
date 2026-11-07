@@ -1,4 +1,6 @@
 import json
+import os
+
 import pytest
 
 from socialflow.modules.accounts.repositories.errors import AccountStorageError
@@ -43,6 +45,80 @@ def test_json_account_repository_persists_account(tmp_path) -> None:
 
     assert reloaded_repository.all() == (account,)
 
+def test_failed_temporary_write_preserves_existing_accounts(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A failed temporary write must not damage existing JSON."""
+    file_path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(file_path)
+
+    original = Account(
+        name="Original Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(original)
+
+    original_content = file_path.read_bytes()
+
+    def fail_fdopen(*_args, **_kwargs):
+        raise OSError("Simulated temporary write failure")
+
+    new_account = Account(
+        name="Second Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "fdopen", fail_fdopen)
+
+        with pytest.raises(
+            OSError,
+            match="Simulated temporary write failure",
+        ):
+            repository.add(new_account)
+
+    assert file_path.read_bytes() == original_content
+    assert repository.all() == (original,)
+
+    # Temporary files must be cleaned up after failure.
+    assert sorted(tmp_path.iterdir()) == [file_path]
+
+
+def test_failed_atomic_replace_preserves_existing_accounts(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Failed replacement must preserve the original account file."""
+    file_path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(file_path)
+
+    original = Account(
+        name="Original Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(original)
+
+    original_content = file_path.read_bytes()
+
+    def fail_replace(_source, _destination):
+        raise OSError("Simulated atomic replace failure")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+
+    new_account = Account(
+        name="Second Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    with pytest.raises(OSError, match="Simulated atomic replace failure"):
+        repository.add(new_account)
+
+    assert file_path.read_bytes() == original_content
+    assert repository.all() == (original,)
+
+    # Failed replacement must not leave temporary files behind.
+    assert sorted(tmp_path.iterdir()) == [file_path]
 
 def test_json_account_repository_preserves_unicode(tmp_path) -> None:
     file_path = tmp_path / "accounts.json"
