@@ -761,6 +761,61 @@ def test_publish_post_continues_after_one_destination_fails() -> None:
     assert len(successful_publisher.published_posts) == 1
     assert successful_publisher.published_posts[0].source is post
 
+def test_successful_remote_publish_preserves_persistence_failure() -> None:
+    """A history write failure must not turn a published post into a failure."""
+
+    class FailingPublicationRepository(InMemoryPublicationRepository):
+        def add(self, publication) -> None:
+            raise OSError("Publication history storage failed.")
+
+    publisher = RecordingPublisher()
+
+    router = PublisherRouter(
+        {
+            PublishingDestination.FACEBOOK: publisher,
+        }
+    )
+
+    repository = FailingPublicationRepository()
+
+    service = PublishPost(
+        publisher_router=router,
+        publication_id_generator=create_publication_id_generator(),
+        publication_repository=repository,
+        clock=FixedClock(datetime(2026, 10, 5, 21, 0)),
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    post = Post(
+        text="Publishing succeeded remotely",
+        language=Language.ENGLISH,
+    )
+
+    request = PublishRequest(
+        post=post,
+        accounts=(account,),
+    )
+
+    results = service.execute(request)
+
+    assert len(publisher.published_posts) == 1
+    assert publisher.published_posts[0].source is post
+
+    assert len(results) == 1
+    assert results[0].account is account
+    assert results[0].succeeded
+    assert results[0].error is None
+
+    assert isinstance(results[0].persistence_error, OSError)
+    assert str(results[0].persistence_error) == (
+        "Publication history storage failed."
+    )
+
+    assert repository.recent_for_account(account) == ()
 
 def test_publish_post_records_successful_publication() -> None:
     publisher = RecordingPublisher()
@@ -1442,7 +1497,93 @@ def test_publishing_error_is_preserved_when_cleanup_also_fails(
     assert len(wordpress_publisher.published_posts) == 1
     assert source_path.is_file()
 
+def test_persistence_error_is_preserved_when_cleanup_also_fails(
+    tmp_path: Path,
+) -> None:
+    """Both local failures remain visible after successful publishing."""
+    source_path = tmp_path / "source.png"
+    Image.new("RGB", (800, 600)).save(source_path)
 
+    class FailingCleanupService(ImagePreparationService):
+        def cleanup(
+            self,
+            prepared_images,
+        ) -> None:
+            raise PermissionError("Cleanup failed.")
+
+    class FailingPublicationRepository(InMemoryPublicationRepository):
+        def add(self, publication) -> None:
+            raise OSError("Publication history storage failed.")
+
+    profile_provider = ImageProfileProvider(
+        profiles={
+            PublishingDestination.FACEBOOK: ImageProfile(
+                maximum_dimensions=ImageDimensions(
+                    width=800,
+                    height=800,
+                ),
+                output_format="JPEG",
+            ),
+        }
+    )
+
+    image_service = FailingCleanupService(
+        profile_provider,
+    )
+    repository = FailingPublicationRepository()
+    publisher = RecordingPublisher()
+
+    service = PublishPost(
+        publisher_router=PublisherRouter(
+            {
+                PublishingDestination.FACEBOOK: publisher,
+            }
+        ),
+        publication_id_generator=create_publication_id_generator(),
+        image_preparation_service=image_service,
+        image_output_directory=tmp_path / "prepared",
+        publication_repository=repository,
+        clock=FixedClock(datetime(2026, 10, 5, 21, 0)),
+    )
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    post = Post(
+        text="Testing persistence and cleanup failures",
+        language=Language.ENGLISH,
+        images=(ImageAttachment(path=source_path),),
+    )
+
+    results = service.execute(
+        PublishRequest(
+            post=post,
+            accounts=(account,),
+        )
+    )
+
+    assert len(results) == 1
+    assert results[0].account is account
+
+    # Remote publishing succeeded despite both local failures.
+    assert results[0].succeeded is True
+    assert results[0].error is None
+
+    assert isinstance(results[0].persistence_error, OSError)
+    assert str(results[0].persistence_error) == (
+        "Publication history storage failed."
+    )
+
+    assert isinstance(results[0].cleanup_error, PermissionError)
+    assert str(results[0].cleanup_error) == "Cleanup failed."
+
+    assert len(publisher.published_posts) == 1
+    assert publisher.published_posts[0].source is post
+
+    assert repository.recent_for_account(account) == ()
+    assert source_path.is_file()
 
 def test_cleanup_failure_does_not_change_successful_publication(
     tmp_path: Path,
