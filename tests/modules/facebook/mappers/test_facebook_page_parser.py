@@ -6,7 +6,7 @@ import pytest
 from socialflow.modules.facebook.api.facebook_api_error import (
     FacebookApiError,
 )
-from socialflow.modules.facebook.api.facebook_page_parser import (
+from socialflow.modules.facebook.mappers.facebook_page_parser import (
     parse_discovered_pages,
 )
 
