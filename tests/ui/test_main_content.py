@@ -62,6 +62,17 @@ from socialflow.modules.facebook.adapters.facebook_publisher import (
 from socialflow.modules.facebook.api.facebook_publishing_service import (
     FacebookPublishingService,
 )
+from socialflow.modules.accounts.repositories.json_pending_credential_cleanup_repository import (
+    JsonPendingCredentialCleanupRepository,
+)
+from socialflow.modules.accounts.models.account_id import AccountId
+from uuid import uuid4
+from socialflow.modules.accounts.services.credential_errors import (
+    CredentialStorageError,
+)
+from socialflow.modules.accounts.repositories.errors import (
+    AccountStorageError,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -521,3 +532,256 @@ def test_main_content_wires_facebook_publisher(qtbot) -> None:
         publisher._publishing_service._client,
         FacebookGraphClient,
     )
+
+# qtbot ensures QApplication exists before MainContent constructs widgets.
+def test_main_content_does_not_recover_when_accounts_file_is_missing(
+    qtbot,
+    monkeypatch,
+) -> None:
+    assert qtbot is not None
+
+    paths = AppPaths(data_directory())
+
+    assert not paths.accounts_file.exists()
+
+    account_id = AccountId(uuid4())
+    key = f"facebook:{account_id}:page_access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file
+    )
+    journal.add(key)
+
+    deleted_keys = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    with pytest.raises(
+        OSError,
+        match="Account storage is missing",
+    ):
+        MainContent()
+
+    assert deleted_keys == []
+    assert journal.all() == (key,)
+
+def test_main_content_recovers_orphaned_facebook_credentials_on_startup(
+    qtbot,
+    monkeypatch,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    # Existing account storage is required for safe recovery.
+    paths.accounts_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    paths.accounts_file.write_text(
+        "[]",
+        encoding="utf-8",
+    )
+
+    account_id = AccountId(uuid4())
+    key = f"facebook:{account_id}:page_access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert deleted_keys == [key]
+    assert journal.all() == ()
+
+def test_main_content_preserves_pending_cleanup_when_keyring_delete_fails(
+    qtbot,
+    monkeypatch,
+) -> None:
+    assert qtbot is not None
+
+    paths = AppPaths(data_directory())
+
+    paths.accounts_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    paths.accounts_file.write_text(
+        "[]",
+        encoding="utf-8",
+    )
+
+    account_id = AccountId(uuid4())
+    key = f"facebook:{account_id}:page_access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def fail_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+        raise OSError("Simulated keyring deletion failure")
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        fail_delete,
+    )
+
+    with pytest.raises(
+        CredentialStorageError,
+        match="Could not securely delete account credentials",
+    ):
+        MainContent()
+
+    assert deleted_keys == [key]
+    assert journal.all() == (key,)
+
+def test_main_content_preserves_credentials_when_account_storage_is_corrupt(
+    qtbot,
+    monkeypatch,
+) -> None:
+    assert qtbot is not None
+
+    paths = AppPaths(data_directory())
+
+    paths.accounts_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    paths.accounts_file.write_text(
+        "{invalid json",
+        encoding="utf-8",
+    )
+
+    account_id = AccountId(uuid4())
+    key = f"facebook:{account_id}:page_access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    with pytest.raises(AccountStorageError):
+        MainContent()
+
+    assert deleted_keys == []
+    assert journal.all() == (key,)
+
+def test_main_content_does_not_delete_credentials_when_cleanup_journal_is_corrupt(
+    qtbot,
+    monkeypatch,
+) -> None:
+    assert qtbot is not None
+
+    paths = AppPaths(data_directory())
+
+    paths.accounts_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    paths.accounts_file.write_text(
+        "[]",
+        encoding="utf-8",
+    )
+
+    paths.pending_credential_cleanup_file.write_text(
+        "{invalid json",
+        encoding="utf-8",
+    )
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    with pytest.raises(ValueError):
+        MainContent()
+
+    assert deleted_keys == []
+    assert (
+        paths.pending_credential_cleanup_file.read_text(
+            encoding="utf-8",
+        )
+        == "{invalid json"
+    )
+
+def test_main_content_preserves_credentials_for_existing_account(
+    qtbot,
+    monkeypatch,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    account = Account(
+        name="Existing Facebook Page",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    account_repository = JsonAccountRepository(
+        paths.accounts_file,
+    )
+    account_repository.add(account)
+
+    key = f"facebook:{account.id}:page_access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert deleted_keys == []
+    assert account_repository.all() == (account,)
+    assert journal.all() == ()

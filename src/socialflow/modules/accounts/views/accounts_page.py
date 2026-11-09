@@ -64,7 +64,12 @@ from socialflow.modules.facebook.api.facebook_page_discovery_service import (
 from socialflow.modules.accounts.services.get_facebook_credentials import (
     GetFacebookCredentials,
 )
-
+from socialflow.modules.accounts.services.remove_account_with_credential_cleanup import (
+    RemoveAccountWithCredentialCleanup,
+)
+from socialflow.modules.accounts.services.errors import (
+    AccountCredentialCleanupIncompleteError,
+)
 
 
 class AccountsPage(QWidget):
@@ -89,12 +94,18 @@ class AccountsPage(QWidget):
         delete_facebook_credentials: DeleteFacebookCredentials | None = None,
         get_facebook_credentials: GetFacebookCredentials | None = None,
         facebook_connection_verifier: ConnectionVerifier | None = None,
+        remove_account_with_credential_cleanup: (
+            RemoveAccountWithCredentialCleanup | None
+        ) = None,
     ) -> None:
         super().__init__(parent)
 
         self._add_account = add_account
         self._list_accounts = list_accounts
         self._remove_account = remove_account
+        self._remove_account_with_credential_cleanup = (
+            remove_account_with_credential_cleanup
+        )
         self._update_account = update_account
         self._wordpress_connection_verifier = wordpress_connection_verifier
         self._save_wordpress_credentials = save_wordpress_credentials
@@ -727,9 +738,25 @@ class AccountsPage(QWidget):
             return
 
         try:
-            self._remove_account.execute(account)
-        except (AccountNotFoundError, OSError):
+            if self._remove_account_with_credential_cleanup is not None:
+                self._remove_account_with_credential_cleanup.execute(account)
+            else:
+                self._remove_account.execute(account)
+        except AccountCredentialCleanupIncompleteError:
+            # The account was removed, but credential cleanup is incomplete.
+            self._refresh_accounts()
             self.account_status.show_remove_error()
+            self.accounts_changed.emit()
+            return
+        except (AccountNotFoundError, OSError):
+            # Account removal did not complete.
+            self.account_status.show_remove_error()
+            return
+
+        if self._remove_account_with_credential_cleanup is not None:
+            self._refresh_accounts()
+            self.account_status.show_removed()
+            self.accounts_changed.emit()
             return
 
         # Only delete credentials after successful account removal.
