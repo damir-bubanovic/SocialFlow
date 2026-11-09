@@ -1,7 +1,6 @@
 # SocialFlow
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Current status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
 
@@ -316,3 +315,52 @@ The architecture migration described in the earlier November 1 planning sections
 **Verification reported from the working checkout:** `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,151 passed**; feature-dependency audit → **0 violations**; `git diff --check` clean; local branch synchronized with remote; desktop application launched and looked/worked correctly in a manual smoke test. These are developer-reported checks, not a new test run against this ZIP.
 
 **Next:** Review these documentation changes, commit/push them on `refactor/feature-first-architecture`, then merge to `main` after final Git checks. Do not commit `AGENTS.md` or credentials.
+
+---
+
+## November 4, 2026 — Facebook Pages Integration Checkpoint
+
+**Current branch:** `feature/facebook-pages-integration`
+**Latest verified commit:** `f233571` — `test(facebook): verify text publishing integration and error classification` (pushed)
+**Verification:** `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,598 passed** (developer's working checkout); Git branch synchronized and working tree clean.
+
+Facebook Pages integration now includes account configuration and persistence, keyring-backed Page access-token services, Graph API HTTP GET/POST support, Page discovery, Accounts GUI configuration/discovery integration, a Facebook text publishing service, and account-specific runtime publisher registration. The Posts publishing workflow routes configured Facebook accounts to `FacebookPublisher` via `PublisherRouter`; the publisher validates the Page configuration, retrieves the selected account's token, and sends a text-only post through the Graph API service.
+
+**Phase 22.4D:** Registered `FacebookPublishingService` and account-specific `FacebookPublisher` in `src/socialflow/ui/main_content.py`, with router and GUI composition tests. Missing/incomplete Page configuration raises `PublisherNotConfiguredError`, retaining the existing user-facing configuration classification. Commit `2af2717`.
+
+**Phase 22.4E:** Added `tests/integration/test_facebook_text_publishing.py` for a successful request, an HTTP 400 OAuth rejection, and an HTTP 503 temporary failure. Updated the Posts error classifier to use `FacebookApiError.is_transient` (`TRANSIENT` when true, otherwise `PERMANENT`); added focused classifier tests. Commit `f233571`.
+
+**Limits:** These are automated, mocked-transport verifications, **not evidence of a successful live Facebook publication**. Image publishing, tag publishing, and Instagram integration are not established by this checkpoint. Phase 22.5 will audit and validate the Facebook publishing GUI, account selection, progress, success, and error presentation before making scoped changes.
+
+Earlier statements that Facebook remains wholly unimplemented, or that the feature-first migration is still pending, are historical.
+
+## November 9, 2026 — Current Facebook Pages Integration Handoff
+
+**Status:** Planned Facebook Pages implementation is code-complete and offline-tested on
+`feature/facebook-pages-integration`. Commit `77aafc4`
+(`fix(posts): preserve remote publishing success on persistence failure`) was pushed to
+`origin/feature/facebook-pages-integration`. The developer reported a clean working tree
+and `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,905 passed**.
+
+Implemented Facebook scope includes Page account configuration and persistence,
+keyring-backed credentials, Page discovery and connection verification, Graph API
+transport and structured errors, Posts/Accounts GUI integration, and text, single-photo,
+and multiple-photo publishing (2–10 photos). Facebook tag publishing is **not**
+implemented. Instagram remains a future integration.
+
+**Reliability:** A successful remote publish remains successful if local publication
+history cannot be saved. The failure is retained as `persistence_error`, shown as a
+non-sensitive GUI warning, and excluded from failed-publication retry. An image cleanup
+error is retained independently.
+
+**Outstanding:** No live Facebook Page publish has been verified. The developer regained
+access to a long-inactive Facebook account on November 9, but Page creation returned a
+generic policy-related error despite Account Status showing no restrictions. The plan is
+to retry Page creation after approximately two days, then establish Meta developer
+credentials and perform controlled live Page discovery, connection, text, single-photo,
+and multiple-photo checks. Do not put tokens in documentation or commits.
+
+**Repository handoff:** Review and commit these documentation changes on the feature
+branch; merge into `main` only after explicit approval and verification. Start the next
+code-refactoring effort on a new branch from updated `main`. The historical November 4
+checkpoint and older feature-status tables above do not describe the current state.

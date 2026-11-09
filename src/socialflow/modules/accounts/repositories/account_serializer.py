@@ -8,6 +8,10 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
 from socialflow.core.destination import PublishingDestination
+from socialflow.modules.accounts.models.facebook_page_config import (
+    FacebookPageConfig,
+)
+
 
 
 class AccountSerializer:
@@ -28,6 +32,12 @@ class AccountSerializer:
                 "username": account.wordpress_config.username,
             }
 
+        if account.facebook_config is not None:
+            data["facebook_config"] = {
+                "page_id": account.facebook_config.page_id,
+                "page_name": account.facebook_config.page_name,
+            }
+
         return data
 
     @staticmethod
@@ -35,6 +45,7 @@ class AccountSerializer:
         """Create an account from serialized data."""
         account_id = data.get("id")
         wordpress_data = data.get("wordpress_config")
+        facebook_data = data.get("facebook_config")
 
         wordpress_config = None
 
@@ -42,6 +53,14 @@ class AccountSerializer:
             wordpress_config = WordPressConnectionConfig(
                 site_url=wordpress_data["site_url"],
                 username=wordpress_data["username"],
+            )
+
+        facebook_config = None
+
+        if facebook_data is not None:
+            facebook_config = FacebookPageConfig(
+                page_id=facebook_data["page_id"],
+                page_name=facebook_data["page_name"],
             )
 
         return Account(
@@ -53,4 +72,5 @@ class AccountSerializer:
                 else AccountId(UUID(int=0))
             ),
             wordpress_config=wordpress_config,
+            facebook_config=facebook_config,
         )

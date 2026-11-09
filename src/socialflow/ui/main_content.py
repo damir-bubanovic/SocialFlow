@@ -135,7 +135,39 @@ from socialflow.modules.wordpress.adapters.wordpress_media_provider import (
 from socialflow.modules.accounts.services.get_wordpress_credentials import (
     GetWordPressCredentials,
 )
-
+from socialflow.modules.accounts.services.save_facebook_credentials import (
+    SaveFacebookCredentials,
+)
+from socialflow.modules.accounts.services.get_facebook_credentials import (
+    GetFacebookCredentials,
+)
+from socialflow.modules.facebook.api.facebook_graph_client import (
+    FacebookGraphClient,
+)
+from socialflow.modules.facebook.services.facebook_connection_verifier import (
+    FacebookConnectionVerifier,
+)
+from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+    FacebookPageDiscoveryService,
+)
+from socialflow.modules.accounts.services.delete_facebook_credentials import (
+    DeleteFacebookCredentials,
+)
+from socialflow.modules.facebook.adapters.facebook_publisher import (
+    FacebookPublisher,
+)
+from socialflow.modules.facebook.api.facebook_publishing_service import (
+    FacebookPublishingService,
+)
+from socialflow.application.credentials.pending_cleanup_guarded_credential_store import (
+    PendingCleanupGuardedCredentialStore,
+)
+from socialflow.modules.accounts.repositories.json_pending_credential_cleanup_repository import (
+    JsonPendingCredentialCleanupRepository,
+)
+from socialflow.modules.accounts.services.remove_account_with_credential_cleanup import (
+    RemoveAccountWithCredentialCleanup,
+)
 
 
 class MainContent(QWidget):
@@ -146,17 +178,50 @@ class MainContent(QWidget):
 
         self.navigation = Navigation(self)
 
-        # Shared credential storage for WordPress connections.
+        # Persistent paths and pending credential cleanup journal.
+        paths = AppPaths(data_directory())
+
+        cleanup_repository = JsonPendingCredentialCleanupRepository(
+            paths.pending_credential_cleanup_file,
+        )
+
+        # Shared secure credential storage.
         credential_store = KeyringCredentialStore()
 
-        save_wordpress_credentials = SaveWordPressCredentials(
+        guarded_credential_store = PendingCleanupGuardedCredentialStore(
             credential_store=credential_store,
+            cleanup_repository=cleanup_repository,
+        )
+
+        save_wordpress_credentials = SaveWordPressCredentials(
+            credential_store=guarded_credential_store,
         )
         get_wordpress_credentials = GetWordPressCredentials(
             credential_store=credential_store,
         )
         delete_wordpress_credentials = DeleteWordPressCredentials(
             credential_store=credential_store,
+        )
+        # Facebook Page credentials use the existing shared keyring store.
+        save_facebook_credentials = SaveFacebookCredentials(
+            credential_store=guarded_credential_store,
+        )
+        get_facebook_credentials = GetFacebookCredentials(
+            credential_store=credential_store,
+        )
+        delete_facebook_credentials = DeleteFacebookCredentials(
+            credential_store=credential_store,
+        )
+        # Facebook Graph API services.
+        facebook_graph_client = FacebookGraphClient(
+            api_version="v24.0",
+        )
+
+        facebook_page_discovery_service = FacebookPageDiscoveryService(
+            client=facebook_graph_client,
+        )
+        facebook_publishing_service = FacebookPublishingService(
+            client=facebook_graph_client,
         )
 
         self.wordpress_connection_verifier = (
@@ -165,9 +230,12 @@ class MainContent(QWidget):
             )
         )
 
-        # Persistent application storage.
-        paths = AppPaths(data_directory())
+        self.facebook_connection_verifier = FacebookConnectionVerifier(
+            credential_store=credential_store,
+            graph_client=facebook_graph_client,
+        )
 
+        # Persistent application storage.
         account_repository = JsonAccountRepository(
             paths.accounts_file
         )
@@ -188,6 +256,28 @@ class MainContent(QWidget):
         add_account = AddAccount(account_repository)
         list_accounts = ListAccounts(account_repository)
         remove_account = RemoveAccount(account_repository)
+
+        remove_account_with_credential_cleanup = (
+            RemoveAccountWithCredentialCleanup(
+                remove_account=remove_account,
+                account_repository=account_repository,
+                cleanup_repository=cleanup_repository,
+                credential_store=credential_store,
+            )
+        )
+
+        # Recover credentials left pending after interrupted account removal.
+        # Never interpret missing account storage as proof of removal.
+        pending_cleanup = cleanup_repository.all()
+
+        if pending_cleanup and not paths.accounts_file.exists():
+            raise OSError(
+                "Account storage is missing; credential recovery aborted."
+            )
+
+        # Recovery failures abort initialization rather than risking data loss.
+        remove_account_with_credential_cleanup.recover_pending()
+
         update_account = UpdateAccount(account_repository)
 
 
@@ -289,6 +379,13 @@ class MainContent(QWidget):
                 PublishingDestination.WORDPRESS: publisher,
             },
             account_factories={
+                PublishingDestination.FACEBOOK: (
+                    lambda account: FacebookPublisher(
+                        account=account,
+                        credential_store=credential_store,
+                        publishing_service=facebook_publishing_service,
+                    )
+                ),
                 PublishingDestination.WORDPRESS: (
                     lambda account: WordPressPublisher(
                         account=account,
@@ -347,18 +444,25 @@ class MainContent(QWidget):
             list_remote_media=list_remote_media,
         )
 
-
-        # Accounts page with WordPress credential management.
+        # Accounts page with WordPress and Facebook credential management.
         self.accounts_page = AccountsPage(
             add_account=add_account,
             list_accounts=list_accounts,
             remove_account=remove_account,
             update_account=update_account,
+            remove_account_with_credential_cleanup=(
+                remove_account_with_credential_cleanup
+            ),
             parent=self,
             wordpress_connection_verifier=self.wordpress_connection_verifier,
+            facebook_connection_verifier=self.facebook_connection_verifier,
             save_wordpress_credentials=save_wordpress_credentials,
             delete_wordpress_credentials=delete_wordpress_credentials,
             get_wordpress_credentials=get_wordpress_credentials,
+            save_facebook_credentials=save_facebook_credentials,
+            get_facebook_credentials=get_facebook_credentials,
+            delete_facebook_credentials=delete_facebook_credentials,
+            facebook_page_discovery_service=facebook_page_discovery_service,
         )
 
         self.accounts_page.accounts_changed.connect(

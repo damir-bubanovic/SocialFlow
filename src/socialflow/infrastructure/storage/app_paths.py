@@ -13,6 +13,11 @@ class AppPaths:
         return self._data_directory / "accounts.json"
 
     @property
+    def pending_credential_cleanup_file(self) -> Path:
+        """Return the path to pending credential cleanup records."""
+        return self._data_directory / "pending_credential_cleanup.json"
+
+    @property
     def publications_file(self) -> Path:
         """Return the path to persistent publication history."""
         return self._data_directory / "publications.json"

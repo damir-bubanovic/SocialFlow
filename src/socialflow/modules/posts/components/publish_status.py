@@ -33,6 +33,12 @@ class PublishStatus(QLabel):
         for result in results:
             outcome = "Published" if result.succeeded else "Failed"
 
+            if result.succeeded and result.persistence_error is not None:
+                outcome = (
+                    "Published — Warning: local publication "
+                    "history could not be saved."
+                )
+
             if not result.succeeded and result.error is not None:
                 message = PublishingErrorFormatter.format(result)
                 outcome = f"{outcome}: {message}"
@@ -41,10 +47,15 @@ class PublishStatus(QLabel):
 
         self.setText("\n".join(lines))
 
-        if all(result.succeeded for result in results):
-            self.setProperty("status", "success")
-        else:
+        if any(not result.succeeded for result in results):
             self.setProperty("status", "error")
+        elif any(
+            result.persistence_error is not None
+            for result in results
+        ):
+            self.setProperty("status", "warning")
+        else:
+            self.setProperty("status", "success")
 
     def clear_status(self) -> None:
         """Clear the current publishing status."""

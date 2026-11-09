@@ -1,7 +1,6 @@
 # SocialFlow --- Architecture Decisions
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Latest decisions:** ADR-072 through ADR-076 record the October 31, 2026 WordPress scope and verification handoff.
 
@@ -1812,7 +1811,7 @@ The developer reported that the full test suite passed and Phase 21.9.72D2-C2 wa
 
 ## ADR-077 — Adopt Feature-First Laravel-Inspired Modular Architecture
 
-**Date:** 2026-11-01  
+**Date:** 2026-11-01
 **Status:** Accepted for future implementation; refactoring not yet started
 
 ### Context
@@ -1843,8 +1842,8 @@ On November 1, 2026 the developer reported six successful live WordPress tests (
 
 ## ADR-078 — Mirror Feature-First Modules in the Test Suite
 
-**Date:** November 1, 2026  
-**Status:** Accepted — implementation pending  
+**Date:** November 1, 2026
+**Status:** Accepted — implementation pending
 **Extends:** ADR-077 (Laravel-inspired feature-first Python/PySide6 architecture)
 
 ### Context
@@ -1874,8 +1873,8 @@ Documentation-only decision. No Python source or test files have been moved by t
 
 ## ADR-079 — Complete Feature-First Source and Test Migration
 
-**Date:** November 1, 2026  
-**Status:** Implemented and accepted  
+**Date:** November 1, 2026
+**Status:** Implemented and accepted
 **Follows:** ADR-077 and ADR-078
 
 ### Context
@@ -1897,3 +1896,104 @@ ADR-077 approved a feature-first, Laravel-inspired organization for Python/PySid
 The developer reported **2,151 passing automated tests**, **zero forbidden feature dependencies**, clean Git status and diff checks, and a successful desktop GUI smoke test. The latest refactoring milestone was reported as commit `23dcf3b`, synchronized with the remote branch before this documentation update. These results were not independently re-run from the supplied archive.
 
 The planned source/test restructuring is complete. Historical estimates in ADR-077/078 are not actual elapsed time. Remaining release tasks are documentation commit/push and controlled merge to `main`. Existing WordPress functional boundaries and future platform roadmap remain unchanged.
+
+---
+
+## ADR-080 — Register Account-Specific Facebook Page Text Publishing at Runtime
+
+**Date:** November 4, 2026
+**Status:** Implemented (Phase 22.4D; commit `2af2717`)
+
+### Context
+
+Facebook Page configuration, credential services, Graph API foundations, discovery, and text publishing services existed, but the application's Posts runtime needed to resolve the selected Facebook account to a concrete publisher.
+
+### Decision
+
+- Compose `FacebookPublishingService` with the existing `FacebookGraphClient` in `MainContent`.
+- Register a Facebook account factory in `PublisherRouter` that creates a `FacebookPublisher` for the selected `Account`.
+- Keep WordPress account routing and the existing fallback publisher registrations intact.
+- Raise `PublisherNotConfiguredError` for absent/incomplete Facebook Page configuration, so the existing Posts error formatter reports configuration issues rather than an unknown failure.
+- Keep Facebook publishing text-only; do not silently add image/tag support.
+
+### Consequences and verification
+
+Account-specific publisher instances use the selected account's Page configuration and token key. Router and MainContent tests were added. The developer reported a passing full regression suite and pushed `2af2717`. Live Facebook posting was not part of this verification.
+
+---
+
+## ADR-081 — Verify Facebook Publishing Through the HTTP Boundary and Classify API Errors
+
+**Date:** November 4, 2026
+**Status:** Implemented (Phase 22.4E; commit `f233571`)
+
+### Context
+
+Unit tests alone did not verify the complete Posts-to-Facebook text publishing path. `FacebookApiError` already recorded `is_transient`, but the shared Posts `ErrorClassifier` categorized it as `UNKNOWN`.
+
+### Decision
+
+- Add cross-feature integration tests using real `PublishPost`, `PublisherRouter`, `FacebookPublisher`, `FacebookPublishingService`, and `FacebookGraphClient`, with a mocked credential store and HTTP transport.
+- Verify a successful form-encoded Page feed POST, account-specific token lookup, Bearer authentication, and a successful publishing result.
+- Verify that an OAuth HTTP 400 error becomes a failed result categorized as `PERMANENT`, and an HTTP 503 failure becomes a failed result categorized as `TRANSIENT`.
+- Classify `FacebookApiError` from its validated `is_transient` flag: true → `TRANSIENT`; false → `PERMANENT`. Preserve existing classifications for other exceptions.
+- Do **not** introduce automatic retries or treat mocked transport tests as live API verification.
+
+### Consequences and verification
+
+Added `tests/integration/test_facebook_text_publishing.py`, two focused classifier tests, and a small classifier change. The developer reported **2,598 passing pytest tests**, a clean working tree, and a successful push of `f233571` to `origin/feature/facebook-pages-integration`. The next planned work is Phase 22.5, Facebook publishing GUI integration and validation.
+
+## ADR-082 — Preserve Remote Publishing Success Across Local Persistence Failures
+
+**Date:** November 9, 2026  
+**Status:** Implemented (Phase 22.9C; commit `77aafc4`)
+
+### Context
+
+After a platform publisher succeeds, recording the local `Publication` may fail
+(e.g., due to filesystem errors). Previously, that exception could be reported as
+a failed remote publication, making a retry capable of duplicating an already
+published post. Prepared-image cleanup can also fail independently.
+
+### Decision
+
+- Keep remote publishing success (`PublishResult.succeeded=True`) authoritative
+  after the publisher returns successfully.
+- Capture local history-write failures in `PublishResult.persistence_error`
+  rather than `PublishResult.error`.
+- Preserve `persistence_error` when an independent image-cleanup error is attached.
+- Show a safe, explicit GUI warning for missing local history; do not expose raw
+  persistence exception text.
+- Construct retry requests only from genuinely failed remote publishing results
+  (`not result.succeeded`); never retry a successful remote post solely because
+  local history storage failed.
+- Retain error status precedence when a batch includes a genuine remote failure.
+
+### Consequences and verification
+
+The service, result model, status component, and regression tests were updated.
+The developer reported **2,905 passing tests** on November 9, 2026. This change
+does not recover missing local history automatically, guarantee exactly-once
+delivery under ambiguous network failures, or establish live Facebook API success.
+
+## ADR-083 — Treat Facebook Pages as Code-Complete Pending Live Verification
+
+**Date:** November 9, 2026  
+**Status:** Current development handoff
+
+### Decision
+
+- Consider the planned Facebook Pages scope implemented and offline-tested:
+  account configuration, secure credentials, discovery/verification, Graph API
+  support, text/single-photo/multiple-photo publishing, and GUI integration.
+- Do **not** label it live-verified or production-ready until real Page credentials
+  and controlled API tests confirm publishing and permissions.
+- Keep Facebook tag publishing and Instagram outside the completed scope.
+- Update tracked documentation before a separately authorized feature-to-`main`
+  merge; begin subsequent refactoring on a fresh branch from updated `main`.
+
+### Consequences
+
+Live verification is blocked by Facebook Page creation errors, despite the account
+showing no visible restrictions. The planned retry is around November 11, 2026;
+no specific Meta restriction or resolution time has been confirmed.

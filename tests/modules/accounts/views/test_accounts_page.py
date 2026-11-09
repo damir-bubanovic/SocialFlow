@@ -37,6 +37,9 @@ from socialflow.modules.accounts.models.connection_status import ConnectionStatu
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
+from socialflow.modules.accounts.services.errors import (
+    AccountCredentialCleanupIncompleteError,
+)
 
 
 class InMemoryAccountRepository(AccountRepository):
@@ -1818,3 +1821,130 @@ def test_accounts_page_can_switch_between_new_and_edit_modes(qtbot) -> None:
     assert page.account_form.name_input.text() == "Main Facebook"
     assert page.account_form.selected_destination() == PublishingDestination.FACEBOOK
     assert page.account_form.add_button.isHidden()
+
+def test_accounts_page_uses_cleanup_coordinator_without_duplicate_deletion(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    coordinator = Mock()
+    coordinator.execute.side_effect = lambda selected: repository.remove(
+        selected
+    )
+
+    legacy_delete = Mock(spec=DeleteWordPressCredentials)
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        delete_wordpress_credentials=legacy_delete,
+        remove_account_with_credential_cleanup=coordinator,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    with qtbot.waitSignal(page.accounts_changed):
+        page.remove_button.click()
+
+    coordinator.execute.assert_called_once_with(account)
+    legacy_delete.execute.assert_not_called()
+
+    assert repository.all() == ()
+    assert page.account_list.count() == 0
+    assert page.account_status.property("status") == "success"
+
+def test_accounts_page_refreshes_after_incomplete_credential_cleanup(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    coordinator = Mock()
+
+    def remove_then_fail(selected: Account) -> None:
+        repository.remove(selected)
+        raise AccountCredentialCleanupIncompleteError(
+            "Account removed, but credential cleanup is incomplete."
+        )
+
+    coordinator.execute.side_effect = remove_then_fail
+
+    legacy_delete = Mock(spec=DeleteWordPressCredentials)
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        delete_wordpress_credentials=legacy_delete,
+        remove_account_with_credential_cleanup=coordinator,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    with qtbot.waitSignal(page.accounts_changed):
+        page.remove_button.click()
+
+    coordinator.execute.assert_called_once_with(account)
+    legacy_delete.execute.assert_not_called()
+
+    assert repository.all() == ()
+    assert page.account_list.count() == 0
+    assert page.account_list.selected_account() is None
+    assert page.account_form.name_input.text() == ""
+    assert page.account_status.property("status") == "error"
+
+def test_accounts_page_preserves_account_when_cleanup_journal_fails(
+    qtbot,
+) -> None:
+    repository = InMemoryAccountRepository()
+
+    account = Account(
+        name="My WordPress",
+        destination=PublishingDestination.WORDPRESS,
+    )
+    repository.add(account)
+
+    coordinator = Mock()
+    coordinator.execute.side_effect = OSError(
+        "Simulated cleanup journal write failure"
+    )
+
+    legacy_delete = Mock(spec=DeleteWordPressCredentials)
+
+    page = AccountsPage(
+        add_account=AddAccount(repository),
+        list_accounts=ListAccounts(repository),
+        remove_account=RemoveAccount(repository),
+        update_account=UpdateAccount(repository),
+        delete_wordpress_credentials=legacy_delete,
+        remove_account_with_credential_cleanup=coordinator,
+    )
+    qtbot.addWidget(page)
+
+    page.account_list.setCurrentRow(0)
+
+    page.remove_button.click()
+
+    coordinator.execute.assert_called_once_with(account)
+    legacy_delete.execute.assert_not_called()
+
+    assert repository.all() == (account,)
+    assert page.account_list.count() == 1
+    assert page.account_list.selected_account() == account
+    assert page.account_status.property("status") == "error"

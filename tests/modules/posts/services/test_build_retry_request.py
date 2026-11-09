@@ -64,6 +64,51 @@ def test_retry_request_is_none_when_all_accounts_succeed() -> None:
 
     assert retry_request is None
 
+def test_retry_request_ignores_successful_publish_with_persistence_error() -> None:
+    """A local history failure must not trigger duplicate remote publishing."""
+    request = create_request()
+    facebook, wordpress = request.accounts
+
+    results = (
+        PublishResult(
+            account=facebook,
+            succeeded=True,
+            persistence_error=OSError("History storage failed."),
+        ),
+        PublishResult(
+            account=wordpress,
+            succeeded=True,
+        ),
+    )
+
+    retry_request = BuildRetryRequest().execute(request, results)
+
+    assert retry_request is None
+
+
+def test_retry_request_excludes_persistence_warning_from_mixed_results() -> None:
+    """Only genuine remote publishing failures are eligible for retry."""
+    request = create_request()
+    facebook, wordpress = request.accounts
+
+    results = (
+        PublishResult(
+            account=facebook,
+            succeeded=True,
+            persistence_error=OSError("History storage failed."),
+        ),
+        PublishResult(
+            account=wordpress,
+            succeeded=False,
+            error=RuntimeError("WordPress publishing failed."),
+        ),
+    )
+
+    retry_request = BuildRetryRequest().execute(request, results)
+
+    assert retry_request is not None
+    assert retry_request.post is request.post
+    assert retry_request.accounts == (wordpress,)
 
 def test_retry_request_contains_all_failed_accounts() -> None:
     request = create_request()

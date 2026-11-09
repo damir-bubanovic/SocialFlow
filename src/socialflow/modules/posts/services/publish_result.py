@@ -16,6 +16,7 @@ class PublishResult:
     succeeded: bool
     error: Exception | None = None
     cleanup_error: Exception | None = None
+    persistence_error: Exception | None = None
 
     @property
     def error_category(self) -> ErrorCategory | None:

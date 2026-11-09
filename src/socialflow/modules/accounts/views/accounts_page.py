@@ -17,6 +17,9 @@ from socialflow.modules.accounts.services.errors import (
 )
 from socialflow.modules.accounts.services.list_accounts import ListAccounts
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
+from socialflow.modules.accounts.repositories.errors import (
+    AccountStorageError,
+)
 from socialflow.modules.accounts.services.update_account import UpdateAccount
 from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
@@ -33,6 +36,12 @@ from socialflow.modules.accounts.services.credential_errors import (
 from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
+from socialflow.modules.accounts.services.save_facebook_credentials import (
+    SaveFacebookCredentials,
+)
+from socialflow.modules.accounts.services.delete_facebook_credentials import (
+    DeleteFacebookCredentials,
+)
 from socialflow.modules.accounts.models.account import Account
 from socialflow.core.destination import (
     PublishingDestination,
@@ -42,6 +51,24 @@ from socialflow.modules.accounts.views.account_list import AccountList
 from socialflow.modules.accounts.views.account_status import AccountStatus
 from socialflow.modules.accounts.controllers.wordpress_verification_controller import (
     WordPressVerificationController,
+)
+from socialflow.modules.accounts.controllers.facebook_verification_controller import (
+    FacebookVerificationController,
+)
+from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
+    FacebookPageDiscoveryController,
+)
+from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+    FacebookPageDiscoveryService,
+)
+from socialflow.modules.accounts.services.get_facebook_credentials import (
+    GetFacebookCredentials,
+)
+from socialflow.modules.accounts.services.remove_account_with_credential_cleanup import (
+    RemoveAccountWithCredentialCleanup,
+)
+from socialflow.modules.accounts.services.errors import (
+    AccountCredentialCleanupIncompleteError,
 )
 
 
@@ -62,17 +89,31 @@ class AccountsPage(QWidget):
         save_wordpress_credentials: SaveWordPressCredentials | None = None,
         delete_wordpress_credentials: DeleteWordPressCredentials | None = None,
         get_wordpress_credentials: GetWordPressCredentials | None = None,
+        facebook_page_discovery_service: FacebookPageDiscoveryService | None = None,
+        save_facebook_credentials: SaveFacebookCredentials | None = None,
+        delete_facebook_credentials: DeleteFacebookCredentials | None = None,
+        get_facebook_credentials: GetFacebookCredentials | None = None,
+        facebook_connection_verifier: ConnectionVerifier | None = None,
+        remove_account_with_credential_cleanup: (
+            RemoveAccountWithCredentialCleanup | None
+        ) = None,
     ) -> None:
         super().__init__(parent)
 
         self._add_account = add_account
         self._list_accounts = list_accounts
         self._remove_account = remove_account
+        self._remove_account_with_credential_cleanup = (
+            remove_account_with_credential_cleanup
+        )
         self._update_account = update_account
         self._wordpress_connection_verifier = wordpress_connection_verifier
         self._save_wordpress_credentials = save_wordpress_credentials
         self._delete_wordpress_credentials = delete_wordpress_credentials
         self._get_wordpress_credentials = get_wordpress_credentials
+        self._save_facebook_credentials = save_facebook_credentials
+        self._delete_facebook_credentials = delete_facebook_credentials
+        self._get_facebook_credentials = get_facebook_credentials
         self._verification_controller = (
             WordPressVerificationController(
                 wordpress_connection_verifier,
@@ -82,6 +123,25 @@ class AccountsPage(QWidget):
             else None
         )
 
+        self._facebook_verification_controller = (
+            FacebookVerificationController(
+                facebook_connection_verifier,
+                parent=self,
+            )
+            if facebook_connection_verifier is not None
+            else None
+        )
+
+        self._facebook_discovery_controller = (
+            FacebookPageDiscoveryController(
+                facebook_page_discovery_service,
+                parent=self,
+            )
+            if facebook_page_discovery_service is not None
+            else None
+        )
+        self._facebook_discovery_context: tuple | None = None
+        self._facebook_discovery_generation = 0
         self.account_form = AccountForm(self)
         self.account_list = AccountList(self)
         self.account_status = AccountStatus(self)
@@ -214,10 +274,125 @@ class AccountsPage(QWidget):
                 self.verification_finished.emit
             )
 
+        if self._facebook_verification_controller is not None:
+            controller = self._facebook_verification_controller
+            controller.result_ready.connect(
+                self.account_status.show_connection_result
+            )
+            controller.error_occurred.connect(
+                self.account_status.show_connection_error
+            )
+            controller.finished.connect(
+                self._update_account_buttons
+            )
+            controller.finished.connect(
+                self.verification_finished.emit
+            )
+
+        self.account_form.facebook_discovery_requested.connect(
+            self._handle_facebook_discovery_requested
+        )
+        self.account_form.destination_input.currentIndexChanged.connect(
+            self._invalidate_facebook_discovery
+        )
+
+        if self._facebook_discovery_controller is not None:
+            self._facebook_discovery_controller.result_ready.connect(
+                self._handle_facebook_pages_discovered
+            )
+            self._facebook_discovery_controller.error_occurred.connect(
+                self._handle_facebook_discovery_error
+            )
+            self._facebook_discovery_controller.finished.connect(
+                self._handle_facebook_discovery_finished
+            )
+
         self._refresh_accounts()
+
+
+    def _current_facebook_discovery_context(self) -> tuple:
+        """Identify the account and form context for discovery."""
+        account = self.account_list.selected_account()
+
+        return (
+            account.id if account is not None else None,
+            self.account_form.selected_destination(),
+            self._facebook_discovery_generation,
+        )
+
+    def _invalidate_facebook_discovery(self, *_args) -> None:
+        """Invalidate results from an earlier form context."""
+        self._facebook_discovery_generation += 1
+        self._facebook_discovery_context = None
+        self.account_form.clear_discovered_facebook_pages()
+
+        controller = self._facebook_discovery_controller
+        if controller is not None and controller.is_running:
+            self.account_form.set_facebook_discovery_running(True)
+
+
+    def _handle_facebook_discovery_requested(
+        self,
+        user_access_token: str,
+    ) -> None:
+        """Start Facebook Page discovery outside the UI thread."""
+        controller = self._facebook_discovery_controller
+
+        if controller is None:
+            self.account_form.set_facebook_discovery_running(False)
+            self.account_status.show_error()
+            return
+
+        if controller.is_running:
+            self.account_form.set_facebook_discovery_running(True)
+            return
+
+        self._facebook_discovery_context = (
+            self._current_facebook_discovery_context()
+        )
+
+        controller.start(user_access_token)
+
+    def _handle_facebook_pages_discovered(self, pages: list) -> None:
+        """Display Pages only for the originating form context."""
+        if self._facebook_discovery_context is None:
+            return
+
+        if (
+                self._facebook_discovery_context
+                != self._current_facebook_discovery_context()
+        ):
+            return
+
+        if (
+                self.account_form.selected_destination()
+                != PublishingDestination.FACEBOOK
+        ):
+            return
+
+        self.account_form.set_discovered_facebook_pages(pages)
+
+    def _handle_facebook_discovery_error(self, message: str) -> None:
+        """Report errors only for the originating form context."""
+        if self._facebook_discovery_context is None:
+            return
+
+        if (
+                self._facebook_discovery_context
+                != self._current_facebook_discovery_context()
+        ):
+            return
+
+        self.account_status.show_connection_error(message)
+
+    def _handle_facebook_discovery_finished(self) -> None:
+        """Clear request context and restore discovery controls."""
+        self._facebook_discovery_context = None
+        self.account_form.set_facebook_discovery_running(False)
 
     def _enter_new_account_mode(self) -> None:
         """Show a blank form for creating an account."""
+        self._invalidate_facebook_discovery()
         self.account_list.clearSelection()
         self.account_list.setCurrentRow(-1)
         self.account_form.clear()
@@ -232,6 +407,7 @@ class AccountsPage(QWidget):
 
     def _enter_edit_account_mode(self) -> None:
         """Show the selected account and its available actions."""
+        self._invalidate_facebook_discovery()
         account = self.account_list.selected_account()
 
         if account is None:
@@ -253,6 +429,26 @@ class AccountsPage(QWidget):
             self._enter_new_account_mode()
         else:
             self._enter_edit_account_mode()
+
+    def _save_selected_facebook_page_token(
+        self,
+        account: Account,
+    ) -> None:
+        """Store a selected Facebook Page token securely."""
+        if account.destination != PublishingDestination.FACEBOOK:
+            return
+
+        token = self.account_form.selected_facebook_page_token()
+        if not token:
+            return
+
+        service = self._save_facebook_credentials
+        if service is None:
+            raise CredentialStorageError(
+                "Secure Facebook credential storage is unavailable."
+            )
+
+        service.execute(account, token)
 
     def _handle_add_account(self) -> None:
         """Add an account and then save its WordPress credentials."""
@@ -285,6 +481,26 @@ class AccountsPage(QWidget):
                 self.accounts_changed.emit()
                 return
 
+        if account.destination == PublishingDestination.FACEBOOK:
+            try:
+                self._save_selected_facebook_page_token(account)
+            except CredentialStorageError:
+                # Attempt to roll back account creation when the
+                # Facebook Page token could not be saved.
+                try:
+                    self._remove_account.execute(account)
+                except AccountNotFoundError:
+                    # The account is already absent.
+                    pass
+                except (AccountStorageError, OSError):
+                    # Rollback failed. The account may still exist.
+                    pass
+
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
         self._refresh_accounts()
         self.account_status.show_success()
         self.accounts_changed.emit()
@@ -299,16 +515,158 @@ class AccountsPage(QWidget):
         updated = self.account_form.account()
         password = self.account_form.wordpress_application_password()
 
+        if (
+                current.destination == PublishingDestination.FACEBOOK
+                and updated.destination == PublishingDestination.FACEBOOK
+        ):
+            old_page_id = (
+                current.facebook_config.page_id
+                if current.facebook_config is not None
+                else ""
+            )
+            new_page_id = (
+                updated.facebook_config.page_id
+                if updated.facebook_config is not None
+                else ""
+            )
+
+            if (
+                    old_page_id != new_page_id
+                    and not self.account_form.selected_facebook_page_token()
+            ):
+                if self._get_facebook_credentials is not None:
+                    try:
+                        existing_token = (
+                            self._get_facebook_credentials.execute(current)
+                        )
+                    except CredentialStorageError:
+                        self.account_status.show_error()
+                        return
+
+                    if (
+                            existing_token
+                            and self._delete_facebook_credentials is None
+                    ):
+                        self.account_status.show_error()
+                        return
+
+        # Preserve the old token so it can be restored if updating fails.
+        previous_facebook_token: str | None = None
+        old_facebook_token_deleted = False
+        replacement_facebook_token_saved = False
+
+        if (
+                current.destination == PublishingDestination.FACEBOOK
+                and updated.destination == PublishingDestination.FACEBOOK
+                and current.facebook_config is not None
+                and updated.facebook_config is not None
+                and (
+                current.facebook_config.page_id
+                != updated.facebook_config.page_id
+        )
+                and not self.account_form.selected_facebook_page_token()
+                and self._delete_facebook_credentials is not None
+        ):
+            if (
+                    self._get_facebook_credentials is None
+                    or self._save_facebook_credentials is None
+            ):
+                self.account_status.show_error()
+                return
+
+            try:
+                previous_facebook_token = (
+                    self._get_facebook_credentials.execute(current)
+                )
+
+                self._delete_facebook_credentials.execute(current)
+                old_facebook_token_deleted = True
+
+            except CredentialStorageError:
+                self.account_status.show_error()
+                return
+
+        # Save a selected replacement Page token before updating the account.
+        if updated.destination == PublishingDestination.FACEBOOK:
+            selected_token = (
+                self.account_form.selected_facebook_page_token()
+            )
+
+            if selected_token:
+                if current.destination == PublishingDestination.FACEBOOK:
+                    if (
+                            self._get_facebook_credentials is None
+                            or self._delete_facebook_credentials is None
+                    ):
+                        self.account_status.show_error()
+                        return
+
+                    try:
+                        previous_facebook_token = (
+                            self._get_facebook_credentials.execute(current)
+                        )
+                    except CredentialStorageError:
+                        self.account_status.show_error()
+                        return
+
+                facebook_account = Account(
+                    name=updated.name.strip(),
+                    destination=updated.destination,
+                    id=current.id,
+                    facebook_config=updated.facebook_config,
+                )
+
+                try:
+                    self._save_selected_facebook_page_token(
+                        facebook_account
+                    )
+                    replacement_facebook_token_saved = True
+                except CredentialStorageError:
+                    self.account_status.show_error()
+                    return
+
         try:
             self._update_account.execute(
                 current,
                 updated,
             )
         except (
-            AccountNotFoundError,
-            DuplicateAccountError,
-            InvalidAccountError,
-        ):
+                AccountNotFoundError,
+                DuplicateAccountError,
+                InvalidAccountError,
+            ):
+            if replacement_facebook_token_saved:
+                try:
+                    if previous_facebook_token is not None:
+                        if self._save_facebook_credentials is None:
+                            self.account_status.show_error()
+                            return
+
+                        self._save_facebook_credentials.execute(
+                            current,
+                            previous_facebook_token,
+                        )
+                    elif self._delete_facebook_credentials is not None:
+                        self._delete_facebook_credentials.execute(current)
+
+                except CredentialStorageError:
+                    self.account_status.show_error()
+                    return
+
+            elif old_facebook_token_deleted and previous_facebook_token:
+                if self._save_facebook_credentials is None:
+                    self.account_status.show_error()
+                    return
+
+                try:
+                    self._save_facebook_credentials.execute(
+                        current,
+                        previous_facebook_token,
+                    )
+                except CredentialStorageError:
+                    self.account_status.show_error()
+                    return
+
             self.account_status.show_error()
             return
 
@@ -355,6 +713,19 @@ class AccountsPage(QWidget):
                 self.accounts_changed.emit()
                 return
 
+        if (
+                current.destination == PublishingDestination.FACEBOOK
+                and updated.destination != PublishingDestination.FACEBOOK
+                and self._delete_facebook_credentials is not None
+        ):
+            try:
+                self._delete_facebook_credentials.execute(current)
+            except CredentialStorageError:
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
         self._refresh_accounts()
         self.account_status.show_updated()
         self.accounts_changed.emit()
@@ -367,9 +738,25 @@ class AccountsPage(QWidget):
             return
 
         try:
-            self._remove_account.execute(account)
-        except AccountNotFoundError:
+            if self._remove_account_with_credential_cleanup is not None:
+                self._remove_account_with_credential_cleanup.execute(account)
+            else:
+                self._remove_account.execute(account)
+        except AccountCredentialCleanupIncompleteError:
+            # The account was removed, but credential cleanup is incomplete.
+            self._refresh_accounts()
             self.account_status.show_remove_error()
+            self.accounts_changed.emit()
+            return
+        except (AccountNotFoundError, OSError):
+            # Account removal did not complete.
+            self.account_status.show_remove_error()
+            return
+
+        if self._remove_account_with_credential_cleanup is not None:
+            self._refresh_accounts()
+            self.account_status.show_removed()
+            self.accounts_changed.emit()
             return
 
         # Only delete credentials after successful account removal.
@@ -386,21 +773,36 @@ class AccountsPage(QWidget):
                 self.accounts_changed.emit()
                 return
 
+        if (
+                account.destination == PublishingDestination.FACEBOOK
+                and self._delete_facebook_credentials is not None
+        ):
+            try:
+                self._delete_facebook_credentials.execute(account)
+            except CredentialStorageError:
+                self._refresh_accounts()
+                self.account_status.show_remove_error()
+                self.accounts_changed.emit()
+                return
+
         self._refresh_accounts()
         self.account_status.show_removed()
         self.accounts_changed.emit()
 
     def _handle_verify_connection(self) -> None:
-        """Start verification of the selected WordPress account."""
+        """Start verification of the selected publishing account."""
         account = self.account_list.selected_account()
-        controller = self._verification_controller
+        if account is None:
+            return
 
-        if (
-            account is None
-            or account.destination != PublishingDestination.WORDPRESS
-            or controller is None
-            or controller.is_running
-        ):
+        if account.destination == PublishingDestination.WORDPRESS:
+            controller = self._verification_controller
+        elif account.destination == PublishingDestination.FACEBOOK:
+            controller = self._facebook_verification_controller
+        else:
+            return
+
+        if controller is None or self.verification_is_running:
             return
 
         self.verify_button.setEnabled(False)
@@ -441,11 +843,18 @@ class AccountsPage(QWidget):
         self.update_button.setEnabled(has_selection)
         self.remove_button.setEnabled(has_selection)
 
+        can_verify = False
+
+        if account is not None:
+            if account.destination == PublishingDestination.WORDPRESS:
+                can_verify = self._verification_controller is not None
+            elif account.destination == PublishingDestination.FACEBOOK:
+                can_verify = (
+                        self._facebook_verification_controller is not None
+                )
+
         self.verify_button.setEnabled(
-            account is not None
-            and account.destination == PublishingDestination.WORDPRESS
-            and self._verification_controller is not None
-            and not self._verification_controller.is_running
+            can_verify and not self.verification_is_running
         )
 
     def _refresh_accounts(self) -> None:
@@ -457,16 +866,27 @@ class AccountsPage(QWidget):
 
     @property
     def verification_is_running(self) -> bool:
-        """Report whether WordPress verification is still active."""
-        return (
+        """Report whether any connection verification is active."""
+        wordpress_running = (
                 self._verification_controller is not None
                 and self._verification_controller.is_running
         )
+        facebook_running = (
+                self._facebook_verification_controller is not None
+                and self._facebook_verification_controller.is_running
+        )
+        return wordpress_running or facebook_running
 
     def shutdown(self) -> None:
-        """Safely finish any active WordPress verification."""
+        """Safely finish active account background operations."""
         if self._verification_controller is not None:
             self._verification_controller.shutdown()
+
+        if self._facebook_verification_controller is not None:
+            self._facebook_verification_controller.shutdown()
+
+        if self._facebook_discovery_controller is not None:
+            self._facebook_discovery_controller.shutdown()
 
     def closeEvent(self, event) -> None:
         """Finish active verification before closing the page."""

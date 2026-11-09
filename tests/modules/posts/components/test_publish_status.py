@@ -114,6 +114,112 @@ from socialflow.modules.posts.services.errors import (
     PublisherNotConfiguredError,
 )
 
+def test_publish_status_shows_persistence_warning(qtbot) -> None:
+    """Successful publishing with failed history storage shows a warning."""
+    status = PublishStatus()
+    qtbot.addWidget(status)
+
+    account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    result = PublishResult(
+        account=account,
+        succeeded=True,
+        persistence_error=OSError(
+            "Sensitive local filesystem information."
+        ),
+    )
+
+    status.show_results((result,))
+
+    assert status.text() == (
+        "Main Facebook — Published — Warning: local publication "
+        "history could not be saved."
+    )
+    assert status.property("status") == "warning"
+
+    # Raw exception details must not be displayed.
+    assert "Sensitive local filesystem information" not in status.text()
+
+
+def test_publish_status_shows_mixed_success_and_persistence_warning(
+    qtbot,
+) -> None:
+    """A history warning does not turn successful publishing into failure."""
+    status = PublishStatus()
+    qtbot.addWidget(status)
+
+    facebook_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress_account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    results = (
+        PublishResult(
+            account=facebook_account,
+            succeeded=True,
+            persistence_error=OSError("History storage failed."),
+        ),
+        PublishResult(
+            account=wordpress_account,
+            succeeded=True,
+        ),
+    )
+
+    status.show_results(results)
+
+    assert status.text() == (
+        "Main Facebook — Published — Warning: local publication "
+        "history could not be saved.\n"
+        "Main Website — Published"
+    )
+    assert status.property("status") == "warning"
+
+
+def test_publish_status_prioritizes_remote_failure_over_warning(
+    qtbot,
+) -> None:
+    """A remote publishing failure takes precedence over history warnings."""
+    status = PublishStatus()
+    qtbot.addWidget(status)
+
+    facebook_account = Account(
+        name="Main Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    wordpress_account = Account(
+        name="Main Website",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    results = (
+        PublishResult(
+            account=facebook_account,
+            succeeded=True,
+            persistence_error=OSError("History storage failed."),
+        ),
+        PublishResult(
+            account=wordpress_account,
+            succeeded=False,
+            error=RuntimeError("Publishing failed."),
+        ),
+    )
+
+    status.show_results(results)
+
+    assert status.text() == (
+        "Main Facebook — Published — Warning: local publication "
+        "history could not be saved.\n"
+        "Main Website — Failed: "
+        "Publishing failed. Please check the details."
+    )
+    assert status.property("status") == "error"
 
 def test_publish_status_displays_publishing_error(qtbot) -> None:
     account = Account(

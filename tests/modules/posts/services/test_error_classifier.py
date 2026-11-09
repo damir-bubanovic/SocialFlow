@@ -10,6 +10,9 @@ from socialflow.modules.posts.services.errors import (
     PublisherNotConfiguredError,
     PublishingError,
 )
+from socialflow.modules.facebook.api.facebook_api_error import (
+    FacebookApiError,
+)
 
 
 @pytest.mark.parametrize(
@@ -45,3 +48,24 @@ def test_classifies_permanent_errors(error: Exception) -> None:
 )
 def test_classifies_unknown_errors(error: Exception) -> None:
     assert ErrorClassifier.classify(error) is ErrorCategory.UNKNOWN
+
+
+def test_classifies_transient_facebook_api_error() -> None:
+    error = FacebookApiError(
+        message="Facebook service temporarily unavailable.",
+        status_code=503,
+        is_transient=True,
+    )
+
+    assert ErrorClassifier.classify(error) is ErrorCategory.TRANSIENT
+
+
+def test_classifies_permanent_facebook_api_error() -> None:
+    error = FacebookApiError(
+        message="Facebook access token rejected.",
+        status_code=400,
+        code=190,
+        is_transient=False,
+    )
+
+    assert ErrorClassifier.classify(error) is ErrorCategory.PERMANENT

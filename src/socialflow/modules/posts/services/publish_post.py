@@ -92,23 +92,37 @@ class PublishPost:
                 )
                 publisher.publish(prepared_post)
 
+                persistence_error: Exception | None = None
+
                 if (
                     self._publication_repository is not None
                     and self._clock is not None
                 ):
-                    self._publication_repository.add(
-                        Publication(
-                            id=self._publication_id_generator.generate(),
-                            account=account,
-                            post=request.post,
-                            published_at=self._clock.now(),
+                    try:
+                        self._publication_repository.add(
+                            Publication(
+                                id=self._publication_id_generator.generate(),
+                                account=account,
+                                post=request.post,
+                                published_at=self._clock.now(),
+                            )
                         )
-                    )
+                    except Exception as error:
+                        persistence_error = error
+
+                        logger.error(
+                            "Publication history persistence failed "
+                            "for account %s (%s): %s",
+                            account.name,
+                            account.destination,
+                            type(error).__name__,
+                        )
 
                 results.append(
                     PublishResult(
                         account=account,
                         succeeded=True,
+                        persistence_error=persistence_error,
                     )
                 )
 
@@ -150,6 +164,7 @@ class PublishPost:
                             succeeded=previous_result.succeeded,
                             error=previous_result.error,
                             cleanup_error=cleanup_error,
+                            persistence_error=previous_result.persistence_error,
                         )
 
             if on_progress is not None:

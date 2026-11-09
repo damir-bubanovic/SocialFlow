@@ -1,4 +1,6 @@
 import json
+import os
+
 import pytest
 
 from socialflow.modules.accounts.repositories.errors import AccountStorageError
@@ -12,6 +14,9 @@ from socialflow.modules.posts.repositories.json_publication_repository import (
 )
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
+)
+from socialflow.modules.accounts.models.facebook_page_config import (
+    FacebookPageConfig,
 )
 
 
@@ -40,6 +45,80 @@ def test_json_account_repository_persists_account(tmp_path) -> None:
 
     assert reloaded_repository.all() == (account,)
 
+def test_failed_temporary_write_preserves_existing_accounts(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A failed temporary write must not damage existing JSON."""
+    file_path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(file_path)
+
+    original = Account(
+        name="Original Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(original)
+
+    original_content = file_path.read_bytes()
+
+    def fail_fdopen(*_args, **_kwargs):
+        raise OSError("Simulated temporary write failure")
+
+    new_account = Account(
+        name="Second Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "fdopen", fail_fdopen)
+
+        with pytest.raises(
+            OSError,
+            match="Simulated temporary write failure",
+        ):
+            repository.add(new_account)
+
+    assert file_path.read_bytes() == original_content
+    assert repository.all() == (original,)
+
+    # Temporary files must be cleaned up after failure.
+    assert sorted(tmp_path.iterdir()) == [file_path]
+
+
+def test_failed_atomic_replace_preserves_existing_accounts(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Failed replacement must preserve the original account file."""
+    file_path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(file_path)
+
+    original = Account(
+        name="Original Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+    repository.add(original)
+
+    original_content = file_path.read_bytes()
+
+    def fail_replace(_source, _destination):
+        raise OSError("Simulated atomic replace failure")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+
+    new_account = Account(
+        name="Second Facebook",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    with pytest.raises(OSError, match="Simulated atomic replace failure"):
+        repository.add(new_account)
+
+    assert file_path.read_bytes() == original_content
+    assert repository.all() == (original,)
+
+    # Failed replacement must not leave temporary files behind.
+    assert sorted(tmp_path.iterdir()) == [file_path]
 
 def test_json_account_repository_preserves_unicode(tmp_path) -> None:
     file_path = tmp_path / "accounts.json"
@@ -333,3 +412,97 @@ def test_json_account_repository_persists_wordpress_config(
     assert "password" not in file_path.read_text(
         encoding="utf-8"
     ).lower()
+
+
+
+def test_repository_persists_facebook_page_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(path)
+
+    account = Account(
+        name="Facebook Test",
+        destination=PublishingDestination.FACEBOOK,
+        facebook_config=FacebookPageConfig(
+            page_id="123456789",
+            page_name="SocialFlow Page",
+        ),
+    )
+
+    repository.add(account)
+
+    assert JsonAccountRepository(path).all() == (account,)
+
+    stored = json.loads(path.read_text(encoding="utf-8"))
+
+    assert stored[0]["facebook_config"] == {
+        "page_id": "123456789",
+        "page_name": "SocialFlow Page",
+    }
+    assert "access_token" not in stored[0]
+
+
+def test_legacy_migration_preserves_facebook_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+
+    path.write_text(
+        json.dumps([{
+            "name": "Legacy Facebook",
+            "destination": "facebook",
+            "facebook_config": {
+                "page_id": "123456789",
+                "page_name": "Legacy Page",
+            },
+        }]),
+        encoding="utf-8",
+    )
+
+    repository = JsonAccountRepository(path)
+    first = repository.all()
+    second = repository.all()
+
+    assert first == second
+    assert first[0].facebook_config == FacebookPageConfig(
+        page_id="123456789",
+        page_name="Legacy Page",
+    )
+
+
+def test_legacy_migration_preserves_wordpress_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+
+    path.write_text(
+        json.dumps([{
+            "name": "Legacy WordPress",
+            "destination": "wordpress",
+            "wordpress_config": {
+                "site_url": "https://example.com",
+                "username": "admin",
+            },
+        }]),
+        encoding="utf-8",
+    )
+
+    restored = JsonAccountRepository(path).all()[0]
+
+    assert restored.wordpress_config == WordPressConnectionConfig(
+        site_url="https://example.com",
+        username="admin",
+    )
+
+
+def test_repository_rejects_invalid_facebook_config(tmp_path) -> None:
+    path = tmp_path / "accounts.json"
+
+    path.write_text(
+        json.dumps([{
+            "name": "Invalid Facebook",
+            "destination": "facebook",
+            "facebook_config": {
+                "page_name": "No Page ID",
+            },
+        }]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AccountStorageError):
+        JsonAccountRepository(path).all()

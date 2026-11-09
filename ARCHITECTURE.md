@@ -1,7 +1,6 @@
 # SocialFlow --- Architecture
 
-> **Current status — November 1, 2026:** The feature-first source and test refactor is **implemented and verified**, superseding the older planning and 'not yet implemented' handoff sections retained below for history. The developer reported **2,151 passing tests**, **zero forbidden feature dependencies**, a clean working tree on `refactor/feature-first-architecture`, and a successful application GUI smoke test. Documentation update and merge into `main` are the remaining release steps. These verification results were reported from the working checkout; the supplied ZIP was inspected for source layout but not independently executed here.
-
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Current implementation checkpoint:** See Section 42 for WordPress Categories, post lifecycle, and current asynchronous guards; earlier sections document historical evolution.
 
@@ -1461,3 +1460,96 @@ Posts owns `RemoteTagCreationPlan` and `RemoteTagCreationService`; WordPress sup
 ### Verification and limits
 
 The developer reported **2,151 passing pytest tests**, **zero forbidden feature dependency violations**, clean Git checks, and a successful manual application GUI smoke test on `refactor/feature-first-architecture`. This establishes completion of the planned structural migration; it is not a guarantee that every possible runtime scenario or external WordPress API failure has been tested. Instagram/Facebook remain future work. Earlier migration estimates are historical planning figures, not actual recorded effort.
+
+---
+
+## 45. Facebook Pages Runtime Publishing Architecture — November 4, 2026
+
+**Implemented through Phase 22.4E.** The earlier feature-first diagram and statements describing Facebook as future-only are historical; `src/socialflow/modules/facebook/` and `tests/modules/facebook/` now exist.
+
+### Ownership and flow
+
+```text
+Posts publishing workflow
+  PublishRequest -> PublishPost -> PublisherRouter
+                                    |
+                                    +-- account factory (FACEBOOK)
+                                          -> FacebookPublisher
+                                               |-- Account.facebook_config (Page ID)
+                                               |-- CredentialStore / FacebookCredentialKeys
+                                               +-- FacebookPublishingService
+                                                     -> FacebookGraphClient
+                                                          -> FacebookHttpTransport
+                                                               -> HTTPS Graph API
+```
+
+- **Composition:** `src/socialflow/ui/main_content.py` creates the Facebook Graph client and publishing service, and registers a Facebook account-specific publisher factory alongside existing routing.
+- **Accounts:** `src/socialflow/modules/accounts/models/facebook_page_config.py`, account persistence, and Facebook credential services own non-secret Page configuration and token-key management.
+- **Facebook:** `modules/facebook/api/` owns Graph HTTP behavior and structured `FacebookApiError`; `modules/facebook/adapters/facebook_publisher.py` implements the Posts publishing contract. The publisher supports text-only posts and rejects images/tags.
+- **Posts:** `PublishPost` handles per-account results; `PublisherRouter` resolves publishers. `modules/posts/services/error_classifier.py` classifies `FacebookApiError` as transient when `is_transient` is true, otherwise permanent. It does not implement retries.
+- **Integration boundary:** `tests/integration/test_facebook_text_publishing.py` exercises real application/publisher/API components with a mocked HTTP transport; it does not make live Facebook calls.
+
+### Verification and limitations
+
+Phase 22.4D: runtime registration and configuration-error behavior, commit `2af2717`. Phase 22.4E: success/OAuth rejection/HTTP 503 integration tests and classifier support, commit `f233571`. Full developer-reported suite: **2,598 passed**; latest branch synchronized and clean. **Phase 22.5** will validate user-facing Posts publishing GUI behavior. No live Facebook post or completed GUI end-to-end validation is asserted here.
+
+Preserve the feature-first dependency direction: Posts may use Accounts models/contracts but must not import Facebook platform implementation; composition and the platform adapter bridge those boundaries.
+
+## 46. Facebook Pages Publishing and Persistence Reliability — November 9, 2026
+
+**Current implementation:** The earlier Section 45 text-only restriction is a
+historical November 4 snapshot. The Facebook adapter now supports text-only,
+single-photo, and multiple-photo publishing (2–10 photos). Tags remain unsupported.
+
+### Implemented boundaries
+
+- **Accounts:** `modules/accounts/` owns Facebook Page configuration, credential
+  keys and secure credential services; non-secret account configuration is persisted.
+- **Facebook:** `modules/facebook/api/` owns Graph API transport, parsing, structured
+  errors, Page discovery and publishing services. `modules/facebook/services/`
+  includes image validation and connection verification.
+  `modules/facebook/adapters/facebook_publisher.py` adapts prepared posts to
+  Facebook text, single-photo, and multi-photo operations.
+- **Posts:** `modules/posts/services/publish_post.py` prepares per-destination
+  images, invokes the selected publisher, records publication history when
+  configured, and emits account-scoped `PublishResult` values.
+  `build_retry_request.py` selects only remotely failed accounts.
+- **Presentation:** `modules/posts/components/publish_status.py` distinguishes
+  successful publishing, persistence warnings, and genuine publishing failures.
+
+### Remote-success versus local-failure contract
+
+```text
+PreparedPost -> FacebookPublisher -> Graph API publication
+                      |
+                 remote success
+                      |
+            attempt local history add
+                 /             \
+              saved          add fails
+                |                |
+        succeeded=True     succeeded=True
+                           persistence_error set
+                                   |
+                           GUI warning; no retry
+
+Image cleanup runs afterward; cleanup_error is retained independently.
+A genuine remote publishing failure remains succeeded=False and may be retried.
+```
+
+A remote-success result must not be reclassified as a remote failure because
+local history storage or prepared-image cleanup fails. This avoids a known
+duplicate-post retry path; it is not a universal exactly-once guarantee for
+uncertain network outcomes.
+
+### Verification and handoff
+
+Relevant offline integration coverage includes
+`tests/integration/test_facebook_text_publishing.py`,
+`tests/integration/test_facebook_photo_publishing_pipeline.py`, and
+`tests/integration/test_facebook_multiple_photo_publishing.py`, together with
+Posts service, controller, view, and component tests. Developer-reported full
+suite: **2,905 passed** on November 9, 2026; latest pushed commit `77aafc4`.
+Live Page creation, authentication/permissions, and actual remote posts remain
+unverified. Maintain feature-first dependencies and start any further
+refactoring on a new branch after an authorized merge to `main`.
