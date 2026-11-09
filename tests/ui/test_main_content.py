@@ -16,7 +16,7 @@ from socialflow.modules.accounts.services.delete_facebook_credentials import (
 from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
     FacebookPageDiscoveryController,
 )
-from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+from socialflow.modules.facebook.services.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
 )
 from socialflow.modules.facebook.api.facebook_graph_client import (

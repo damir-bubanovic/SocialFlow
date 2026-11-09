@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from socialflow.modules.accounts.workers.facebook_page_discovery_worker import (
     FacebookPageDiscoveryWorker,
 )
-from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+from socialflow.modules.facebook.services.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
 )
 

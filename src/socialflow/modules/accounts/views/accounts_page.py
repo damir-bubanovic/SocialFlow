@@ -58,7 +58,7 @@ from socialflow.modules.accounts.controllers.facebook_verification_controller im
 from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
     FacebookPageDiscoveryController,
 )
-from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+from socialflow.modules.facebook.services.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
 )
 from socialflow.modules.accounts.services.get_facebook_credentials import (
