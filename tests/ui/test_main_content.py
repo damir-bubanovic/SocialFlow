@@ -59,7 +59,7 @@ from socialflow.modules.wordpress.adapters.wordpress_post_trasher import (
 from socialflow.modules.facebook.adapters.facebook_publisher import (
     FacebookPublisher,
 )
-from socialflow.modules.facebook.api.facebook_publishing_service import (
+from socialflow.modules.facebook.services.facebook_publishing_service import (
     FacebookPublishingService,
 )
 from socialflow.modules.accounts.repositories.json_pending_credential_cleanup_repository import (

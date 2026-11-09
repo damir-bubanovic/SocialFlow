@@ -156,7 +156,7 @@ from socialflow.modules.accounts.services.delete_facebook_credentials import (
 from socialflow.modules.facebook.adapters.facebook_publisher import (
     FacebookPublisher,
 )
-from socialflow.modules.facebook.api.facebook_publishing_service import (
+from socialflow.modules.facebook.services.facebook_publishing_service import (
     FacebookPublishingService,
 )
 from socialflow.application.credentials.pending_cleanup_guarded_credential_store import (

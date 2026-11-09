@@ -20,7 +20,7 @@ from socialflow.modules.facebook.api.facebook_http_transport import (
 from socialflow.modules.facebook.api.facebook_multipart_encoder import (
     MAX_MULTIPART_SIZE,
 )
-from socialflow.modules.facebook.api.facebook_publishing_service import (
+from socialflow.modules.facebook.services.facebook_publishing_service import (
     FacebookPublishingService,
 )
 from socialflow.modules.posts.models.image_attachment import (
