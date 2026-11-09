@@ -22,7 +22,7 @@ from socialflow.modules.facebook.services.facebook_page_discovery_service import
 from socialflow.modules.facebook.api.facebook_graph_client import (
     FacebookGraphClient,
 )
-from socialflow.modules.facebook.services.facebook_connection_verifier import (
+from socialflow.modules.facebook.auth.facebook_connection_verifier import (
     FacebookConnectionVerifier,
 )
 from socialflow.modules.accounts.controllers.facebook_verification_controller import (

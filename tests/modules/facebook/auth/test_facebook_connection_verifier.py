@@ -15,7 +15,7 @@ from socialflow.modules.accounts.services.facebook_credential_keys import (
 from socialflow.modules.facebook.api.facebook_api_error import (
     FacebookApiError,
 )
-from socialflow.modules.facebook.services.facebook_connection_verifier import (
+from socialflow.modules.facebook.auth.facebook_connection_verifier import (
     FacebookConnectionVerifier,
 )
 
