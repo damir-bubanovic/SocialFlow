@@ -1,6 +1,6 @@
 # SocialFlow --- Features
 
-> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Current status (October 31, 2026):** See Section 28 for the latest completed WordPress features and remaining live verification. Earlier unchecked items are retained as historical phase snapshots.
 
@@ -646,3 +646,28 @@ This section supersedes historical references to Facebook as entirely future wor
 - [ ] Instagram integration.
 
 **Verification:** Full pytest suite **2,598 passed** on November 4, 2026, as reported from the developer's checkout. Phase 22.4D commit `2af2717` and Phase 22.4E commit `f233571` were pushed to `origin/feature/facebook-pages-integration`. The working tree was clean. Do not infer live API success from mocked tests.
+
+## November 9, 2026 — Current Facebook Feature Status
+
+This checklist **supersedes historical Facebook/Instagram status entries above**.
+
+- [x] Facebook Page configuration, persistence, credential services, and Accounts GUI.
+- [x] Facebook Page discovery and connection-verification implementation.
+- [x] Facebook Graph API transport, structured errors, and account-specific publisher wiring.
+- [x] Facebook Page text-only publishing with mocked-transport integration coverage.
+- [x] Facebook Page single-photo publishing and prepared-image pipeline tests.
+- [x] Facebook Page multiple-photo publishing (2–10 photos) and integration tests.
+- [x] Publishing result/progress integration, error classification, and selective retry behavior.
+- [x] Remote-success/local-history-failure separation, safe GUI warning, and combined
+  persistence/cleanup-error preservation (Phase 22.9C).
+- [x] Full automated suite: **2,905 passed** on November 9, 2026 (developer-reported).
+- [ ] **Live** Facebook Page creation, API access/token verification, and end-to-end posting.
+- [ ] Live checks of text, single-photo, and multiple-photo posts appearing on the Page.
+- [ ] Facebook tag publishing (outside the completed scope).
+- [ ] Instagram integration.
+- [ ] Distribution/packaging and broader production-readiness verification.
+
+**Scope note:** Offline tests do not establish Meta permissions, token validity, live
+API behavior, or production readiness. Page creation is currently blocked by a generic
+Facebook error; Account Status displays no restrictions. The next planned development
+session is a separate refactoring effort, after documentation and an authorized merge.

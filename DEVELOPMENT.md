@@ -1,6 +1,6 @@
 # SocialFlow --- Development Guide
 
-> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Latest handoff (October 31, 2026):** See Section 38 for the current source snapshot, test commands, and remaining WordPress live verification. Earlier checkpoint counts are historical.
 
@@ -1204,3 +1204,58 @@ git status -sb
 Next: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Inspect the current Posts UI, publishing controller, result formatter, and MainContent composition before adding tests or changing production code. Use small file-specific edits and focused tests; run the full suite before any commit. Do not claim live Facebook publishing has been verified. Never stage credentials or local-only `AGENTS.md`.
 
 The tests and Git status above are **developer-reported verification of the working checkout**, not tests executed by this documentation edit.
+
+## November 9, 2026 — Session Closure and Next-Conversation Handoff
+
+### Verified checkpoint
+
+- Repository: `https://github.com/damir-bubanovic/SocialFlow`
+- Branch: `feature/facebook-pages-integration`
+- Latest pushed commit: `77aafc4` —
+  `fix(posts): preserve remote publishing success on persistence failure`
+- Git status after push: synchronized with origin; clean working tree.
+- Full developer-run suite: `QT_QPA_PLATFORM=offscreen python -m pytest -q`
+  → **2,905 passed in 7.88 seconds**.
+- Phase 22.9C: complete, committed, and pushed. Seven regression tests were added
+  for persistence warnings, retry safety, and simultaneous local failures.
+
+### Current implementation and limitations
+
+Facebook Page account setup, credential management, Page discovery and connection
+verification, Graph API client, text/photo/multiple-photo publishing, application/GUI
+integration, and publication-persistence reliability are implemented and covered by
+offline tests. No live Facebook API publication has been verified. Instagram and
+Facebook tag publishing are not implemented.
+
+The developer regained access to a Facebook account on November 9, 2026, after
+several years. Attempts to create `SocialFlow Test Page` (category `Software`) failed
+with a generic Facebook Page-policy error. Support Inbox showed no violations and
+Account Status showed no restrictions. The developer plans to stay logged into the
+existing browser session and retry Page creation around November 11. This is a
+troubleshooting plan, not a guaranteed Facebook waiting period.
+
+### Safe end-of-session workflow
+
+1. Review the updated tracked Markdown files against the current source tree;
+   keep historical checkpoints clearly labeled as historical.
+2. Do **not** commit local-only `AGENTS.md`, tokens, secrets, or generated credentials.
+3. After developer approval, commit and push the documentation on
+   `feature/facebook-pages-integration`.
+4. After separate approval, merge the feature branch into `main`, run the full
+   headless suite, verify Git status, and push `main`.
+5. For the next conversation, create a **new refactoring branch from updated `main`**;
+   inspect the actual code and tests before selecting a refactoring scope. Preserve
+   WordPress and Facebook behavior and the feature-first dependency boundaries.
+
+### Useful commands
+
+```bash
+git status -sb
+git diff --check
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+```
+
+**Next conversation brief:** Facebook Pages is code-complete/offline-tested but not
+live-verified. Resume Page creation and live API testing when Facebook allows it.
+Separately plan a small, test-first refactoring phase on a new branch; do not assume
+any refactoring changes have already been made.

@@ -1,6 +1,6 @@
 # SocialFlow --- Architecture Decisions
 
-> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Latest decisions:** ADR-072 through ADR-076 record the October 31, 2026 WordPress scope and verification handoff.
 
@@ -1942,3 +1942,58 @@ Unit tests alone did not verify the complete Posts-to-Facebook text publishing p
 ### Consequences and verification
 
 Added `tests/integration/test_facebook_text_publishing.py`, two focused classifier tests, and a small classifier change. The developer reported **2,598 passing pytest tests**, a clean working tree, and a successful push of `f233571` to `origin/feature/facebook-pages-integration`. The next planned work is Phase 22.5, Facebook publishing GUI integration and validation.
+
+## ADR-082 — Preserve Remote Publishing Success Across Local Persistence Failures
+
+**Date:** November 9, 2026  
+**Status:** Implemented (Phase 22.9C; commit `77aafc4`)
+
+### Context
+
+After a platform publisher succeeds, recording the local `Publication` may fail
+(e.g., due to filesystem errors). Previously, that exception could be reported as
+a failed remote publication, making a retry capable of duplicating an already
+published post. Prepared-image cleanup can also fail independently.
+
+### Decision
+
+- Keep remote publishing success (`PublishResult.succeeded=True`) authoritative
+  after the publisher returns successfully.
+- Capture local history-write failures in `PublishResult.persistence_error`
+  rather than `PublishResult.error`.
+- Preserve `persistence_error` when an independent image-cleanup error is attached.
+- Show a safe, explicit GUI warning for missing local history; do not expose raw
+  persistence exception text.
+- Construct retry requests only from genuinely failed remote publishing results
+  (`not result.succeeded`); never retry a successful remote post solely because
+  local history storage failed.
+- Retain error status precedence when a batch includes a genuine remote failure.
+
+### Consequences and verification
+
+The service, result model, status component, and regression tests were updated.
+The developer reported **2,905 passing tests** on November 9, 2026. This change
+does not recover missing local history automatically, guarantee exactly-once
+delivery under ambiguous network failures, or establish live Facebook API success.
+
+## ADR-083 — Treat Facebook Pages as Code-Complete Pending Live Verification
+
+**Date:** November 9, 2026  
+**Status:** Current development handoff
+
+### Decision
+
+- Consider the planned Facebook Pages scope implemented and offline-tested:
+  account configuration, secure credentials, discovery/verification, Graph API
+  support, text/single-photo/multiple-photo publishing, and GUI integration.
+- Do **not** label it live-verified or production-ready until real Page credentials
+  and controlled API tests confirm publishing and permissions.
+- Keep Facebook tag publishing and Instagram outside the completed scope.
+- Update tracked documentation before a separately authorized feature-to-`main`
+  merge; begin subsequent refactoring on a fresh branch from updated `main`.
+
+### Consequences
+
+Live verification is blocked by Facebook Page creation errors, despite the account
+showing no visible restrictions. The planned retry is around November 11, 2026;
+no specific Meta restriction or resolution time has been confirmed.

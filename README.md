@@ -1,6 +1,6 @@
 # SocialFlow
 
-> **Current development checkpoint — November 4, 2026:** Facebook Pages integration is implemented through **Phase 22.4E (text publishing end-to-end verification)** on `feature/facebook-pages-integration`. Latest verified commit: `f233571`, pushed to `origin/feature/facebook-pages-integration`; working tree clean; **2,598 pytest tests passed**. Facebook text publishing is covered using mocked HTTP transport; **live Facebook posting and GUI end-to-end validation have not been confirmed**. Next planned milestone: **Phase 22.5 — Facebook Publishing GUI Integration and Validation**. Historical sections below retain their original dates and should not be read as the current project status.
+> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
 
 **Current status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
 
@@ -333,3 +333,34 @@ Facebook Pages integration now includes account configuration and persistence, k
 **Limits:** These are automated, mocked-transport verifications, **not evidence of a successful live Facebook publication**. Image publishing, tag publishing, and Instagram integration are not established by this checkpoint. Phase 22.5 will audit and validate the Facebook publishing GUI, account selection, progress, success, and error presentation before making scoped changes.
 
 Earlier statements that Facebook remains wholly unimplemented, or that the feature-first migration is still pending, are historical.
+
+## November 9, 2026 — Current Facebook Pages Integration Handoff
+
+**Status:** Planned Facebook Pages implementation is code-complete and offline-tested on
+`feature/facebook-pages-integration`. Commit `77aafc4`
+(`fix(posts): preserve remote publishing success on persistence failure`) was pushed to
+`origin/feature/facebook-pages-integration`. The developer reported a clean working tree
+and `QT_QPA_PLATFORM=offscreen python -m pytest -q` → **2,905 passed**.
+
+Implemented Facebook scope includes Page account configuration and persistence,
+keyring-backed credentials, Page discovery and connection verification, Graph API
+transport and structured errors, Posts/Accounts GUI integration, and text, single-photo,
+and multiple-photo publishing (2–10 photos). Facebook tag publishing is **not**
+implemented. Instagram remains a future integration.
+
+**Reliability:** A successful remote publish remains successful if local publication
+history cannot be saved. The failure is retained as `persistence_error`, shown as a
+non-sensitive GUI warning, and excluded from failed-publication retry. An image cleanup
+error is retained independently.
+
+**Outstanding:** No live Facebook Page publish has been verified. The developer regained
+access to a long-inactive Facebook account on November 9, but Page creation returned a
+generic policy-related error despite Account Status showing no restrictions. The plan is
+to retry Page creation after approximately two days, then establish Meta developer
+credentials and perform controlled live Page discovery, connection, text, single-photo,
+and multiple-photo checks. Do not put tokens in documentation or commits.
+
+**Repository handoff:** Review and commit these documentation changes on the feature
+branch; merge into `main` only after explicit approval and verification. Start the next
+code-refactoring effort on a new branch from updated `main`. The historical November 4
+checkpoint and older feature-status tables above do not describe the current state.
