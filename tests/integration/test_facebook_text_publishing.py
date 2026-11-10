@@ -19,7 +19,7 @@ from socialflow.modules.facebook.api.facebook_graph_client import (
 from socialflow.modules.facebook.api.facebook_http_transport import (
     FacebookHttpResponse,
 )
-from socialflow.modules.facebook.api.facebook_publishing_service import (
+from socialflow.modules.facebook.services.facebook_publishing_service import (
     FacebookPublishingService,
 )
 from socialflow.modules.posts.models.language import Language

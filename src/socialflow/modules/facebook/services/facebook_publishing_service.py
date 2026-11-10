@@ -1,8 +1,6 @@
 
 import json
-from io import BytesIO
 
-from PIL import Image, UnidentifiedImageError
 
 
 from socialflow.modules.facebook.api.facebook_api_error import (
@@ -100,32 +98,10 @@ class FacebookPublishingService:
             )
 
         # Validate the exact bytes that will be uploaded.
-        expected_formats = {
-            ".jpg": "JPEG",
-            ".jpeg": "JPEG",
-            ".png": "PNG",
-        }
-
-        expected_format = expected_formats[path.suffix.lower()]
-
-        try:
-            with Image.open(BytesIO(image_data)) as image:
-                actual_format = image.format
-                image.verify()
-        except (
-            UnidentifiedImageError,
-            OSError,
-            SyntaxError,
-            ValueError,
-        ):
-            raise ValueError(
-                "Facebook image contains invalid or corrupted image data."
-            ) from None
-
-        if actual_format != expected_format:
-            raise ValueError(
-                "Facebook image content does not match its extension."
-            )
+        expected_format = FacebookImageValidator.validate_bytes(
+            image_data,
+            path.suffix.lower(),
+        )
 
 
         # Use a safe multipart filename, independent of the local path.

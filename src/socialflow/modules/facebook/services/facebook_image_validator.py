@@ -1,3 +1,4 @@
+from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 from pathlib import Path
 
@@ -44,16 +45,33 @@ class FacebookImageValidator:
         """Verify that an attachment contains a valid JPEG or PNG."""
         path = FacebookImageValidator.validate(attachment)
 
+        try:
+            image_data = path.read_bytes()
+        except OSError:
+            raise ValueError(
+                "Facebook image file could not be read."
+            ) from None
+
+        FacebookImageValidator.validate_bytes(
+            image_data,
+            path.suffix.lower(),
+        )
+
+        return path
+
+    @staticmethod
+    def validate_bytes(image_data: bytes, extension: str) -> str:
+        """Validate exact JPEG/PNG bytes and return the image format."""
         expected_formats = {
             ".jpg": "JPEG",
             ".jpeg": "JPEG",
             ".png": "PNG",
         }
 
-        expected_format = expected_formats[path.suffix.lower()]
+        expected_format = expected_formats[extension.lower()]
 
         try:
-            with Image.open(path) as image:
+            with Image.open(BytesIO(image_data)) as image:
                 actual_format = image.format
                 image.verify()
         except (
@@ -71,4 +89,4 @@ class FacebookImageValidator:
                 "Facebook image content does not match its extension."
             )
 
-        return path
+        return expected_format

@@ -6,7 +6,7 @@ from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.accounts.services.facebook_credential_keys import (
     FacebookCredentialKeys,
 )
-from socialflow.modules.facebook.api.facebook_publishing_service import (
+from socialflow.modules.facebook.services.facebook_publishing_service import (
     FacebookPublishingService,
 )
 from socialflow.modules.posts.services.prepared_post import PreparedPost

@@ -5,7 +5,7 @@ from socialflow.modules.facebook.api.facebook_api_error import (
 from socialflow.modules.facebook.api.facebook_graph_client import (
     FacebookGraphClient,
 )
-from socialflow.modules.facebook.api.facebook_page_parser import (
+from socialflow.modules.facebook.mappers.facebook_page_parser import (
     parse_discovered_pages,
 )
 from socialflow.modules.facebook.models.discovered_facebook_page import (

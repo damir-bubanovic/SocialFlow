@@ -15,7 +15,7 @@ from socialflow.modules.facebook.api.facebook_http_transport import (
     FacebookHttpResponse,
     FacebookHttpTransport,
 )
-from socialflow.modules.facebook.api.facebook_page_discovery_service import (
+from socialflow.modules.facebook.services.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
 )
 
