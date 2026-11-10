@@ -25,6 +25,15 @@ from socialflow.modules.facebook.api.facebook_graph_client import (
 from socialflow.modules.facebook.auth.facebook_connection_verifier import (
     FacebookConnectionVerifier,
 )
+from socialflow.modules.instagram.api.instagram_graph_client import (
+    InstagramGraphClient,
+)
+from socialflow.modules.instagram.auth.instagram_connection_verifier import (
+    InstagramConnectionVerifier,
+)
+from socialflow.modules.accounts.controllers.instagram_verification_controller import (
+    InstagramVerificationController,
+)
 from socialflow.modules.accounts.controllers.facebook_verification_controller import (
     FacebookVerificationController,
 )
@@ -142,6 +151,46 @@ def test_main_content_wires_facebook_connection_verifier(qtbot) -> None:
         FacebookGraphClient,
     )
     assert not controller.is_running
+
+def test_main_content_wires_instagram_connection_verifier(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    verifier = content.instagram_connection_verifier
+
+    assert isinstance(
+        verifier,
+        InstagramConnectionVerifier,
+    )
+
+    controller = (
+        content.accounts_page._instagram_verification_controller
+    )
+
+    assert isinstance(
+        controller,
+        InstagramVerificationController,
+    )
+    assert controller._verifier is verifier
+    assert isinstance(
+        verifier._graph_client,
+        InstagramGraphClient,
+    )
+
+
+def test_main_content_instagram_verifier_uses_shared_credential_store(
+    qtbot,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    instagram_verifier = content.instagram_connection_verifier
+    facebook_verifier = content.facebook_connection_verifier
+
+    assert (
+        instagram_verifier._credential_store
+        is facebook_verifier._credential_store
+    )
 
 def test_main_content_wires_facebook_account_services(qtbot) -> None:
     content = MainContent()

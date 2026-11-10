@@ -55,6 +55,9 @@ from socialflow.modules.accounts.controllers.wordpress_verification_controller i
 from socialflow.modules.accounts.controllers.facebook_verification_controller import (
     FacebookVerificationController,
 )
+from socialflow.modules.accounts.controllers.instagram_verification_controller import (
+    InstagramVerificationController,
+)
 from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
     FacebookPageDiscoveryController,
 )
@@ -95,8 +98,9 @@ class AccountsPage(QWidget):
         get_facebook_credentials: GetFacebookCredentials | None = None,
         facebook_connection_verifier: ConnectionVerifier | None = None,
         remove_account_with_credential_cleanup: (
-            RemoveAccountWithCredentialCleanup | None
+                RemoveAccountWithCredentialCleanup | None
         ) = None,
+        instagram_connection_verifier: ConnectionVerifier | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -129,6 +133,15 @@ class AccountsPage(QWidget):
                 parent=self,
             )
             if facebook_connection_verifier is not None
+            else None
+        )
+
+        self._instagram_verification_controller = (
+            InstagramVerificationController(
+                instagram_connection_verifier,
+                parent=self,
+            )
+            if instagram_connection_verifier is not None
             else None
         )
 
@@ -276,6 +289,21 @@ class AccountsPage(QWidget):
 
         if self._facebook_verification_controller is not None:
             controller = self._facebook_verification_controller
+            controller.result_ready.connect(
+                self.account_status.show_connection_result
+            )
+            controller.error_occurred.connect(
+                self.account_status.show_connection_error
+            )
+            controller.finished.connect(
+                self._update_account_buttons
+            )
+            controller.finished.connect(
+                self.verification_finished.emit
+            )
+
+        if self._instagram_verification_controller is not None:
+            controller = self._instagram_verification_controller
             controller.result_ready.connect(
                 self.account_status.show_connection_result
             )
@@ -799,6 +827,8 @@ class AccountsPage(QWidget):
             controller = self._verification_controller
         elif account.destination == PublishingDestination.FACEBOOK:
             controller = self._facebook_verification_controller
+        elif account.destination == PublishingDestination.INSTAGRAM:
+            controller = self._instagram_verification_controller
         else:
             return
 
@@ -852,6 +882,10 @@ class AccountsPage(QWidget):
                 can_verify = (
                         self._facebook_verification_controller is not None
                 )
+            elif account.destination == PublishingDestination.INSTAGRAM:
+                can_verify = (
+                        self._instagram_verification_controller is not None
+                )
 
         self.verify_button.setEnabled(
             can_verify and not self.verification_is_running
@@ -875,7 +909,12 @@ class AccountsPage(QWidget):
                 self._facebook_verification_controller is not None
                 and self._facebook_verification_controller.is_running
         )
-        return wordpress_running or facebook_running
+        instagram_running = (
+                self._instagram_verification_controller is not None
+                and self._instagram_verification_controller.is_running
+        )
+
+        return wordpress_running or facebook_running or instagram_running
 
     def shutdown(self) -> None:
         """Safely finish active account background operations."""
@@ -884,6 +923,9 @@ class AccountsPage(QWidget):
 
         if self._facebook_verification_controller is not None:
             self._facebook_verification_controller.shutdown()
+
+        if self._instagram_verification_controller is not None:
+            self._instagram_verification_controller.shutdown()
 
         if self._facebook_discovery_controller is not None:
             self._facebook_discovery_controller.shutdown()

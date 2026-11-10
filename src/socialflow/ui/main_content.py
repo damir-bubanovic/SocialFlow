@@ -147,6 +147,12 @@ from socialflow.modules.facebook.api.facebook_graph_client import (
 from socialflow.modules.facebook.auth.facebook_connection_verifier import (
     FacebookConnectionVerifier,
 )
+from socialflow.modules.instagram.api.instagram_graph_client import (
+    InstagramGraphClient,
+)
+from socialflow.modules.instagram.auth.instagram_connection_verifier import (
+    InstagramConnectionVerifier,
+)
 from socialflow.modules.facebook.services.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
 )
@@ -233,6 +239,16 @@ class MainContent(QWidget):
         self.facebook_connection_verifier = FacebookConnectionVerifier(
             credential_store=credential_store,
             graph_client=facebook_graph_client,
+        )
+
+        # Instagram Graph API connection verification.
+        instagram_graph_client = InstagramGraphClient(
+            api_version="v24.0",
+        )
+
+        self.instagram_connection_verifier = InstagramConnectionVerifier(
+            credential_store=credential_store,
+            graph_client=instagram_graph_client,
         )
 
         # Persistent application storage.
@@ -456,6 +472,7 @@ class MainContent(QWidget):
             parent=self,
             wordpress_connection_verifier=self.wordpress_connection_verifier,
             facebook_connection_verifier=self.facebook_connection_verifier,
+            instagram_connection_verifier=self.instagram_connection_verifier,
             save_wordpress_credentials=save_wordpress_credentials,
             delete_wordpress_credentials=delete_wordpress_credentials,
             get_wordpress_credentials=get_wordpress_credentials,
