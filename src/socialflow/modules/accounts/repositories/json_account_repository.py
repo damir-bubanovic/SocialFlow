@@ -41,6 +41,7 @@ class JsonAccountRepository(AccountRepository):
                         id=AccountId(uuid4()),
                         wordpress_config=account.wordpress_config,
                         facebook_config=account.facebook_config,
+                        instagram_config=account.instagram_config,
                     )
                     needs_migration = True
 

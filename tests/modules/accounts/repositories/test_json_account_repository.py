@@ -18,6 +18,9 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 from socialflow.modules.accounts.models.facebook_page_config import (
     FacebookPageConfig,
 )
+from socialflow.modules.accounts.models.instagram_account_config import (
+    InstagramAccountConfig,
+)
 
 
 def test_json_account_repository_is_empty_when_file_does_not_exist(
@@ -506,3 +509,103 @@ def test_repository_rejects_invalid_facebook_config(tmp_path) -> None:
 
     with pytest.raises(AccountStorageError):
         JsonAccountRepository(path).all()
+
+def test_repository_persists_instagram_config(tmp_path) -> None:
+    import json
+
+    repository_path = tmp_path / "accounts.json"
+    repository = JsonAccountRepository(repository_path)
+
+    account = Account(
+        name="Instagram Account",
+        destination=PublishingDestination.INSTAGRAM,
+        instagram_config=InstagramAccountConfig(
+            instagram_user_id="17841400000000000",
+            username="socialflow_example",
+        ),
+    )
+
+    repository.add(account)
+
+    restored = JsonAccountRepository(repository_path).all()
+
+    assert restored == (account,)
+
+    stored = json.loads(repository_path.read_text(encoding="utf-8"))
+
+    assert stored[0]["instagram_config"] == {
+        "instagram_user_id": "17841400000000000",
+        "username": "socialflow_example",
+    }
+
+
+def test_legacy_migration_preserves_instagram_config(tmp_path) -> None:
+    import json
+
+    repository_path = tmp_path / "accounts.json"
+    repository_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "Legacy Instagram",
+                    "destination": "instagram",
+                    "instagram_config": {
+                        "instagram_user_id": "17841400000000000",
+                        "username": "legacy_account",
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    repository = JsonAccountRepository(repository_path)
+
+    first = repository.all()
+    second = repository.all()
+
+    assert len(first) == 1
+    assert first == second
+    assert first[0].instagram_config == InstagramAccountConfig(
+        instagram_user_id="17841400000000000",
+        username="legacy_account",
+    )
+
+    stored = json.loads(repository_path.read_text(encoding="utf-8"))
+
+    assert stored[0]["id"] == str(first[0].id)
+    assert stored[0]["instagram_config"] == {
+        "instagram_user_id": "17841400000000000",
+        "username": "legacy_account",
+    }
+
+
+def test_repository_rejects_invalid_instagram_config(tmp_path) -> None:
+    import json
+
+    import pytest
+
+    from socialflow.modules.accounts.repositories.errors import (
+        AccountStorageError,
+    )
+
+    repository_path = tmp_path / "accounts.json"
+    repository_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "Invalid Instagram",
+                    "destination": "instagram",
+                    "instagram_config": {
+                        "username": "missing_user_id",
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    repository = JsonAccountRepository(repository_path)
+
+    with pytest.raises(AccountStorageError):
+        repository.all()

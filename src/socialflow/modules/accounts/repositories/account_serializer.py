@@ -1,4 +1,3 @@
-
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +10,9 @@ from socialflow.core.destination import PublishingDestination
 from socialflow.modules.accounts.models.facebook_page_config import (
     FacebookPageConfig,
 )
-
+from socialflow.modules.accounts.models.instagram_account_config import (
+    InstagramAccountConfig,
+)
 
 
 class AccountSerializer:
@@ -38,6 +39,12 @@ class AccountSerializer:
                 "page_name": account.facebook_config.page_name,
             }
 
+        if account.instagram_config is not None:
+            data["instagram_config"] = {
+                "instagram_user_id": account.instagram_config.instagram_user_id,
+                "username": account.instagram_config.username,
+            }
+
         return data
 
     @staticmethod
@@ -46,6 +53,7 @@ class AccountSerializer:
         account_id = data.get("id")
         wordpress_data = data.get("wordpress_config")
         facebook_data = data.get("facebook_config")
+        instagram_data = data.get("instagram_config")
 
         wordpress_config = None
 
@@ -63,6 +71,14 @@ class AccountSerializer:
                 page_name=facebook_data["page_name"],
             )
 
+        instagram_config = None
+
+        if instagram_data is not None:
+            instagram_config = InstagramAccountConfig(
+                instagram_user_id=instagram_data["instagram_user_id"],
+                username=instagram_data["username"],
+            )
+
         return Account(
             name=data["name"],
             destination=PublishingDestination(data["destination"]),
@@ -73,4 +89,5 @@ class AccountSerializer:
             ),
             wordpress_config=wordpress_config,
             facebook_config=facebook_config,
+            instagram_config=instagram_config,
         )

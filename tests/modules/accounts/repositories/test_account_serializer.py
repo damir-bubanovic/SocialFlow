@@ -9,6 +9,9 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 from socialflow.modules.accounts.models.facebook_page_config import (
     FacebookPageConfig,
 )
+from socialflow.modules.accounts.models.instagram_account_config import (
+    InstagramAccountConfig,
+)
 
 
 def test_account_serializer_converts_account_to_dict() -> None:
@@ -146,3 +149,52 @@ def test_account_serializer_rejects_incomplete_facebook_data() -> None:
                 "page_name": "Missing Page ID",
             },
         })
+
+def test_account_serializer_preserves_instagram_config() -> None:
+    config = InstagramAccountConfig(
+        instagram_user_id="17841400000000000",
+        username="socialflow_example",
+    )
+
+    account = Account(
+        name="Instagram Account",
+        destination=PublishingDestination.INSTAGRAM,
+        instagram_config=config,
+    )
+
+    serialized = AccountSerializer.to_dict(account)
+    restored = AccountSerializer.from_dict(serialized)
+
+    assert serialized["instagram_config"] == {
+        "instagram_user_id": "17841400000000000",
+        "username": "socialflow_example",
+    }
+    assert restored == account
+    assert restored.id == account.id
+
+
+def test_account_serializer_omits_missing_instagram_config() -> None:
+    account = Account(
+        name="WordPress Account",
+        destination=PublishingDestination.WORDPRESS,
+    )
+
+    serialized = AccountSerializer.to_dict(account)
+
+    assert "instagram_config" not in serialized
+    assert AccountSerializer.from_dict(serialized) == account
+
+
+def test_account_serializer_rejects_incomplete_instagram_data() -> None:
+    import pytest
+
+    with pytest.raises(KeyError):
+        AccountSerializer.from_dict(
+            {
+                "name": "Instagram Account",
+                "destination": "instagram",
+                "instagram_config": {
+                    "username": "missing_user_id",
+                },
+            }
+        )
