@@ -10,6 +10,9 @@ from socialflow.modules.accounts.models.wordpress_connection_config import (
 from socialflow.modules.accounts.models.facebook_page_config import (
     FacebookPageConfig,
 )
+from socialflow.modules.accounts.models.instagram_account_config import (
+    InstagramAccountConfig,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +26,7 @@ class Account:
         default_factory=lambda: AccountId(uuid4()),
     )
     facebook_config: FacebookPageConfig | None = None
+    instagram_config: InstagramAccountConfig | None = None
 
     def has_name(self) -> bool:
         """Return whether the account has a meaningful name."""
@@ -42,6 +46,11 @@ class Account:
             facebook_config=(
                 self.facebook_config.normalized()
                 if self.facebook_config is not None
+                else None
+            ),
+            instagram_config=(
+                self.instagram_config.normalized()
+                if self.instagram_config is not None
                 else None
             ),
         )
