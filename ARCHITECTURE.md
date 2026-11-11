@@ -1,8 +1,8 @@
 # SocialFlow --- Architecture
 
-> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
+> **Current checkpoint — November 11, 2026:** Instagram account configuration, credential management, connection verification, Graph API image-publishing service, `InstagramPublisher` adapter, and configurable image URL provider composition are implemented and offline-tested. Branch `feature/instagram-integration`; commit `fd24e47967c60734f2400fe1ed1b28084e093152` (`feat(instagram): integrate configurable image hosting providers`) was pushed to GitHub; local and remote hashes match and the working tree is clean. **3,381 pytest tests passed** in the developer's final run. **No concrete Instagram image-hosting backend is registered, so Instagram image publishing is unavailable by default. No live Instagram publication is verified.** Facebook live verification also remains outstanding. Older dated checkpoints below are historical.
 
-**Current implementation checkpoint:** See Section 42 for WordPress Categories, post lifecycle, and current asynchronous guards; earlier sections document historical evolution.
+**Historical implementation checkpoint:** See Section 42 for WordPress Categories, post lifecycle, and current asynchronous guards; earlier sections document historical evolution.
 
 
 ## 1. Purpose
@@ -1553,3 +1553,65 @@ suite: **2,905 passed** on November 9, 2026; latest pushed commit `77aafc4`.
 Live Page creation, authentication/permissions, and actual remote posts remain
 unverified. Maintain feature-first dependencies and start any further
 refactoring on a new branch after an authorized merge to `main`.
+
+---
+
+## 47. Instagram Runtime Publishing and Provider Resolution — November 11, 2026
+
+The Instagram feature is implemented within the feature-first architecture:
+
+- `modules/accounts/models/instagram_account_config.py` and account services
+  own account configuration, token keys, secure token operations, and cleanup.
+- `modules/instagram/api/` owns the Instagram Graph client, transport, and
+  structured API errors.
+- `modules/instagram/auth/instagram_connection_verifier.py` verifies account
+  connectivity.
+- `modules/instagram/services/instagram_publishing_service.py` owns image
+  container creation, processing-status checks, and publishing.
+- `modules/instagram/adapters/instagram_publisher.py` bridges the generic
+  `Publisher` contract and Instagram-specific publishing.
+- `modules/instagram/services/instagram_image_url_provider.py` defines the
+  abstract `get_public_url(Path) -> str` hosting boundary.
+- `instagram_image_provider_config.py` defines immutable provider selection
+  and the `UNCONFIGURED`, `EXTERNAL_HOSTING`, and `SELF_HOSTED` categories.
+- `instagram_image_provider_factory.py` resolves explicitly registered
+  provider implementations, rejecting invalid registrations and unavailable
+  backends.
+- `ui/main_content.py` composes the Graph client, publishing service, provider
+  configuration/factory, and account-specific `InstagramPublisher` factory.
+
+### Composition and safety boundary
+
+```text
+MainContent
+  ├── InstagramGraphClient ──> InstagramPublishingService
+  ├── InstagramImageProviderConfig (default UNCONFIGURED)
+  ├── InstagramImageProviderFactory (no registered backend by default)
+  └── PublisherRouter.account_factories[INSTAGRAM]
+        └── InstagramPublisher(account, credential_store,
+                               publishing_service,
+                               image_url_provider=resolve())
+              ├── validates account, one image, tags/prepared images
+              ├── retrieves account token
+              ├── requires configured image URL provider
+              ├── obtains and validates public HTTPS image URL
+              └── calls publishing_service.publish_image(...)
+```
+
+`_resolve_instagram_image_provider()` returns `None` for `UNCONFIGURED`;
+for a selected category, it calls the factory. An unregistered category raises
+`ValueError` at account-specific publisher construction. Neither provider
+lookup nor publisher construction hosts images or publishes media. Missing
+hosting rejects a publish before Graph API publication. The destination-level
+unconfigured publisher fallback remains, and Facebook/WordPress factories
+are unchanged.
+
+**Limitations:** No concrete hosting backend or provider settings UI is
+established by this checkpoint. The Graph API requires an image URL accessible
+to Instagram; a local file path is not sufficient. Tests of mock providers do
+not prove a real remote image is reachable. Multi-image and video Instagram
+publishing are outside this implemented adapter scope.
+
+**Verification:** developer-reported 3,381 offline tests passed on November 11,
+2026; pushed commit `fd24e47`. Preserve module ownership and test safety
+during Phase 25.7.

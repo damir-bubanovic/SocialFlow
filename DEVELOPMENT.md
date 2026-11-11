@@ -1,8 +1,8 @@
 # SocialFlow --- Development Guide
 
-> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
+> **Current checkpoint — November 11, 2026:** Instagram account configuration, credential management, connection verification, Graph API image-publishing service, `InstagramPublisher` adapter, and configurable image URL provider composition are implemented and offline-tested. Branch `feature/instagram-integration`; commit `fd24e47967c60734f2400fe1ed1b28084e093152` (`feat(instagram): integrate configurable image hosting providers`) was pushed to GitHub; local and remote hashes match and the working tree is clean. **3,381 pytest tests passed** in the developer's final run. **No concrete Instagram image-hosting backend is registered, so Instagram image publishing is unavailable by default. No live Instagram publication is verified.** Facebook live verification also remains outstanding. Older dated checkpoints below are historical.
 
-**Latest handoff (October 31, 2026):** See Section 38 for the current source snapshot, test commands, and remaining WordPress live verification. Earlier checkpoint counts are historical.
+**Historical handoff (October 31, 2026):** See Section 38 for the current source snapshot, test commands, and remaining WordPress live verification. Earlier checkpoint counts are historical.
 
 
 ## 1. Purpose
@@ -1259,3 +1259,65 @@ QT_QPA_PLATFORM=offscreen python -m pytest -q
 live-verified. Resume Page creation and live API testing when Facebook allows it.
 Separately plan a small, test-first refactoring phase on a new branch; do not assume
 any refactoring changes have already been made.
+
+---
+
+## 39. November 11, 2026 — Instagram Development and Git Handoff
+
+**Authoritative review input:** uploaded archive
+`SocialFlow_Python Pycharm(20261111-210824).zip`, supplemented by subsequent
+developer-provided terminal verification. The ZIP was supplied before the
+successful commit/push; Git state below comes from the later terminal output.
+
+- Branch: `feature/instagram-integration`.
+- Latest pushed commit: `fd24e47967c60734f2400fe1ed1b28084e093152`.
+- Commit message: `feat(instagram): integrate configurable image hosting providers`.
+- Commit contents: 13 files, 1,735 insertions and 1 deletion.
+- GitHub push advanced the feature branch from `65d47ef` to `fd24e47`.
+- Final `git status`: clean; `git rev-parse HEAD` and
+  `git rev-parse origin/feature/instagram-integration` were identical.
+- Developer-reported full suite: **3,381 passed in 8.34s**.
+- `tests/ui/test_main_content.py`: **49 passed**.
+- `python -m compileall -q` and `git diff --check`: clean at the
+  last coding verification.
+
+### Reproduce verification
+
+From the project root with `.venv` active:
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m pytest -q
+QT_QPA_PLATFORM=offscreen python -m pytest -q tests/ui/test_main_content.py
+python -m compileall -q src/socialflow/ui/main_content.py tests/ui/test_main_content.py
+git diff --check
+git branch --show-current
+git status --short
+```
+
+Do not assume these commands were rerun during this documentation update.
+
+### Instagram provider testing and runtime
+
+Relevant tests:
+
+- `tests/modules/instagram/adapters/test_instagram_publisher.py`
+- `tests/modules/instagram/services/test_instagram_publishing_service.py`
+- `tests/modules/instagram/services/test_instagram_image_provider_config.py`
+- `tests/modules/instagram/services/test_instagram_image_provider_factory.py`
+- `tests/modules/instagram/services/test_instagram_image_url_provider.py`
+- `tests/ui/test_main_content.py`
+
+`MainContent` creates `InstagramPublishingService` from its Instagram Graph
+client and uses `_resolve_instagram_image_provider()` in the account-specific
+publisher factory. The resolver returns `None` for `UNCONFIGURED`; it delegates
+other categories to the provider factory. No hosting backend is registered by
+default. Tests use mocks for registered providers and Graph API boundaries.
+
+### Working procedure for the next phase
+
+Continue with small test-first increments, exact file paths and FIND →
+REPLACE/INSERT instructions, focused pytest before the full suite, and
+reviewed Git staging before commits. Do not commit/push without explicit
+authorization. Keep credentials and local-only `AGENTS.md` out of public Git.
+Phase 25.7 (concrete hosting or its security/configuration groundwork) has
+**not started**. Live Meta verification is not established by mocked tests.

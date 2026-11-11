@@ -1,8 +1,8 @@
 # SocialFlow
 
-> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
+> **Current checkpoint — November 11, 2026:** Instagram account configuration, credential management, connection verification, Graph API image-publishing service, `InstagramPublisher` adapter, and configurable image URL provider composition are implemented and offline-tested. Branch `feature/instagram-integration`; commit `fd24e47967c60734f2400fe1ed1b28084e093152` (`feat(instagram): integrate configurable image hosting providers`) was pushed to GitHub; local and remote hashes match and the working tree is clean. **3,381 pytest tests passed** in the developer's final run. **No concrete Instagram image-hosting backend is registered, so Instagram image publishing is unavailable by default. No live Instagram publication is verified.** Facebook live verification also remains outstanding. Older dated checkpoints below are historical.
 
-**Current status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
+**Historical status (October 31, 2026):** WordPress implementation includes category publishing/editing, remote title/excerpt/status/media editing, and Trash/Restore. See the final section for the latest checkpoint and pending live verification; earlier phase summaries below are historical.
 
 
 SocialFlow is a cross-platform desktop application for creating,
@@ -364,3 +364,42 @@ and multiple-photo checks. Do not put tokens in documentation or commits.
 branch; merge into `main` only after explicit approval and verification. Start the next
 code-refactoring effort on a new branch from updated `main`. The historical November 4
 checkpoint and older feature-status tables above do not describe the current state.
+
+---
+
+## November 11, 2026 — Instagram Integration and Hosting Provider Handoff
+
+**Latest verified source checkpoint:** `feature/instagram-integration`, commit
+`fd24e47967c60734f2400fe1ed1b28084e093152`, pushed to
+`origin/feature/instagram-integration`. The developer confirmed a clean working
+tree and identical local/remote commit hashes. Full offline suite:
+`QT_QPA_PLATFORM=offscreen python -m pytest -q` → **3,381 passed in 8.34s**.
+This documentation was prepared from the uploaded
+`SocialFlow_Python Pycharm(20261111-210824).zip` source snapshot and the
+subsequent verified Git/test results; documentation editing itself does not
+constitute a fresh pytest run.
+
+**Implemented Instagram foundation:** account model and configuration, secure
+token storage and cleanup, connection verification, Graph API HTTP client and
+structured errors, image-container creation/status polling/publishing service,
+and an account-specific `InstagramPublisher` registered by `MainContent`.
+The adapter accepts exactly one image, rejects unsupported tags, validates
+prepared-image consistency, obtains the account token, and requires a public
+HTTPS image URL before publishing.
+
+**Image hosting remains intentionally unconfigured.** The provider architecture
+includes `InstagramImageUrlProvider`, `InstagramImageProviderConfig`,
+`InstagramImageProviderType` (`UNCONFIGURED`, `EXTERNAL_HOSTING`,
+`SELF_HOSTED`), and `InstagramImageProviderFactory`. `MainContent` resolves
+providers at account-specific publisher construction time. Its default
+`UNCONFIGURED` selection supplies `None`; a selected category with no
+registered backend raises an error. Registered mock backends are verified
+in tests, **not** deployed hosting implementations.
+
+**Next proposed work:** Phase 25.7 — decide on external hosting, self-hosting,
+or configuration/security groundwork, then implement and verify an actual
+public HTTPS image-hosting backend. Do not interpret the current passing tests
+as a live Instagram publication or production readiness. Facebook's planned
+text/photo/multi-photo code remains implemented, with live Meta verification
+still pending. Earlier statements that Instagram is wholly future work are
+historical.

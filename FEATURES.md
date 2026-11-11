@@ -1,8 +1,8 @@
 # SocialFlow --- Features
 
-> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
+> **Current checkpoint — November 11, 2026:** Instagram account configuration, credential management, connection verification, Graph API image-publishing service, `InstagramPublisher` adapter, and configurable image URL provider composition are implemented and offline-tested. Branch `feature/instagram-integration`; commit `fd24e47967c60734f2400fe1ed1b28084e093152` (`feat(instagram): integrate configurable image hosting providers`) was pushed to GitHub; local and remote hashes match and the working tree is clean. **3,381 pytest tests passed** in the developer's final run. **No concrete Instagram image-hosting backend is registered, so Instagram image publishing is unavailable by default. No live Instagram publication is verified.** Facebook live verification also remains outstanding. Older dated checkpoints below are historical.
 
-**Current status (October 31, 2026):** See Section 28 for the latest completed WordPress features and remaining live verification. Earlier unchecked items are retained as historical phase snapshots.
+**Historical status (October 31, 2026):** See Section 28 for the latest completed WordPress features and remaining live verification. Earlier unchecked items are retained as historical phase snapshots.
 
 
 ## 1. Project Goal
@@ -671,3 +671,42 @@ This checklist **supersedes historical Facebook/Instagram status entries above**
 API behavior, or production readiness. Page creation is currently blocked by a generic
 Facebook error; Account Status displays no restrictions. The next planned development
 session is a separate refactoring effort, after documentation and an authorized merge.
+
+---
+
+## 47. Instagram Integration and Configurable Image Hosting — November 11, 2026
+
+This section supersedes earlier historical descriptions of Instagram as
+entirely unimplemented.
+
+### Implemented and covered by offline tests
+
+- [x] Instagram account configuration and account-scoped credential keys.
+- [x] Secure Instagram access-token save/retrieve/delete and account conversion
+      cleanup integration.
+- [x] Instagram Graph API transport/client, structured errors, and connection
+      verification.
+- [x] Instagram image-container creation, status polling, and publish service.
+- [x] `InstagramPublisher` adapter for a single-image post; unsupported tags,
+      invalid image counts, and inconsistent prepared images are rejected.
+- [x] Public HTTPS image URL provider interface and provider selection model.
+- [x] Factory registration/lookup for external-hosting and self-hosted categories.
+- [x] `MainContent` account-specific Instagram publisher registration.
+- [x] Safe default with no provider, unavailable-backend rejection, registered
+      provider injection, and no Graph API request when hosting is missing.
+- [x] Regression tests for provider configuration, factory behavior, adapter,
+      and MainContent runtime wiring.
+
+### Not implemented or not verified
+
+- [ ] Concrete external-hosting image upload backend.
+- [ ] Concrete self-hosted image upload backend.
+- [ ] End-user provider configuration and real backend registration.
+- [ ] Live Instagram image publication and end-to-end Meta permissions check.
+- [ ] Instagram multi-image/carousel, video, and tag publishing.
+- [ ] Live Facebook Page publication (separate pending verification).
+
+**Current default:** `UNCONFIGURED`; Instagram publishing is blocked rather
+than claiming a usable image URL. Test baseline **3,381 passed**, November 11,
+2026, on `feature/instagram-integration`, pushed commit `fd24e47`.
+Next proposed phase: **25.7** (hosting implementation choice).

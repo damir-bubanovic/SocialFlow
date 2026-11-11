@@ -1,8 +1,8 @@
 # SocialFlow --- Architecture Decisions
 
-> **Current development checkpoint — November 9, 2026:** Facebook Pages integration is **code-complete for the planned text, single-photo, and multiple-photo publishing scope**, with account configuration, Page discovery, connection verification, GUI integration, credential handling, and publishing reliability covered by offline automated tests. Latest commit: `77aafc4` on `feature/facebook-pages-integration`, pushed to origin; working tree clean; **2,905 pytest tests passed**. **Live Facebook Page/API verification remains pending**, so production readiness is not established. Next: documentation review, then an authorized merge to `main`; subsequent refactoring should begin on a separate branch. Earlier dated sections are historical checkpoints.
+> **Current checkpoint — November 11, 2026:** Instagram account configuration, credential management, connection verification, Graph API image-publishing service, `InstagramPublisher` adapter, and configurable image URL provider composition are implemented and offline-tested. Branch `feature/instagram-integration`; commit `fd24e47967c60734f2400fe1ed1b28084e093152` (`feat(instagram): integrate configurable image hosting providers`) was pushed to GitHub; local and remote hashes match and the working tree is clean. **3,381 pytest tests passed** in the developer's final run. **No concrete Instagram image-hosting backend is registered, so Instagram image publishing is unavailable by default. No live Instagram publication is verified.** Facebook live verification also remains outstanding. Older dated checkpoints below are historical.
 
-**Latest decisions:** ADR-072 through ADR-076 record the October 31, 2026 WordPress scope and verification handoff.
+**Historical decisions:** ADR-072 through ADR-076 record the October 31, 2026 WordPress scope and verification handoff.
 
 
 ## Purpose
@@ -1997,3 +1997,64 @@ delivery under ambiguous network failures, or establish live Facebook API succes
 Live verification is blocked by Facebook Page creation errors, despite the account
 showing no visible restrictions. The planned retry is around November 11, 2026;
 no specific Meta restriction or resolution time has been confirmed.
+
+---
+
+## ADR-084 — Require a Public Image URL Boundary for Instagram
+
+**Status:** Accepted — November 11, 2026
+
+**Context:** The Instagram image publishing service submits a public HTTPS
+`image_url` to the Graph API. A local prepared image path is not a remotely
+accessible image URL.
+
+**Decision:** Keep image hosting behind `InstagramImageUrlProvider` with
+`get_public_url(Path) -> str`. `InstagramPublisher` validates post constraints,
+retrieves credentials, requires a provider, validates its returned HTTPS URL,
+and delegates to `InstagramPublishingService`. Do not fabricate a URL from a
+local path or treat a mock hosting provider as production hosting.
+
+**Consequence:** Image publishing is blocked until a real backend is configured.
+This is deliberate and does not indicate a live Instagram publish.
+
+## ADR-085 — Use Configurable, Explicitly Registered Instagram Hosting Providers
+
+**Status:** Accepted — November 11, 2026
+
+**Context:** The hosting vendor and deployment model have not been selected.
+
+**Decision:** Use `InstagramImageProviderConfig` and
+`InstagramImageProviderType` with `UNCONFIGURED`, `EXTERNAL_HOSTING`, and
+`SELF_HOSTED`. `InstagramImageProviderFactory` accepts registered
+implementations and rejects invalid registrations, an unconfigured selection,
+and missing backends. Default configuration is `UNCONFIGURED` with no
+registered providers. The selected category alone never implies hosting works.
+
+**Consequence:** External and self-hosted backends can be introduced without
+coupling Instagram publishing to one vendor. Concrete backend and settings
+work is deferred to Phase 25.7.
+
+## ADR-086 — Resolve Instagram Hosting at Account-Specific Publisher Construction
+
+**Status:** Accepted — November 11, 2026
+
+**Context:** `MainContent` already composes the shared Instagram Graph client
+and the account-specific `PublisherRouter` factory.
+
+**Decision:** `MainContent._resolve_instagram_image_provider()` returns `None`
+for `UNCONFIGURED`, otherwise delegates to the provider factory. The Instagram
+account factory calls this resolver when constructing `InstagramPublisher`.
+An unavailable selected backend fails with a configuration `ValueError` before
+credential access or Graph API requests. Keep the generic destination-level
+fallback and other platform factories unchanged.
+
+**Consequence:** Provider registration can be tested independently and supplied
+without running hosting operations during construction. A valid registered
+backend is necessary but not sufficient to claim live publishing readiness.
+
+## November 11, 2026 — Verified Implementation Checkpoint
+
+Phase 25.6C-2E completed; developer reported **3,381 passed** and clean
+compilation/diff checks. Commit `fd24e47967c60734f2400fe1ed1b28084e093152`
+was pushed to `feature/instagram-integration`; local and remote hashes matched,
+and the working tree was clean. Phase 25.7 has not begun.
