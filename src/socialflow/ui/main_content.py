@@ -153,6 +153,12 @@ from socialflow.modules.accounts.services.get_instagram_credentials import (
 from socialflow.modules.accounts.services.delete_instagram_credentials import (
     DeleteInstagramCredentials,
 )
+from socialflow.modules.instagram.services.instagram_image_provider_config import (
+    InstagramImageProviderType,
+)
+from socialflow.modules.instagram.services.instagram_image_url_provider import (
+    InstagramImageUrlProvider,
+)
 from socialflow.modules.facebook.api.facebook_graph_client import (
     FacebookGraphClient,
 )
@@ -164,6 +170,18 @@ from socialflow.modules.instagram.api.instagram_graph_client import (
 )
 from socialflow.modules.instagram.auth.instagram_connection_verifier import (
     InstagramConnectionVerifier,
+)
+from socialflow.modules.instagram.adapters.instagram_publisher import (
+    InstagramPublisher,
+)
+from socialflow.modules.instagram.services.instagram_publishing_service import (
+    InstagramPublishingService,
+)
+from socialflow.modules.instagram.services.instagram_image_provider_config import (
+    InstagramImageProviderConfig,
+)
+from socialflow.modules.instagram.services.instagram_image_provider_factory import (
+    InstagramImageProviderFactory,
 )
 from socialflow.modules.facebook.services.facebook_page_discovery_service import (
     FacebookPageDiscoveryService,
@@ -190,6 +208,17 @@ from socialflow.modules.accounts.services.remove_account_with_credential_cleanup
 
 class MainContent(QWidget):
     """Primary content area of the SocialFlow main window."""
+
+    def _resolve_instagram_image_provider(
+        self,
+    ) -> InstagramImageUrlProvider | None:
+        """Resolve the configured Instagram image-hosting backend."""
+        config = self.instagram_image_provider_config
+
+        if config.provider_type is InstagramImageProviderType.UNCONFIGURED:
+            return None
+
+        return self.instagram_image_provider_factory.create(config)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -363,9 +392,19 @@ class MainContent(QWidget):
             wordpress_category_provider
         )
 
-
         # Publishing services.
         publisher = UnconfiguredPublisher()
+
+        instagram_publishing_service = InstagramPublishingService(
+            graph_client=instagram_graph_client,
+        )
+
+        self.instagram_image_provider_config = (
+            InstagramImageProviderConfig()
+        )
+        self.instagram_image_provider_factory = (
+            InstagramImageProviderFactory()
+        )
 
         wordpress_post_client = UrllibWordPressPostClient()
 
@@ -433,6 +472,16 @@ class MainContent(QWidget):
                         account=account,
                         credential_store=credential_store,
                         publishing_service=facebook_publishing_service,
+                    )
+                ),
+                PublishingDestination.INSTAGRAM: (
+                    lambda account: InstagramPublisher(
+                        account=account,
+                        credential_store=credential_store,
+                        publishing_service=instagram_publishing_service,
+                        image_url_provider=(
+                            self._resolve_instagram_image_provider()
+                        ),
                     )
                 ),
                 PublishingDestination.WORDPRESS: (

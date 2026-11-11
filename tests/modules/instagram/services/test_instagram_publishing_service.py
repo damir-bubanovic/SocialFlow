@@ -1035,7 +1035,9 @@ def test_publish_image_polls_until_container_finished() -> None:
     sleep.assert_called_once_with(2.0)
 
 
+
 def test_publish_image_stops_after_polling_exhausted() -> None:
+    sleep = Mock()
     client = Mock(spec=InstagramGraphClient)
     client.post.return_value = {"id": "17890000000000001"}
     client.get.return_value = {"status_code": "IN_PROGRESS"}
@@ -1047,10 +1049,15 @@ def test_publish_image_stops_after_polling_exhausted() -> None:
             instagram_user_id="123456789",
             access_token="test-access-token",
             image_url="https://example.com/photo.jpg",
+            sleep=sleep,
         )
 
     assert client.get.call_count == 3
     client.post.assert_called_once()
+    assert sleep.call_args_list == [
+        call(2.0),
+        call(2.0),
+    ]
 
 
 @pytest.mark.parametrize(

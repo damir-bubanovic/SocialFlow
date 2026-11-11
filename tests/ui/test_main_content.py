@@ -3,6 +3,24 @@ import json
 
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
+from unittest.mock import Mock
+
+from socialflow.modules.accounts.models.instagram_account_config import (
+    InstagramAccountConfig,
+)
+from socialflow.modules.accounts.services.instagram_credential_keys import (
+    InstagramCredentialKeys,
+)
+from socialflow.modules.instagram.services.instagram_image_provider_config import (
+    InstagramImageProviderConfig,
+    InstagramImageProviderType,
+)
+from socialflow.modules.instagram.services.instagram_image_provider_factory import (
+    InstagramImageProviderFactory,
+)
+from socialflow.modules.posts.services.errors import (
+    PublisherNotConfiguredError,
+)
 from socialflow.modules.accounts.views.accounts_page import AccountsPage
 from socialflow.modules.accounts.services.save_facebook_credentials import (
     SaveFacebookCredentials,
@@ -46,6 +64,9 @@ from socialflow.modules.accounts.controllers.instagram_verification_controller i
 from socialflow.modules.accounts.controllers.facebook_verification_controller import (
     FacebookVerificationController,
 )
+from socialflow.modules.posts.services.unconfigured_publisher import (
+    UnconfiguredPublisher,
+)
 from socialflow.ui.main_content import MainContent
 from socialflow.ui.navigation import Navigation
 from socialflow.modules.posts.views.posts_page import PostsPage
@@ -80,6 +101,12 @@ from socialflow.modules.facebook.adapters.facebook_publisher import (
 from socialflow.modules.facebook.services.facebook_publishing_service import (
     FacebookPublishingService,
 )
+from socialflow.modules.instagram.adapters.instagram_publisher import (
+    InstagramPublisher,
+)
+from socialflow.modules.instagram.services.instagram_publishing_service import (
+    InstagramPublishingService,
+)
 from socialflow.modules.accounts.repositories.json_pending_credential_cleanup_repository import (
     JsonPendingCredentialCleanupRepository,
 )
@@ -107,6 +134,25 @@ def test_main_content_is_widget(qtbot) -> None:
 
     assert isinstance(content, QWidget)
 
+
+def test_main_content_instagram_publishing_remains_unconfigured(
+    qtbot,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    router = (
+        content.posts_page
+        ._publishing_controller
+        ._publish_post
+        ._publisher_router
+    )
+
+    publisher = router.publisher_for(
+        PublishingDestination.INSTAGRAM,
+    )
+
+    assert isinstance(publisher, UnconfiguredPublisher)
 
 def test_main_content_contains_navigation(qtbot) -> None:
     content = MainContent()
@@ -640,6 +686,293 @@ def test_main_content_wires_facebook_publisher(qtbot) -> None:
         publisher._publishing_service._client,
         FacebookGraphClient,
     )
+
+
+def test_main_content_wires_instagram_publisher(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    account = Account(
+        name="Instagram Account Test",
+        destination=PublishingDestination.INSTAGRAM,
+    )
+
+    router = (
+        content.posts_page
+        ._publishing_controller
+        ._publish_post
+        ._publisher_router
+    )
+
+    publisher = router.publisher_for_account(account)
+
+    assert isinstance(publisher, InstagramPublisher)
+    assert isinstance(
+        publisher._publishing_service,
+        InstagramPublishingService,
+    )
+    assert isinstance(
+        publisher._publishing_service._graph_client,
+        InstagramGraphClient,
+    )
+    assert (
+        publisher._credential_store
+        is content.instagram_connection_verifier._credential_store
+    )
+    assert publisher._image_url_provider is None
+
+def test_main_content_initializes_unconfigured_instagram_image_provider(
+    qtbot,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert isinstance(
+        content.instagram_image_provider_config,
+        InstagramImageProviderConfig,
+    )
+    assert (
+        content.instagram_image_provider_config.provider_type
+        is InstagramImageProviderType.UNCONFIGURED
+    )
+    assert isinstance(
+        content.instagram_image_provider_factory,
+        InstagramImageProviderFactory,
+    )
+
+def test_main_content_resolves_unconfigured_instagram_provider_to_none(
+    qtbot,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    provider = content._resolve_instagram_image_provider()
+
+    assert provider is None
+
+@pytest.mark.parametrize(
+    "provider_type",
+    [
+        InstagramImageProviderType.EXTERNAL_HOSTING,
+        InstagramImageProviderType.SELF_HOSTED,
+    ],
+)
+def test_main_content_rejects_unavailable_instagram_image_provider(
+    qtbot,
+    provider_type: InstagramImageProviderType,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    content.instagram_image_provider_config = (
+        InstagramImageProviderConfig(
+            provider_type=provider_type,
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="backend is not available",
+    ):
+        content._resolve_instagram_image_provider()
+
+@pytest.mark.parametrize(
+    "provider_type",
+    [
+        InstagramImageProviderType.EXTERNAL_HOSTING,
+        InstagramImageProviderType.SELF_HOSTED,
+    ],
+)
+def test_main_content_resolves_registered_instagram_image_provider(
+    qtbot,
+    provider_type: InstagramImageProviderType,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    provider = Mock()
+
+    content.instagram_image_provider_config = (
+        InstagramImageProviderConfig(
+            provider_type=provider_type,
+        )
+    )
+    content.instagram_image_provider_factory = (
+        InstagramImageProviderFactory(
+            providers={
+                provider_type: provider,
+            },
+        )
+    )
+
+    resolved_provider = content._resolve_instagram_image_provider()
+
+    assert resolved_provider is provider
+    provider.get_public_url.assert_not_called()
+
+@pytest.mark.parametrize(
+    "provider_type",
+    [
+        InstagramImageProviderType.EXTERNAL_HOSTING,
+        InstagramImageProviderType.SELF_HOSTED,
+    ],
+)
+def test_main_content_supplies_registered_provider_to_instagram_publisher(
+    qtbot,
+    provider_type: InstagramImageProviderType,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    provider = Mock()
+
+    content.instagram_image_provider_config = (
+        InstagramImageProviderConfig(
+            provider_type=provider_type,
+        )
+    )
+    content.instagram_image_provider_factory = (
+        InstagramImageProviderFactory(
+            providers={
+                provider_type: provider,
+            },
+        )
+    )
+
+    account = Account(
+        name="Instagram Provider Wiring Test",
+        destination=PublishingDestination.INSTAGRAM,
+    )
+
+    router = (
+        content.posts_page
+        ._publishing_controller
+        ._publish_post
+        ._publisher_router
+    )
+
+    publisher = router.publisher_for_account(account)
+
+    assert isinstance(publisher, InstagramPublisher)
+    assert publisher._image_url_provider is provider
+    provider.get_public_url.assert_not_called()
+
+@pytest.mark.parametrize(
+    "provider_type",
+    [
+        InstagramImageProviderType.EXTERNAL_HOSTING,
+        InstagramImageProviderType.SELF_HOSTED,
+    ],
+)
+def test_main_content_rejects_unavailable_instagram_provider_before_credentials(
+    qtbot,
+    monkeypatch,
+    provider_type: InstagramImageProviderType,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    content.instagram_image_provider_config = (
+        InstagramImageProviderConfig(
+            provider_type=provider_type,
+        )
+    )
+
+    account = Account(
+        name="Instagram Unavailable Provider Test",
+        destination=PublishingDestination.INSTAGRAM,
+    )
+
+    router = (
+        content.posts_page
+        ._publishing_controller
+        ._publish_post
+        ._publisher_router
+    )
+
+    credential_get = Mock()
+    graph_post = Mock()
+
+    monkeypatch.setattr(
+        content.instagram_connection_verifier._credential_store,
+        "get",
+        credential_get,
+    )
+    monkeypatch.setattr(
+        content.instagram_connection_verifier._graph_client,
+        "post",
+        graph_post,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="backend is not available",
+    ):
+        router.publisher_for_account(account)
+
+    credential_get.assert_not_called()
+    graph_post.assert_not_called()
+
+def test_main_content_instagram_publisher_rejects_missing_image_provider(
+    qtbot,
+    monkeypatch,
+) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    account = Account(
+        name="Instagram Missing Provider Test",
+        destination=PublishingDestination.INSTAGRAM,
+        instagram_config=InstagramAccountConfig(
+            instagram_user_id="17841400000000000",
+            username="test_account",
+        ),
+    )
+
+    router = (
+        content.posts_page
+        ._publishing_controller
+        ._publish_post
+        ._publisher_router
+    )
+
+    publisher = router.publisher_for_account(account)
+
+    assert isinstance(publisher, InstagramPublisher)
+    assert publisher._image_url_provider is None
+
+    credential_get = Mock(return_value="valid-access-token")
+
+    monkeypatch.setattr(
+        publisher._credential_store,
+        "get",
+        credential_get,
+    )
+
+    post = Mock()
+    post.source.tags = ()
+    post.source.images = (Mock(),)
+    post.images = ()
+
+    graph_post = Mock()
+
+    monkeypatch.setattr(
+        publisher._publishing_service._graph_client,
+        "post",
+        graph_post,
+    )
+
+    with pytest.raises(
+        PublisherNotConfiguredError,
+        match="image URL provider",
+    ):
+        publisher.publish(post)
+
+    credential_get.assert_called_once_with(
+        InstagramCredentialKeys.access_token(account)
+    )
+    graph_post.assert_not_called()
+
 
 # qtbot ensures QApplication exists before MainContent constructs widgets.
 def test_main_content_does_not_recover_when_accounts_file_is_missing(
