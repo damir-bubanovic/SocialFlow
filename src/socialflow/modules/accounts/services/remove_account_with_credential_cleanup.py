@@ -20,6 +20,9 @@ from socialflow.modules.accounts.services.errors import (
 from socialflow.modules.accounts.services.facebook_credential_keys import (
     FacebookCredentialKeys,
 )
+from socialflow.modules.accounts.services.instagram_credential_keys import (
+    InstagramCredentialKeys,
+)
 from socialflow.modules.accounts.services.remove_account import (
     RemoveAccount,
 )
@@ -74,14 +77,16 @@ class RemoveAccountWithCredentialCleanup:
             # Recheck the repository before every deletion.
             accounts = self._account_repository.all()
 
-            account_id = UUID(key.split(":")[1])
+            platform, account_id_text, _credential_type = key.split(":")
+            account_id = UUID(account_id_text)
 
             if any(
                     account.id.value == account_id
+                    and account.destination.value == platform
                     for account in accounts
             ):
-                # Account removal did not complete.
-                # Preserve credentials and clear stale cleanup intent.
+                # The credential still belongs to an active account.
+                # Preserve it and clear stale cleanup intent.
                 self._cleanup_repository.remove(key)
                 continue
 
@@ -103,5 +108,8 @@ class RemoveAccountWithCredentialCleanup:
 
         if account.destination == PublishingDestination.WORDPRESS:
             return WordPressCredentialKeys.application_password(account)
+
+        if account.destination == PublishingDestination.INSTAGRAM:
+            return InstagramCredentialKeys.access_token(account)
 
         return None

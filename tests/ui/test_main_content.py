@@ -13,6 +13,15 @@ from socialflow.modules.accounts.services.get_facebook_credentials import (
 from socialflow.modules.accounts.services.delete_facebook_credentials import (
     DeleteFacebookCredentials,
 )
+from socialflow.modules.accounts.services.save_instagram_credentials import (
+    SaveInstagramCredentials,
+)
+from socialflow.modules.accounts.services.get_instagram_credentials import (
+    GetInstagramCredentials,
+)
+from socialflow.modules.accounts.services.delete_instagram_credentials import (
+    DeleteInstagramCredentials,
+)
 from socialflow.modules.accounts.controllers.facebook_page_discovery_controller import (
     FacebookPageDiscoveryController,
 )
@@ -190,6 +199,56 @@ def test_main_content_instagram_verifier_uses_shared_credential_store(
     assert (
         instagram_verifier._credential_store
         is facebook_verifier._credential_store
+    )
+
+def test_main_content_wires_instagram_credential_services(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    page = content.accounts_page
+
+    assert isinstance(
+        page._save_instagram_credentials,
+        SaveInstagramCredentials,
+    )
+    assert isinstance(
+        page._get_instagram_credentials,
+        GetInstagramCredentials,
+    )
+    assert isinstance(
+        page._delete_instagram_credentials,
+        DeleteInstagramCredentials,
+    )
+
+
+def test_main_content_instagram_credential_storage_is_guarded(qtbot) -> None:
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    page = content.accounts_page
+    save_service = page._save_instagram_credentials
+    get_service = page._get_instagram_credentials
+    delete_service = page._delete_instagram_credentials
+
+    assert save_service is not None
+    assert get_service is not None
+    assert delete_service is not None
+
+    # Saving uses the guarded store, while reads and deletes
+    # share the original keyring with the connection verifier.
+    assert (
+        get_service._credential_store
+        is content.instagram_connection_verifier._credential_store
+    )
+    assert (
+        delete_service._credential_store
+        is get_service._credential_store
+    )
+
+    guarded_store = save_service._credential_store
+    assert (
+        guarded_store._credential_store
+        is get_service._credential_store
     )
 
 def test_main_content_wires_facebook_account_services(qtbot) -> None:
@@ -662,6 +721,181 @@ def test_main_content_recovers_orphaned_facebook_credentials_on_startup(
     assert deleted_keys == [key]
     assert journal.all() == ()
 
+
+def test_main_content_recovers_orphaned_instagram_credentials_on_startup(
+    qtbot,
+    monkeypatch,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    paths.accounts_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    paths.accounts_file.write_text("[]", encoding="utf-8")
+
+    account_id = AccountId(uuid4())
+    key = f"instagram:{account_id}:access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert deleted_keys == [key]
+    assert journal.all() == ()
+
+
+def test_main_content_preserves_pending_instagram_cleanup_on_failure(
+    qtbot,
+    monkeypatch,
+) -> None:
+    # Ensure QApplication exists before constructing MainContent.
+    assert qtbot is not None
+
+    paths = AppPaths(data_directory())
+
+    paths.accounts_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    paths.accounts_file.write_text("[]", encoding="utf-8")
+
+    account_id = AccountId(uuid4())
+    key = f"instagram:{account_id}:access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def fail_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+        raise OSError("Simulated keyring deletion failure")
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        fail_delete,
+    )
+
+    with pytest.raises(
+        CredentialStorageError,
+        match="Could not securely delete account credentials",
+    ):
+        MainContent()
+
+    assert deleted_keys == [key]
+    assert journal.all() == (key,)
+
+
+def test_main_content_preserves_instagram_token_for_existing_account(
+    qtbot,
+    monkeypatch,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    account = Account(
+        name="Existing Instagram Account",
+        destination=PublishingDestination.INSTAGRAM,
+    )
+
+    account_repository = JsonAccountRepository(
+        paths.accounts_file,
+    )
+    account_repository.add(account)
+
+    key = f"instagram:{account.id}:access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert deleted_keys == []
+    assert account_repository.all() == (account,)
+    assert journal.all() == ()
+
+
+def test_main_content_recovers_instagram_token_after_conversion_to_facebook(
+    qtbot,
+    monkeypatch,
+) -> None:
+    paths = AppPaths(data_directory())
+
+    # The account still exists, but its destination has changed.
+    account = Account(
+        name="Converted Facebook Account",
+        destination=PublishingDestination.FACEBOOK,
+    )
+
+    account_repository = JsonAccountRepository(
+        paths.accounts_file,
+    )
+    account_repository.add(account)
+
+    # A crash occurred after updating account metadata but before
+    # deleting the obsolete Instagram token.
+    key = f"instagram:{account.id}:access_token"
+
+    journal = JsonPendingCredentialCleanupRepository(
+        paths.pending_credential_cleanup_file,
+    )
+    journal.add(key)
+
+    deleted_keys: list[str] = []
+
+    def record_delete(_store, credential_key: str) -> None:
+        deleted_keys.append(credential_key)
+
+    monkeypatch.setattr(
+        "socialflow.infrastructure.credentials.keyring_credential_store."
+        "KeyringCredentialStore.delete",
+        record_delete,
+    )
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    # Recovery must check both account ID and destination.
+    assert deleted_keys == [key]
+
+    # Account metadata must remain unchanged.
+    assert account_repository.all() == (account,)
+
+    # Completed cleanup must be removed from the journal.
+    assert journal.all() == ()
+
 def test_main_content_preserves_pending_cleanup_when_keyring_delete_fails(
     qtbot,
     monkeypatch,
@@ -834,3 +1068,17 @@ def test_main_content_preserves_credentials_for_existing_account(
     assert deleted_keys == []
     assert account_repository.all() == (account,)
     assert journal.all() == ()
+
+
+def test_main_content_wires_instagram_conversion_cleanup(qtbot) -> None:
+    from socialflow.modules.accounts.services.update_account_with_instagram_cleanup import (
+        UpdateAccountWithInstagramCleanup,
+    )
+
+    content = MainContent()
+    qtbot.addWidget(content)
+
+    assert isinstance(
+        content.accounts_page._update_account_with_instagram_cleanup,
+        UpdateAccountWithInstagramCleanup,
+    )

@@ -21,6 +21,10 @@ from socialflow.modules.accounts.repositories.errors import (
     AccountStorageError,
 )
 from socialflow.modules.accounts.services.update_account import UpdateAccount
+from socialflow.modules.accounts.services.update_account_with_instagram_cleanup import (
+    InstagramConversionCleanupIncompleteError,
+    UpdateAccountWithInstagramCleanup,
+)
 from socialflow.modules.accounts.services.connection_verifier import (
     ConnectionVerifier,
 )
@@ -67,6 +71,15 @@ from socialflow.modules.facebook.services.facebook_page_discovery_service import
 from socialflow.modules.accounts.services.get_facebook_credentials import (
     GetFacebookCredentials,
 )
+from socialflow.modules.accounts.services.save_instagram_credentials import (
+    SaveInstagramCredentials,
+)
+from socialflow.modules.accounts.services.get_instagram_credentials import (
+    GetInstagramCredentials,
+)
+from socialflow.modules.accounts.services.delete_instagram_credentials import (
+    DeleteInstagramCredentials,
+)
 from socialflow.modules.accounts.services.remove_account_with_credential_cleanup import (
     RemoveAccountWithCredentialCleanup,
 )
@@ -101,6 +114,12 @@ class AccountsPage(QWidget):
                 RemoveAccountWithCredentialCleanup | None
         ) = None,
         instagram_connection_verifier: ConnectionVerifier | None = None,
+        save_instagram_credentials: SaveInstagramCredentials | None = None,
+        get_instagram_credentials: GetInstagramCredentials | None = None,
+        delete_instagram_credentials: DeleteInstagramCredentials | None = None,
+        update_account_with_instagram_cleanup: (
+                UpdateAccountWithInstagramCleanup | None
+        ) = None,
     ) -> None:
         super().__init__(parent)
 
@@ -118,6 +137,12 @@ class AccountsPage(QWidget):
         self._save_facebook_credentials = save_facebook_credentials
         self._delete_facebook_credentials = delete_facebook_credentials
         self._get_facebook_credentials = get_facebook_credentials
+        self._save_instagram_credentials = save_instagram_credentials
+        self._get_instagram_credentials = get_instagram_credentials
+        self._delete_instagram_credentials = delete_instagram_credentials
+        self._update_account_with_instagram_cleanup = (
+            update_account_with_instagram_cleanup
+        )
         self._verification_controller = (
             WordPressVerificationController(
                 wordpress_connection_verifier,
@@ -478,6 +503,26 @@ class AccountsPage(QWidget):
 
         service.execute(account, token)
 
+    def _save_instagram_access_token(
+        self,
+        account: Account,
+        access_token: str,
+    ) -> bool:
+        """Save a supplied Instagram token securely."""
+        if account.destination != PublishingDestination.INSTAGRAM:
+            return False
+
+        if not access_token.strip():
+            return False
+
+        service = self._save_instagram_credentials
+        if service is None:
+            raise CredentialStorageError(
+                "Secure Instagram credential storage is unavailable."
+            )
+
+        return service.execute(account, access_token)
+
     def _handle_add_account(self) -> None:
         """Add an account and then save its WordPress credentials."""
         if self.account_form.selected_destination() is None:
@@ -486,6 +531,8 @@ class AccountsPage(QWidget):
 
         account = self.account_form.account()
         password = self.account_form.wordpress_application_password()
+        instagram_token = self.account_form.instagram_access_token()
+        self.account_form.instagram_access_token_input.clear()
 
         try:
             self._add_account.execute(account)
@@ -529,6 +576,19 @@ class AccountsPage(QWidget):
                 self.accounts_changed.emit()
                 return
 
+        if account.destination == PublishingDestination.INSTAGRAM:
+            try:
+                self._save_instagram_access_token(
+                    account,
+                    instagram_token,
+                )
+            except CredentialStorageError:
+                # The account exists, but credential saving failed.
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
         self._refresh_accounts()
         self.account_status.show_success()
         self.accounts_changed.emit()
@@ -542,6 +602,8 @@ class AccountsPage(QWidget):
 
         updated = self.account_form.account()
         password = self.account_form.wordpress_application_password()
+        instagram_token = self.account_form.instagram_access_token()
+        self.account_form.instagram_access_token_input.clear()
 
         if (
                 current.destination == PublishingDestination.FACEBOOK
@@ -582,6 +644,7 @@ class AccountsPage(QWidget):
         previous_facebook_token: str | None = None
         old_facebook_token_deleted = False
         replacement_facebook_token_saved = False
+        facebook_account: Account | None = None
 
         if (
                 current.destination == PublishingDestination.FACEBOOK
@@ -654,15 +717,99 @@ class AccountsPage(QWidget):
                     return
 
         try:
-            self._update_account.execute(
-                current,
-                updated,
-            )
-        except (
-                AccountNotFoundError,
-                DuplicateAccountError,
-                InvalidAccountError,
+            if (
+                    current.destination == PublishingDestination.INSTAGRAM
+                    and updated.destination != PublishingDestination.INSTAGRAM
+                    and self._update_account_with_instagram_cleanup is not None
             ):
+                self._update_account_with_instagram_cleanup.execute(
+                    current,
+                    updated,
+                )
+            else:
+                self._update_account.execute(
+                    current,
+                    updated,
+                )
+        except InstagramConversionCleanupIncompleteError:
+            # Account metadata was updated, but the obsolete Instagram token
+            # still requires cleanup. Startup recovery will retry it.
+            self._refresh_accounts()
+            self.account_status.show_error()
+            self.accounts_changed.emit()
+            return
+
+
+        except (
+
+                AccountNotFoundError,
+
+                DuplicateAccountError,
+
+                InvalidAccountError,
+
+                AccountStorageError,
+
+                OSError,
+
+        ):
+
+            # An update error does not necessarily mean the account
+
+            # metadata was left unchanged. Verify persisted state
+
+            # before rolling back a replacement Facebook credential.
+
+            if replacement_facebook_token_saved:
+
+                try:
+
+                    persisted_accounts = self._list_accounts.execute()
+
+                except (AccountStorageError, OSError):
+
+                    # Without a reliable persisted state, deleting the
+
+                    # replacement token could destroy a valid credential.
+
+                    self.account_status.show_error()
+
+                    return
+
+                persisted_account = next(
+
+                    (
+
+                        account
+
+                        for account in persisted_accounts
+
+                        if account.id == current.id
+
+                    ),
+
+                    None,
+
+                )
+
+                if persisted_account is None:
+                    self.account_status.show_error()
+
+                    return
+
+                if persisted_account.destination != current.destination:
+                    # The conversion may have persisted despite the
+
+                    # exception. Keep the replacement Facebook token.
+
+                    self._refresh_accounts()
+
+                    self.account_status.show_error()
+
+                    self.accounts_changed.emit()
+
+                    return
+
             if replacement_facebook_token_saved:
                 try:
                     if previous_facebook_token is not None:
@@ -674,8 +821,13 @@ class AccountsPage(QWidget):
                             current,
                             previous_facebook_token,
                         )
-                    elif self._delete_facebook_credentials is not None:
-                        self._delete_facebook_credentials.execute(current)
+                    elif (
+                            self._delete_facebook_credentials is not None
+                            and facebook_account is not None
+                        ):
+                        self._delete_facebook_credentials.execute(
+                            facebook_account
+                        )
 
                 except CredentialStorageError:
                     self.account_status.show_error()
@@ -726,6 +878,26 @@ class AccountsPage(QWidget):
                 self.accounts_changed.emit()
                 return
 
+        if updated.destination == PublishingDestination.INSTAGRAM:
+            instagram_account = Account(
+                name=updated.name.strip(),
+                destination=PublishingDestination.INSTAGRAM,
+                id=current.id,
+                instagram_config=updated.instagram_config,
+            )
+
+            try:
+                self._save_instagram_access_token(
+                    instagram_account,
+                    instagram_token,
+                )
+            except CredentialStorageError:
+                # Account update succeeded, but credential saving failed.
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
         # Delete obsolete credentials when converting away from WordPress.
         if (
             current.destination == PublishingDestination.WORDPRESS
@@ -749,6 +921,28 @@ class AccountsPage(QWidget):
             try:
                 self._delete_facebook_credentials.execute(current)
             except CredentialStorageError:
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
+        # Legacy fallback for callers without the crash-safe
+        # Instagram conversion service.
+        if (
+                current.destination == PublishingDestination.INSTAGRAM
+                and updated.destination != PublishingDestination.INSTAGRAM
+                and self._update_account_with_instagram_cleanup is None
+        ):
+            if self._delete_instagram_credentials is None:
+                self._refresh_accounts()
+                self.account_status.show_error()
+                self.accounts_changed.emit()
+                return
+
+            try:
+                self._delete_instagram_credentials.execute(current)
+            except CredentialStorageError:
+                # Account metadata was updated, but token cleanup failed.
                 self._refresh_accounts()
                 self.account_status.show_error()
                 self.accounts_changed.emit()
@@ -807,6 +1001,18 @@ class AccountsPage(QWidget):
         ):
             try:
                 self._delete_facebook_credentials.execute(account)
+            except CredentialStorageError:
+                self._refresh_accounts()
+                self.account_status.show_remove_error()
+                self.accounts_changed.emit()
+                return
+
+        if (
+            account.destination == PublishingDestination.INSTAGRAM
+            and self._delete_instagram_credentials is not None
+        ):
+            try:
+                self._delete_instagram_credentials.execute(account)
             except CredentialStorageError:
                 self._refresh_accounts()
                 self.account_status.show_remove_error()

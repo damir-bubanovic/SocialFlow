@@ -72,6 +72,7 @@ class JsonPendingCredentialCleanupRepository:
         expected_types = {
             "facebook": "page_access_token",
             "wordpress": "application_password",
+            "instagram": "access_token",
         }
 
         if expected_types.get(platform) != credential_type:

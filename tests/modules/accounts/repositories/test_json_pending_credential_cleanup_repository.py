@@ -173,3 +173,37 @@ def test_journal_rejects_malformed_records(
 
     with pytest.raises(ValueError):
         repository.all()
+
+def test_journal_accepts_instagram_access_token_key(tmp_path) -> None:
+    path = tmp_path / "pending_credential_cleanup.json"
+    repository = JsonPendingCredentialCleanupRepository(path)
+
+    key = "instagram:12345678-1234-5678-1234-567812345678:access_token"
+
+    repository.add(key)
+
+    reloaded = JsonPendingCredentialCleanupRepository(path)
+
+    assert reloaded.all() == (key,)
+
+    reloaded.remove(key)
+
+    assert repository.all() == ()
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "instagram:12345678-1234-5678-1234-567812345678:page_access_token",
+        "instagram:12345678-1234-5678-1234-567812345678:application_password",
+        "instagram:not-a-uuid:access_token",
+        "unknown:12345678-1234-5678-1234-567812345678:access_token",
+    ],
+)
+def test_journal_rejects_invalid_instagram_keys(tmp_path, key) -> None:
+    repository = JsonPendingCredentialCleanupRepository(
+        tmp_path / "pending_credential_cleanup.json"
+    )
+
+    with pytest.raises(ValueError, match="Invalid credential cleanup key"):
+        repository.add(key)

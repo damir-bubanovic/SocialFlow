@@ -4,6 +4,9 @@ from socialflow.modules.accounts.services.add_account import AddAccount
 from socialflow.modules.accounts.services.list_accounts import ListAccounts
 from socialflow.modules.accounts.services.remove_account import RemoveAccount
 from socialflow.modules.accounts.services.update_account import UpdateAccount
+from socialflow.modules.accounts.services.update_account_with_instagram_cleanup import (
+    UpdateAccountWithInstagramCleanup,
+)
 from socialflow.modules.accounts.services.save_wordpress_credentials import (
     SaveWordPressCredentials,
 )
@@ -141,6 +144,15 @@ from socialflow.modules.accounts.services.save_facebook_credentials import (
 from socialflow.modules.accounts.services.get_facebook_credentials import (
     GetFacebookCredentials,
 )
+from socialflow.modules.accounts.services.save_instagram_credentials import (
+    SaveInstagramCredentials,
+)
+from socialflow.modules.accounts.services.get_instagram_credentials import (
+    GetInstagramCredentials,
+)
+from socialflow.modules.accounts.services.delete_instagram_credentials import (
+    DeleteInstagramCredentials,
+)
 from socialflow.modules.facebook.api.facebook_graph_client import (
     FacebookGraphClient,
 )
@@ -218,6 +230,19 @@ class MainContent(QWidget):
         delete_facebook_credentials = DeleteFacebookCredentials(
             credential_store=credential_store,
         )
+
+        # Instagram credentials use the shared secure keyring.
+        # Writes are guarded by the pending-cleanup journal.
+        save_instagram_credentials = SaveInstagramCredentials(
+            credential_store=guarded_credential_store,
+        )
+        get_instagram_credentials = GetInstagramCredentials(
+            credential_store=credential_store,
+        )
+        delete_instagram_credentials = DeleteInstagramCredentials(
+            credential_store=credential_store,
+        )
+
         # Facebook Graph API services.
         facebook_graph_client = FacebookGraphClient(
             api_version="v24.0",
@@ -296,6 +321,14 @@ class MainContent(QWidget):
 
         update_account = UpdateAccount(account_repository)
 
+        update_account_with_instagram_cleanup = (
+            UpdateAccountWithInstagramCleanup(
+                update_account=update_account,
+                cleanup_repository=cleanup_repository,
+                credential_store=credential_store,
+                account_repository=account_repository,
+            )
+        )
 
         # Tag services.
         wordpress_tag_client = UrllibWordPressTagClient()
@@ -479,6 +512,12 @@ class MainContent(QWidget):
             save_facebook_credentials=save_facebook_credentials,
             get_facebook_credentials=get_facebook_credentials,
             delete_facebook_credentials=delete_facebook_credentials,
+            save_instagram_credentials=save_instagram_credentials,
+            get_instagram_credentials=get_instagram_credentials,
+            delete_instagram_credentials=delete_instagram_credentials,
+            update_account_with_instagram_cleanup=(
+                update_account_with_instagram_cleanup
+            ),
             facebook_page_discovery_service=facebook_page_discovery_service,
         )
 

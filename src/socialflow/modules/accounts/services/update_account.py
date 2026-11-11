@@ -48,6 +48,14 @@ class UpdateAccount:
                 )
                 else None
             ),
+            instagram_config=(
+                updated.instagram_config.normalized()
+                if (
+                        updated.destination == PublishingDestination.INSTAGRAM
+                        and updated.instagram_config is not None
+                )
+                else None
+            ),
         )
 
         if any(

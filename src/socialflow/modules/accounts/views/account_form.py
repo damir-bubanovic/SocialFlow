@@ -12,6 +12,9 @@ from socialflow.modules.accounts.models.account import Account
 from socialflow.modules.accounts.models.facebook_page_config import (
     FacebookPageConfig,
 )
+from socialflow.modules.accounts.models.instagram_account_config import (
+    InstagramAccountConfig,
+)
 from socialflow.modules.accounts.models.wordpress_connection_config import (
     WordPressConnectionConfig,
 )
@@ -81,6 +84,24 @@ class AccountForm(QWidget):
 
         self.facebook_page_id_input.textChanged.connect(
             self._invalidate_facebook_page_token
+        )
+
+        self.instagram_user_id_input = QLineEdit(self)
+        self.instagram_user_id_input.setPlaceholderText(
+            "Instagram User ID"
+        )
+
+        self.instagram_username_input = QLineEdit(self)
+        self.instagram_username_input.setPlaceholderText(
+            "Instagram username"
+        )
+
+        self.instagram_access_token_input = QLineEdit(self)
+        self.instagram_access_token_input.setPlaceholderText(
+            "Instagram access token"
+        )
+        self.instagram_access_token_input.setEchoMode(
+            QLineEdit.EchoMode.Password
         )
 
         self.wordpress_site_url_input = QLineEdit(self)
@@ -157,6 +178,29 @@ class AccountForm(QWidget):
             self.facebook_page_name_input,
         )
 
+        self.instagram_user_id_label = QLabel(
+            "Instagram User ID", self
+        )
+        self.instagram_username_label = QLabel(
+            "Instagram username", self
+        )
+        self.instagram_access_token_label = QLabel(
+            "Access token", self
+        )
+
+        layout.addRow(
+            self.instagram_user_id_label,
+            self.instagram_user_id_input,
+        )
+        layout.addRow(
+            self.instagram_username_label,
+            self.instagram_username_input,
+        )
+        layout.addRow(
+            self.instagram_access_token_label,
+            self.instagram_access_token_input,
+        )
+
         self.wordpress_site_url_label = QLabel("Site URL", self)
         self.wordpress_username_label = QLabel("Username", self)
         self.wordpress_password_label = QLabel(
@@ -214,6 +258,11 @@ class AccountForm(QWidget):
                 if destination == PublishingDestination.FACEBOOK
                 else None
             ),
+            instagram_config=(
+                self.instagram_account_config()
+                if destination == PublishingDestination.INSTAGRAM
+                else None
+            ),
         )
 
     def selected_destination(self) -> PublishingDestination | None:
@@ -255,6 +304,9 @@ class AccountForm(QWidget):
         self.wordpress_username_input.clear()
         self.facebook_page_id_input.clear()
         self.facebook_page_name_input.clear()
+        self.instagram_user_id_input.clear()
+        self.instagram_username_input.clear()
+        self.instagram_access_token_input.clear()
 
         if (
                 account.destination == PublishingDestination.FACEBOOK
@@ -265,6 +317,17 @@ class AccountForm(QWidget):
             )
             self.facebook_page_name_input.setText(
                 account.facebook_config.page_name
+            )
+
+        if (
+            account.destination == PublishingDestination.INSTAGRAM
+            and account.instagram_config is not None
+        ):
+            self.instagram_user_id_input.setText(
+                account.instagram_config.instagram_user_id
+            )
+            self.instagram_username_input.setText(
+                account.instagram_config.username
             )
 
         # Restore saved WordPress connection settings.
@@ -300,6 +363,9 @@ class AccountForm(QWidget):
         self.wordpress_username_input.clear()
         self.facebook_page_id_input.clear()
         self.facebook_page_name_input.clear()
+        self.instagram_user_id_input.clear()
+        self.instagram_username_input.clear()
+        self.instagram_access_token_input.clear()
         self.wordpress_application_password_input.clear()
         self.wordpress_application_password_input.setEchoMode(
             QLineEdit.EchoMode.Password
@@ -331,7 +397,28 @@ class AccountForm(QWidget):
         ):
             widget.setVisible(is_facebook)
 
+        self._update_instagram_fields()
         self._update_wordpress_fields()
+
+    def _update_instagram_fields(self) -> None:
+        """Show Instagram fields only for Instagram accounts."""
+        is_instagram = (
+            self.selected_destination()
+            == PublishingDestination.INSTAGRAM
+        )
+
+        if not is_instagram:
+            self.instagram_access_token_input.clear()
+
+        for widget in (
+            self.instagram_user_id_label,
+            self.instagram_user_id_input,
+            self.instagram_username_label,
+            self.instagram_username_input,
+            self.instagram_access_token_label,
+            self.instagram_access_token_input,
+        ):
+            widget.setVisible(is_instagram)
 
     def _update_wordpress_fields(self) -> None:
         """Show WordPress-specific fields only for WordPress accounts."""
@@ -350,6 +437,17 @@ class AccountForm(QWidget):
                 self.password_visibility_button,
         ):
             widget.setVisible(is_wordpress)
+
+    def instagram_account_config(self) -> InstagramAccountConfig:
+        """Return normalized, non-secret Instagram settings."""
+        return InstagramAccountConfig(
+            instagram_user_id=self.instagram_user_id_input.text(),
+            username=self.instagram_username_input.text(),
+        ).normalized()
+
+    def instagram_access_token(self) -> str:
+        """Return the access token entered in the form."""
+        return self.instagram_access_token_input.text()
 
     def wordpress_connection_config(
         self,
